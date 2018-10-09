@@ -1,0 +1,19 @@
+image: berenger/spetabaruci
+
+spetabaru:
+  script:
+    - mkdir build
+    - cd build
+    - VERBOSE=1 CXX=g++-7 cmake ..
+    - make
+    - make test
+    
+    
+spetabaru-debug:
+  script:
+    - mkdir build
+    - cd build
+    - VERBOSE=1 CXX=g++-7 cmake -DCMAKE_BUILD_TYPE=DEBUG ..
+    - make
+    - make test
+
