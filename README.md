@@ -20,3 +20,8 @@ Several examples are given in the `Example` directory.
 
 Please leave an issue on the SPETABARU repository:
 https://gitlab.inria.fr/bramas/spetabaru
+
+# Citing
+
+You can refer to the preprint available at https://arxiv.org/abs/1803.04211
+This document is also describing the current models.
