@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////
 // Spetabaru - Berenger Bramas MPCDF - 2017
-// Under MIT Licence, please you must read the LICENCE file.
+// Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPARRAYACCESSOR_HPP
 #define SPARRAYACCESSOR_HPP

@@ -1,6 +1,6 @@
 ###########################################################################
 # SPETABARU - Berenger Bramas MPCDF - 2016
-# Under MIT Licence, please you must read the LICENCE file.
+# Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
 project(PATTERNS_SPETABARU CXX)
 
