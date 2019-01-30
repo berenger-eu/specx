@@ -7,8 +7,12 @@
 
 #include <atomic>
 
+#include "SpAbstractBufferManager.hpp"
+
 template <class TargetType>
 class SpDataBufferCore{
+    SpAbstractBufferManager<TargetType>* bufferManager;
+
     std::atomic<bool> underUsage;
     std::atomic<int> dataUseLimitCounter;
     std::atomic<TargetType*> dataPtr;
@@ -23,7 +27,12 @@ class SpDataBufferCore{
             if(todeleteDataPtr != nullptr && dataPtr.compare_exchange_strong(todeleteDataPtr, nullDataptr) == true){
                 assert(nbOfPossibleDeleter >= 1);
                 while(nbOfPossibleDeleter != 1);
-                delete todeleteDataPtr;
+                if(bufferManager){
+                    bufferManager->releaseABuffer(todeleteDataPtr);
+                }
+                else{
+                    delete todeleteDataPtr;
+                }
                 delete this;
                 return true;
             }
@@ -38,8 +47,8 @@ class SpDataBufferCore{
     }
 
 public:
-    SpDataBufferCore()
-        : underUsage(true), dataUseLimitCounter(0), dataPtr(nullptr), dataUseCounter(0), nbOfPossibleDeleter(0){
+    explicit SpDataBufferCore(SpAbstractBufferManager<TargetType>* inBufferManager = nullptr)
+        : bufferManager(inBufferManager), underUsage(true), dataUseLimitCounter(0), dataPtr(nullptr), dataUseCounter(0), nbOfPossibleDeleter(0){
     }
 
     SpDataBufferCore(const SpDataBufferCore&) = delete;
@@ -54,11 +63,16 @@ public:
 
     TargetType* getData(){
         if(dataPtr == nullptr){
-            TargetType* newDataPtr = new TargetType();
+            TargetType* newDataPtr = (bufferManager ? bufferManager->getABuffer() : new TargetType());
             TargetType* nullDataptr = nullptr;
             if(dataPtr.compare_exchange_strong(nullDataptr, newDataPtr) == false){
                 assert(nullDataptr != nullptr);
-                delete newDataPtr;
+                if(bufferManager){
+                    bufferManager->releaseABuffer(newDataPtr);
+                }
+                else{
+                    delete newDataPtr;
+                }
             }
         }
         return dataPtr;
@@ -140,8 +154,8 @@ class SpBufferDataView{
     SpDataBufferCore<TargetType>* dataPtr;
 
 public:
-    SpBufferDataView(){
-        dataPtr = new SpDataBufferCore<TargetType>();
+    explicit SpBufferDataView(SpAbstractBufferManager<TargetType>* inBufferManager = nullptr){
+        dataPtr = new SpDataBufferCore<TargetType>(inBufferManager);
     }
 
     SpBufferDataView(SpBufferDataView&&) = default;
