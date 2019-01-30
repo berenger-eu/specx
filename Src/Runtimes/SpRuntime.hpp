@@ -327,7 +327,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         manageReadDuplicate(tuple, sequenceParamsNoFunction);
     
-        if constexpr (allAreCopiable<decltype (tuple)>(sequenceParamsNoFunction) == false){
+        if constexpr (allAreCopiableAndDeleteable<decltype (tuple)>(sequenceParamsNoFunction) == false){
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             return coreTaskCreation(SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }
@@ -398,7 +398,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         auto tuple = std::forward_as_tuple(params...);
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
 
-        static_assert(allAreCopiable<decltype(tuple)>(sequenceParamsNoFunction) == true,
+        static_assert(allAreCopiableAndDeleteable<decltype(tuple)>(sequenceParamsNoFunction) == true,
                       "Add data passed to a potential task must be copiable");
 
         manageReadDuplicate(tuple, sequenceParamsNoFunction);
@@ -769,33 +769,36 @@ class SpRuntime : public SpAbstractToKnowReady {
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
-        auto hh = getDataHandle(scalarOrContainerData);
-        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
-        long int indexHh = 0;
-        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
-            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+        if constexpr (std::is_destructible<TargetParamType>::value){
+            auto hh = getDataHandle(scalarOrContainerData);
+            assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+            long int indexHh = 0;
+            for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-            auto found = copiedHandles.find(ptr);
-            if(found != copiedHandles.end()
-                    && found->second.usedInRead
-                    && accessMode != SpDataAccessMode::READ){
+                auto found = copiedHandles.find(ptr);
+                if(found != copiedHandles.end()
+                        && found->second.usedInRead
+                        && accessMode != SpDataAccessMode::READ){
+                    assert(std::is_copy_assignable<TargetParamType>::value);
 
-                SpCurrentCopy& cp = found->second;
-                assert(cp.latestAdress != ptr);
-                assert(cp.latestAdress);
-                assert(cp.hasBeenDeleted == false);
-                this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
-                                   SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                   [](TargetParamType& output){
+                    SpCurrentCopy& cp = found->second;
+                    assert(cp.latestAdress != ptr);
+                    assert(cp.latestAdress);
+                    assert(cp.hasBeenDeleted == false);
+                    this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
+                                       SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                       [](TargetParamType& output){
 
-                    delete &output;
-                }).setTaskName("delete");
+                        delete &output;
+                    }).setTaskName("delete");
 
-                copiedHandles.erase(found);
+                    copiedHandles.erase(found);
+                }
+
+                indexHh += 1;
             }
-
-            indexHh += 1;
         }
 
         return true;
@@ -863,34 +866,38 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         bool removeSomething = false;
 
-        auto hh = getDataHandle(scalarOrContainerData);
-        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
-        long int indexHh = 0;
-        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
-            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+        if constexpr (std::is_destructible<TargetParamType>::value){
 
-            if(auto found = copiedHandles.find(ptr); found != copiedHandles.end()){
-// TODO                if(accessMode != SpDataAccessMode::READ){
-                    if(found->second.hasBeenDeleted == false){
-                        SpCurrentCopy& cp = found->second;
-                        assert(cp.latestAdress);
-                        this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
-                                           SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                           [ptr = cp.latestAdress](TargetParamType& output){
-                            assert(ptr ==  &output);
-                            delete &output;
-                        }).setTaskName("delete");
-                    }
-                    copiedHandles.erase(found);
-                    removeSomething = true;
-// TODO                }
-// TODO                else{
-// TODO                    assert(found->second.usedInRead == true);
-// TODO                }
+            auto hh = getDataHandle(scalarOrContainerData);
+            assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+            long int indexHh = 0;
+            for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+
+                if(auto found = copiedHandles.find(ptr); found != copiedHandles.end()){
+    // TODO                if(accessMode != SpDataAccessMode::READ){
+                        if(found->second.hasBeenDeleted == false){
+                            assert(std::is_copy_assignable<TargetParamType>::value);
+                            SpCurrentCopy& cp = found->second;
+                            assert(cp.latestAdress);
+                            this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
+                                               SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                               [ptr = cp.latestAdress](TargetParamType& output){
+                                assert(ptr ==  &output);
+                                delete &output;
+                            }).setTaskName("delete");
+                        }
+                        copiedHandles.erase(found);
+                        removeSomething = true;
+    // TODO                }
+    // TODO                else{
+    // TODO                    assert(found->second.usedInRead == true);
+    // TODO                }
+                }
+
+                indexHh += 1;
             }
-
-            indexHh += 1;
         }
 
         return removeSomething;
@@ -912,11 +919,12 @@ class SpRuntime : public SpAbstractToKnowReady {
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
         return std::is_default_constructible<TargetParamType>::value
-                && std::is_copy_assignable<TargetParamType>::value;
+                && std::is_copy_assignable<TargetParamType>::value
+                && std::is_destructible<TargetParamType>::value;
     }
 
     template <class Tuple, std::size_t... Is>
-    static constexpr bool allAreCopiable(std::index_sequence<Is...>){
+    static constexpr bool allAreCopiableAndDeleteable(std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         const bool results[] = {true, coreAllAreCopiable<Tuple, Is>() ...};
         constexpr int nbHandles = sizeof(results)/sizeof(bool);
