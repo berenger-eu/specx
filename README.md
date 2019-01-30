@@ -1,5 +1,4 @@
 
-
 # Introduction
 SPETABARU is a task-based runtime system, which is
 capable of executing tasks in advance if some others are not certain to modify
@@ -13,7 +12,7 @@ This is an on-going project under development.
 
 # Examples
 
-Several examples are given in the `Example` directory.
+Several examples are given in the `Examples` directory.
 
 
 # Support
