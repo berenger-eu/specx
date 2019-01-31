@@ -268,8 +268,8 @@ Matrix<RealType> ComputeForAll(const SpArrayAccessor<const Domain<RealType>>& do
 
     Matrix<RealType> allEnergy(nbDomains, nbDomains);
 
-    for(int idxDomain1 = 0; idxDomain1 < nbDomains ; ++idxDomain1){
-        for(int idxDomain2 = idxDomain1+1; idxDomain2 < nbDomains ; ++idxDomain2){
+    for(int idxDomain1 = 0; idxDomain1 < domains.getSize() ; ++idxDomain1){
+        for(int idxDomain2 = idxDomain1+1; idxDomain2 < domains.getSize() ; ++idxDomain2){
             RealType energy = 0;
 
             for(int idxPart1 = 0 ; idxPart1 < domains.getAt(idxDomain1).getNbParticles() ; ++idxPart1){
@@ -279,8 +279,8 @@ Matrix<RealType> ComputeForAll(const SpArrayAccessor<const Domain<RealType>>& do
                 }
             }
 
-            allEnergy.value(idxDomain1, idxDomain2) = energy;
-            allEnergy.value(idxDomain2, idxDomain1) = energy;
+            allEnergy.value(domains.getIndexAt(idxDomain1), domains.getIndexAt(idxDomain2)) = energy;
+            allEnergy.value(domains.getIndexAt(idxDomain2), domains.getIndexAt(idxDomain1)) = energy;
         }
     }
 
@@ -333,9 +333,9 @@ std::pair<RealType,std::vector<RealType>> ComputeForOne(const SpArrayAccessor<co
             }
         }
 
-        newEnergy[idxDomain2] = energy;
+        newEnergy[domains.getIndexAt(idxDomain2)] = energy;
 
-        deltaEnergy = energy - allEnergy.value(idxTargetDomain, idxDomain2);
+        deltaEnergy = energy - allEnergy.value(idxTargetDomain, domains.getIndexAt(idxDomain2));
     }
 
     return {deltaEnergy, std::move(newEnergy)};
