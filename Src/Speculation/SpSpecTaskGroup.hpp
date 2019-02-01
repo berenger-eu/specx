@@ -360,7 +360,8 @@ public:
     void setSpeculationCurrentResult(bool inSpeculationSucceed){
         assert(isSpeculationEnable());
         assert(isUncertain == true);
-        assert(isEnable() == true);
+        assert(isEnable() == true
+               || (!parentGroups.empty() && parentSpeculationResults == SpecResult::SPECULATION_FAILED));
 
         if(parentGroups.empty()){
             parentSpeculationResults = SpecResult::SPECULATION_SUCCED;
