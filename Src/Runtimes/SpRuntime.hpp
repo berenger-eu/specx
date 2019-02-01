@@ -850,6 +850,10 @@ class SpRuntime : public SpAbstractToKnowReady {
         for(int idxRes = 0 ; idxRes < nbRes ; ++idxRes){
             result.insert(result.end(),groups[idxRes].begin(), groups[idxRes].end());
         }
+
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
+
         return result;
     }
 
