@@ -157,7 +157,7 @@ class TestPotiential : public UTester< TestPotiential > {
 
     void SetTests() {
         Parent::AddTest(&TestPotiential::TestBasic, "Basic test for vec type");
-        // TODO Parent::AddTest(&TestPotiential::TestBasicLoop, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasicLoop, "Basic test for vec type");
     }
 };
 
