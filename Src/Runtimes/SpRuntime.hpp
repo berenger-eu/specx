@@ -426,17 +426,18 @@ class SpRuntime : public SpAbstractToKnowReady {
         currentSpecGroup = currentGroupNormalTask.get();
         l1 = copyIfMaybeWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
         currentSpecGroup = nullptr;
-        currentGroupNormalTask->addPreTasks(copyMapToTaskVec(l1)); // copy tasks
 
         std::unordered_map<const void*, SpCurrentCopy> l1p;
         std::unordered_map<const void*, SpCurrentCopy> l2;
 
         if(taskAlsoSpeculateOnOther == false){
+            currentGroupNormalTask->addPreTasks(copyMapToTaskVec(l1)); // copy tasks
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
         }
         else{
-
             currentGroupSpeculativeTask.reset(new SpGeneralSpecGroup(true,true));
+            currentGroupSpeculativeTask->addPreTasks(copyMapToTaskVec(l1)); // copy tasks
+
             currentGroupSpeculativeTask->setProbability(inProbability);
             currentGroupSpeculativeTask->addThisGroupToParentsInSpeculativePath(groups);
             // currentGroup should not be locked here
