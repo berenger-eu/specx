@@ -130,7 +130,7 @@ protected:
            mainTask->setDisabledIfNotOver();
        }
        DisableIfPossibleAllTasks(preTasks);
-       DisableIfPossibleAllTasks(postTasksIfSucceed);
+       DisableAllTasks(postTasksIfSucceed);
        EnableAllTasks(postTasksIfFailed);
    }
 

@@ -241,12 +241,12 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 
     void setDisabledIfNotOver(){
-	    takeControl();
-	    std::cout << "Task " << this << " setDisabledIfNotOver, is Over " << isOver() << std::endl; // TODO
-	    if(isOver() == false){
-		isEnabled = SpTaskActivation::DISABLE;
-	    }
-	    releaseControl();
+        if(canTakeControl()){
+            if(isOver() == false){
+                isEnabled = SpTaskActivation::DISABLE;
+            }
+            releaseControl();
+        }
     }
 
     void setSpecGroup(SpGeneralSpecGroup* inSpecTaskGroup){
