@@ -178,9 +178,6 @@ public:
                     toProceed.push(child);
                     groupsIncluded.insert(child);
                 }
-                else{
-                    assert(child->isSpeculationEnableOrDisable() == true);
-                }
             }
         }
     }
