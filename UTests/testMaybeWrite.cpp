@@ -32,73 +32,73 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
         std::promise<int> promise1;
 
         runtime.task(SpWrite(values0), SpWrite(values1), SpWrite(values2),
-                [&promise1](int& values0, int& values1, int& values2){
+                [&promise1](int& values0param, int& values1param, int& values2param){
             promise1.get_future().get();
-            values0 = 1;
-            values1 = 2;
-            values2 = 3;
+            values0param = 1;
+            values1param = 2;
+            values2param = 3;
         });
 
         runtime.potentialTask(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
-                [this](int& values0, int& values1, const int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, const int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return false;
         });
 
         runtime.potentialTask(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
-                [this](int& values0, const int& values1, int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, const int& values1param, int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return false;
         });
 
         runtime.task(SpWrite(values0), SpWrite(values1), SpWrite(values2),
-                [this](int& values0, int& values1, int& values2){
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, int& values2param){
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
         });
 
         runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
-                [this](int& values0, int& values1, int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return false;
         });
 
         runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
-                [this](int& values0, int& values1, int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return false;
         });
 
         runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
-                [this](int& values0, int& values1, int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return true;
         });
 
         runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
-                [this](int& values0, int& values1, int& values2) -> bool {
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](int& values0param, int& values1param, int& values2param) -> bool {
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
             return true;
         });
 
         runtime.task(SpRead(values0), SpRead(values1), SpRead(values2),
-                [this](const int& values0, const int& values1, const int& values2){
-            UASSERTEEQUAL(values0, 1);
-            UASSERTEEQUAL(values1, 2);
-            UASSERTEEQUAL(values2, 3);
+                [this](const int& values0param, const int& values1param, const int& values2param){
+            UASSERTEEQUAL(values0param, 1);
+            UASSERTEEQUAL(values1param, 2);
+            UASSERTEEQUAL(values2param, 3);
         });
 
         promise1.set_value(0);
