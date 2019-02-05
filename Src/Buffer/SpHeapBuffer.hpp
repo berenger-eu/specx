@@ -57,7 +57,7 @@ public:
     void releaseABuffer(TargetType* inBuffer) final{
         std::unique_lock<std::mutex> lockAll(availableBuffersMutex);
         nbBuffersUnderUse -= 1;
-        if(softLimiteOfNbBuffers <= availableBuffers.size()){
+        if(softLimiteOfNbBuffers <= int(availableBuffers.size())){
             delete inBuffer;
         }
         else{

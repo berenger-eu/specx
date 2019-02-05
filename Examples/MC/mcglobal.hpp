@@ -279,8 +279,8 @@ Matrix<RealType> ComputeForAll(const SpArrayAccessor<const Domain<RealType>>& do
                 }
             }
 
-            allEnergy.value(domains.getIndexAt(idxDomain1), domains.getIndexAt(idxDomain2)) = energy;
-            allEnergy.value(domains.getIndexAt(idxDomain2), domains.getIndexAt(idxDomain1)) = energy;
+            allEnergy.value(int(domains.getIndexAt(idxDomain1)), int(domains.getIndexAt(idxDomain2))) = energy;
+            allEnergy.value(int(domains.getIndexAt(idxDomain2)), int(domains.getIndexAt(idxDomain1))) = energy;
         }
     }
 
@@ -335,7 +335,7 @@ std::pair<RealType,std::vector<RealType>> ComputeForOne(const SpArrayAccessor<co
 
         newEnergy[domains.getIndexAt(idxDomain2)] = energy;
 
-        deltaEnergy = energy - allEnergy.value(idxTargetDomain, domains.getIndexAt(idxDomain2));
+        deltaEnergy = energy - allEnergy.value(idxTargetDomain, int(domains.getIndexAt(idxDomain2)));
     }
 
     return {deltaEnergy, std::move(newEnergy)};
