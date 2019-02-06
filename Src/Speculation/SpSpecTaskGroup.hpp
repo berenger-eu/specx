@@ -382,8 +382,8 @@ public:
     }
 
     bool didAllSpeculationSucceed() const{
-        return parentSpeculationResults == SpecResult::SPECULATION_SUCCED
-                && selfSpeculationResults == parentSpeculationResults;
+        return (parentGroups.empty() || parentSpeculationResults == SpecResult::SPECULATION_SUCCED)
+                && selfSpeculationResults == SpecResult::SPECULATION_SUCCED;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
