@@ -66,7 +66,7 @@ int main(){
     const bool runSeq = (EnvStrToOther<int>("REMCNOSEQ",true)==false);
     const bool runTask = runSeq;
     const bool runSpec = true;
-    const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") ? true : false);
+    const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
 
     SpTimer timerSeq;
     SpTimer timerTask;

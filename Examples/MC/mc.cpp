@@ -54,7 +54,7 @@ int main(){
     const bool runSeq = true;
     const bool runTask = true;
     const bool runSpec = true;
-    const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") ? true : false);
+    const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
 
     SpTimer timerSeq;
     SpTimer timerTask;
