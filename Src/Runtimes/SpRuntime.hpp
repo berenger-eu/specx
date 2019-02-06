@@ -332,13 +332,14 @@ class SpRuntime : public SpAbstractToKnowReady {
             return coreTaskCreation(SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }
         else{
-            std::unique_lock<std::mutex> specGoupLock(specGroupMutex);
+            scheduler.lockListenersReadyMutex();
+            specGroupMutex.lock();
 
             std::vector<SpGeneralSpecGroup*> groups = getCorrespondingCopyGroups(tuple, sequenceParamsNoFunction);
 
             bool oneGroupDisableOrFailed = false;
             for(SpGeneralSpecGroup* gp : groups){
-                if(gp->isSpeculationDisable() || gp->didSpeculationFailed()){
+                if(gp->isSpeculationDisable() || gp->didSpeculationFailed() || gp->didParentSpeculationFailed()){
                     oneGroupDisableOrFailed = true;
                     break;
                 }
@@ -346,6 +347,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             if(groups.size() == 0 || oneGroupDisableOrFailed){
                 removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
+                specGroupMutex.unlock();
+                scheduler.unlockListenersReadyMutex();
                 return coreTaskCreation(SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
             }
 
@@ -375,6 +378,9 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             specGroups.emplace_back(std::move(currentGroupNormalTask));
 
+            specGroupMutex.unlock();
+            scheduler.unlockListenersReadyMutex();
+
             return taskView;
         }
     }
@@ -400,12 +406,13 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         manageReadDuplicate(tuple, sequenceParamsNoFunction);
 
+        scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
 
         std::vector<SpGeneralSpecGroup*> groups = getCorrespondingCopyGroups(tuple, sequenceParamsNoFunction);
         bool oneGroupDisableOrFailed = false;
         for(SpGeneralSpecGroup* gp : groups){
-            if(gp->isSpeculationDisable() || gp->didSpeculationFailed()){
+            if(gp->isSpeculationDisable() || gp->didSpeculationFailed() || gp->didParentSpeculationFailed()){
                 oneGroupDisableOrFailed = true;
                 break;
             }
@@ -418,20 +425,21 @@ class SpRuntime : public SpAbstractToKnowReady {
             currentGroupNormalTask->addParents(groups);
         }
 
+        if(taskAlsoSpeculateOnOther == false){
+            removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
+        }
+
         std::unordered_map<const void*, SpCurrentCopy> l1;
         currentSpecGroup = currentGroupNormalTask.get();
         l1 = copyIfMaybeWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
+        assert(taskAlsoSpeculateOnOther == true || l1.size());
         currentSpecGroup = nullptr;
+        currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1)); // copy tasks
 
         std::unordered_map<const void*, SpCurrentCopy> l1p;
         std::unordered_map<const void*, SpCurrentCopy> l2;
 
-        if(taskAlsoSpeculateOnOther == false){
-            currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1)); // copy tasks
-            removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
-        }
-        else{
-            currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1)); // copy tasks
+        if(taskAlsoSpeculateOnOther == true){
             // currentGroup should not be locked here
             currentSpecGroup = currentGroupNormalTask.get();
             l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction);
@@ -518,6 +526,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         specGroups.emplace_back(std::move(currentGroupNormalTask));
 
         specGroupMutex.unlock();
+        scheduler.unlockListenersReadyMutex();
 
         return taskView;
     }
@@ -857,7 +866,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
-        const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+//        const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
         bool removeSomething = false;
@@ -872,7 +881,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
                 if(auto found = copiedHandles.find(ptr); found != copiedHandles.end()){
-                    if(accessMode != SpDataAccessMode::READ){
+// TODO : This was an old test but it does not look to be correct,
+// because copy can be removed even if not in read
+//                    if(accessMode != SpDataAccessMode::READ){
                         if(found->second.hasBeenDeleted == false){
                             assert(std::is_copy_assignable<TargetParamType>::value);
                             SpCurrentCopy& cp = found->second;
@@ -886,10 +897,10 @@ class SpRuntime : public SpAbstractToKnowReady {
                         }
                         copiedHandles.erase(found);
                         removeSomething = true;
-                     }
-                     else{
-                         assert(found->second.usedInRead == true);
-                     }
+//                     }
+//                     else{
+//                         assert(found->second.usedInRead == true);
+//                     }
                 }
 
                 indexHh += 1;
