@@ -40,7 +40,7 @@ int main(){
     std::cout << "NbLoops = " << NbLoops << std::endl;
     const int NbDomains = 5;
     std::cout << "NbDomains = " << NbDomains << std::endl;
-    const int NbParticlesPerDomain = 200;
+    const int NbParticlesPerDomain = EnvStrToOther<int>("NBPARTICLES", 2000);
     std::cout << "NbParticlesPerDomain = " << NbParticlesPerDomain << std::endl;
     const double BoxWidth = 1;
     std::cout << "BoxWidth = " << BoxWidth << std::endl;
