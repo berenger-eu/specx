@@ -866,7 +866,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
-//        const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+        const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
         bool removeSomething = false;
@@ -881,9 +881,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
                 if(auto found = copiedHandles.find(ptr); found != copiedHandles.end()){
-// TODO : This was an old test but it does not look to be correct,
-// because copy can be removed even if not in read
-//                    if(accessMode != SpDataAccessMode::READ){
+                    if(accessMode != SpDataAccessMode::READ){
                         if(found->second.hasBeenDeleted == false){
                             assert(std::is_copy_assignable<TargetParamType>::value);
                             SpCurrentCopy& cp = found->second;
@@ -897,7 +895,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                         }
                         copiedHandles.erase(found);
                         removeSomething = true;
-//                     }
+                     }
+// This is not true anymore
 //                     else{
 //                         assert(found->second.usedInRead == true);
 //                     }
