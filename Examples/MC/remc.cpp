@@ -63,7 +63,7 @@ int main(){
 
     std::array<size_t,NbReplicas> cptGeneratedSeq = {0};
 
-    const bool runSeq = (EnvStrToOther<int>("REMCNOSEQ",true)==false);
+    const bool runSeq = (getenv("REMCNOSEQ") && strcmp(getenv("REMCNOSEQ"),"FALSE") == 0 ? false : true);
     const bool runTask = runSeq;
     const bool runSpec = true;
     const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
