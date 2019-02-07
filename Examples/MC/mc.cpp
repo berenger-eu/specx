@@ -463,8 +463,8 @@ int main(){
             }
 
 #ifdef MODE1
-            runtime.task(SpWrite(energyAll), SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                [](const Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<const Domain<double>>& /*domainsParam*/){
+            runtime.task(SpWrite(energyAll), SpWriteArray(domains.data(),SpArrayView(NbDomains)),
+                [](const Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<Domain<double>>& /*domainsParam*/){
             });
 #endif //MODE1
 
