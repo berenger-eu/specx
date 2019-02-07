@@ -402,8 +402,8 @@ int main(){
 #define MODE1
 #ifdef MODE1
                     runtime.task(SpWrite(energyAll),
-                                 SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                                 [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<const Domain<double>>& /*domainsParam*/){
+                                 SpWriteArray(domains.data(),SpArrayView(NbDomains)),
+                                 [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<Domain<double>>& /*domainsParam*/){
                     }).setTaskName("Sync");
 #endif //MODE1
 
@@ -566,8 +566,8 @@ int main(){
 #ifdef MODE1
                             if(idxConsecutive[idxReplica]++ == idxConsecutiveSpec){
                                 runtime.task(SpWrite(energyAll),
-                                             SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                                             [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<const Domain<double>>& /*domainsParam*/){
+                                             SpWriteArray(domains.data(),SpArrayView(NbDomains)),
+                                             [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<Domain<double>>& /*domainsParam*/){
                                 }).setTaskName("Sync");
                                 idxConsecutive[idxReplica] = 0;
                             }
@@ -742,8 +742,8 @@ int main(){
 
 #ifdef MODE1
                     runtime.task(SpWrite(energyAll),
-                                 SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                                 [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<const Domain<double>>& /*domainsParam*/){
+                                 SpWriteArray(domains.data(),SpArrayView(NbDomains)),
+                                 [](Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<Domain<double>>& /*domainsParam*/){
                     }).setTaskName("Sync");
 #endif //MODE1
 
