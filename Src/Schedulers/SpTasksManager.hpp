@@ -57,7 +57,8 @@ class SpTasksManager{
     SpPrioScheduler scheduler;
 
     void insertIfReady(SpAbstractTask* aTask){
-        if(aTask->isState(SpTaskState::WAITING_TO_BE_READY) && aTask->canTakeControl()){
+        if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
+            aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
                 SpDebugPrint() << "Is waiting to be ready " << aTask->getId();
                 const bool useCommute = aTask->hasMode(SpDataAccessMode::COMMUTE_WRITE);
