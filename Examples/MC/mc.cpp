@@ -76,6 +76,8 @@ int main(){
 
         std::cout << "[START] energy = " << GetEnergy(energyAll) << std::endl;
 
+        int totalAcceptedMove = 0;
+
         for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
             int acceptedMove = 0;
 
@@ -107,6 +109,9 @@ int main(){
                 assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                 cptGenerated = randGen.getNbValuesGenerated();
             }
+
+            totalAcceptedMove += acceptedMove;
+
             if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAll)
                       << " acceptance " << static_cast<double>(acceptedMove)/static_cast<double>(NbDomains) << std::endl;
         }
@@ -116,7 +121,8 @@ int main(){
 
         {
             Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
-            std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << std::endl;
+            std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << ", Accepted moves = "
+                      << 100. * static_cast<double>(totalAcceptedMove)/static_cast<double>(NbDomains*NbLoops) << "%" << std::endl;
         }
     }
     if(runTask){
