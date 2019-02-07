@@ -72,7 +72,7 @@ int main(){
     SpTimer timerTask;
     SpTimer timerSpec;
     SpTimer timerSpecAllReject;
-    const int MaxidxConsecutiveSpec = 3;
+    const int MaxidxConsecutiveSpec = 6;
     SpTimer timerSpecNoCons[MaxidxConsecutiveSpec];
 
     if(runSeq){
