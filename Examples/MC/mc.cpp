@@ -297,7 +297,7 @@ int main(){
         }
     }
     if(runSpec){
-        for(int idxConsecutiveSpec = 0 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
+        for(int idxConsecutiveSpec = 1 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
             SpRuntime runtime(NumThreads);
 
             runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
@@ -492,7 +492,7 @@ int main(){
     std::cout << "task = " << timerTask.getElapsed() << std::endl;
     std::cout << "spec = " << timerSpec.getElapsed() << std::endl;
     std::cout << "spec-reject = " << timerSpecAllReject.getElapsed() << std::endl;
-    for(int idxConsecutiveSpec = 0 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
+    for(int idxConsecutiveSpec = 1 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
         std::cout << "spec-max-" << idxConsecutiveSpec << " = " << timerSpecNoCons[idxConsecutiveSpec].getElapsed() << std::endl;
     }
 
