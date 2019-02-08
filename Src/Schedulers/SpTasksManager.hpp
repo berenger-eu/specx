@@ -57,7 +57,8 @@ class SpTasksManager{
     SpPrioScheduler scheduler;
 
     void insertIfReady(SpAbstractTask* aTask){
-        if(aTask->isState(SpTaskState::WAITING_TO_BE_READY) && aTask->canTakeControl()){
+        if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
+            aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
                 SpDebugPrint() << "Is waiting to be ready " << aTask->getId();
                 const bool useCommute = aTask->hasMode(SpDataAccessMode::COMMUTE_WRITE);
@@ -107,13 +108,35 @@ class SpTasksManager{
     std::vector<SpAbstractToKnowReady*> listenersReady;
     
     void informAllReady(SpAbstractTask* aTask){
-        std::unique_lock<std::mutex> locker(listenersReadyMutex);
+        if(lockerByThread0 == false || SpUtils::GetThreadId() != 0){
+            listenersReadyMutex.lock();
+        }
         for(SpAbstractToKnowReady* listener : listenersReady){
             listener->thisTaskIsReady(aTask);
         }
+        if(lockerByThread0 == false || SpUtils::GetThreadId() != 0){
+            listenersReadyMutex.unlock();
+        }
     }
 
+    std::atomic<bool> lockerByThread0;
+
 public:
+    void lockListenersReadyMutex(){
+        assert(lockerByThread0 == false);
+        assert(SpUtils::GetThreadId() == 0);
+        lockerByThread0 = true;
+        listenersReadyMutex.lock();
+    }
+
+    void unlockListenersReadyMutex(){
+        assert(lockerByThread0 == true);
+        assert(SpUtils::GetThreadId() == 0);
+        lockerByThread0 = false;
+        listenersReadyMutex.unlock();
+    }
+
+
     void registerListener(SpAbstractToKnowReady* aListener){
         std::unique_lock<std::mutex> locker(listenersReadyMutex);
         listenersReady.push_back(aListener);
@@ -121,7 +144,8 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////
 
-    explicit SpTasksManager() : stop(false), nbRunningTasks(0), nbWaitingThreads(0), nbPushedTasks(0){
+    explicit SpTasksManager() : stop(false), nbRunningTasks(0), nbWaitingThreads(0), nbPushedTasks(0),
+        lockerByThread0(false){
     }
 
     // No copy or move

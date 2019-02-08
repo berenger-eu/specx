@@ -24,11 +24,11 @@ int main(){
         auto vectorBuffer = heapBuffer.getNewBuffer();
 
         runtime.task(SpWrite(vectorBuffer.getDataDep()),
-                     [](SpDataBuffer<std::vector<int>> vector){
+                     [](SpDataBuffer<std::vector<int>> /*vector*/){
         });
         for(int idxSub = 0 ; idxSub < 3 ; ++idxSub){
             runtime.task(SpRead(vectorBuffer.getDataDep()),
-                         [](const SpDataBuffer<std::vector<int>> vector){
+                         [](const SpDataBuffer<std::vector<int>> /*vector*/){
             });
         }
     }

@@ -108,18 +108,22 @@ class TestPotiential : public UTester< TestPotiential > {
 
             UTestRaceChecker counterAccess;
 
-            runtime.task(SpReadArray(val,SpArrayView(arraySize)), [](SpArrayAccessor<const int>& /*valParam*/){
+            std::promise<int> promise1;
+
+            runtime.task(SpReadArray(val,SpArrayView(arraySize)), [&promise1](SpArrayAccessor<const int>& /*valParam*/){
+                promise1.get_future().get();
             });
             // val is 0
 
             for(int idx = 0 ; idx < arraySize ; ++idx){
                 runtime.potentialTask(SpMaybeWrite(val[idx]),
                                       SpReadArray(val,SpArrayView(arraySize).removeItem(idx)),
-                                      [SleepTime,idx,&counterAccess]
+                                      [SleepTime,idx,&counterAccess, &val]
                                       (int& valParam, const SpArrayAccessor<const int>& valArray) -> bool {
                     {
                         counterAccess.lock();
                         counterAccess.addWrite(&valParam);
+                        assert(valArray.getSize() == 5);
                         for(int idxTest = 0 ; idxTest < valArray.getSize() ; ++idxTest){
                             counterAccess.addRead(&valArray.getAt(idxTest));
                         }
@@ -144,20 +148,26 @@ class TestPotiential : public UTester< TestPotiential > {
                     }
 
                     return idx == 3 || idx == 5;
-                });
+                }).setTaskName("Task iteration " + std::to_string(idx));
             }
+
+            promise1.set_value(0);
 
             runtime.waitAllTasks();
             runtime.stopAllThreads();
 
             UASSERTEEQUAL(val[3], 1);
             UASSERTEEQUAL(val[5], 10);
+
+
+            runtime.generateDot("/tmp/test" + std::to_string(SleepTime) + ".dot");
+            runtime.generateTrace("/tmp/test" + std::to_string(SleepTime) + ".svg");
         }
     }
 
     void SetTests() {
         Parent::AddTest(&TestPotiential::TestBasic, "Basic test for vec type");
-        // TODO Parent::AddTest(&TestPotiential::TestBasicLoop, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasicLoop, "Basic test for vec type");
     }
 };
 

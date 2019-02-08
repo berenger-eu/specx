@@ -40,7 +40,7 @@ int main(){
     std::cout << "NbLoops = " << NbLoops << std::endl;
     const int NbDomains = 5;
     std::cout << "NbDomains = " << NbDomains << std::endl;
-    const int NbParticlesPerDomain = 200;
+    const int NbParticlesPerDomain = EnvStrToOther<int>("NBPARTICLES", 2000);
     std::cout << "NbParticlesPerDomain = " << NbParticlesPerDomain << std::endl;
     const double BoxWidth = 1;
     std::cout << "BoxWidth = " << BoxWidth << std::endl;
@@ -54,6 +54,7 @@ int main(){
     const bool runSeq = true;
     const bool runTask = true;
     const bool runSpec = true;
+    const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
 
     SpTimer timerSeq;
     SpTimer timerTask;
@@ -75,6 +76,8 @@ int main(){
 
         std::cout << "[START] energy = " << GetEnergy(energyAll) << std::endl;
 
+        int totalAcceptedMove = 0;
+
         for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
             int acceptedMove = 0;
 
@@ -88,7 +91,7 @@ int main(){
                 const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                         energyAll, idxDomain, movedDomain);
 
-                std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
+                if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
                 // Accept/reject
                 if(MetropolisAccept(deltaEnergy.first, Temperature, randGen)){
@@ -97,16 +100,19 @@ int main(){
                     energyAll.setColumn(idxDomain, deltaEnergy.second.data());
                     energyAll.setRow(idxDomain, deltaEnergy.second.data());
                     acceptedMove += 1;
-                    std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
+                    if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
                 }
                 else{
                     // leave as it is
-                    std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
+                    if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                 }
                 assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                 cptGenerated = randGen.getNbValuesGenerated();
             }
-            std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAll)
+
+            totalAcceptedMove += acceptedMove;
+
+            if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAll)
                       << " acceptance " << static_cast<double>(acceptedMove)/static_cast<double>(NbDomains) << std::endl;
         }
 
@@ -115,7 +121,8 @@ int main(){
 
         {
             Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
-            std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << std::endl;
+            std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << ", Accepted moves = "
+                      << 100. * static_cast<double>(totalAcceptedMove)/static_cast<double>(NbDomains*NbLoops) << "%" << std::endl;
         }
     }
     if(runTask){
@@ -144,7 +151,7 @@ int main(){
                              SpWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              SpAtomicWrite(*acceptedMove),
-                             [BoxWidth, displacement, NbDomains, Temperature, idxDomain, idxLoop, randGen](
+                             [verbose, BoxWidth, displacement, NbDomains, Temperature, idxDomain, idxLoop, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam,
@@ -154,7 +161,7 @@ int main(){
                     movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
                     std::pair<double,std::vector<double>> deltaEnergyParam = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomainParam);
-                    std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergyParam.first << std::endl;
+                    if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergyParam.first << std::endl;
 
                     // Accept/reject
                     if(MetropolisAccept(deltaEnergyParam.first, Temperature, randGen)){
@@ -163,19 +170,19 @@ int main(){
                         energyAllParam.setColumn(idxDomain, deltaEnergyParam.second.data());
                         energyAllParam.setRow(idxDomain, deltaEnergyParam.second.data());
                         acceptedMoveParam += 1;
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
                     }
                     else{
                         // leave as it is
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                     }
                 }).setTaskName("Accept -- "+std::to_string(idxLoop)+"/"+std::to_string(idxDomain));
                 randGen.skip(3*NbParticlesPerDomain + 1);
             }
 
             runtime.task(SpRead(energyAll), SpWrite(*acceptedMove),
-                         [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
-                std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+                         [verbose, NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
+                if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                           << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
                 delete &acceptedMoveParam;
             }).setTaskName("Energy-print -- "+std::to_string(idxLoop));
@@ -217,9 +224,6 @@ int main(){
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
 
-        std::unordered_map<const void*,int> counterAccess;
-        std::mutex counterAccessMutex;
-
         for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
             // TODO int* acceptedMove = new int(0);
 
@@ -228,35 +232,17 @@ int main(){
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             [&NbDomains, idxDomain, idxLoop, &BoxWidth, &displacement, &Temperature, randGen,
-                              &counterAccessMutex, &counterAccess](
+                             [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam
                              ) mutable {
-                    {
-                        std::unique_lock<std::mutex> lockCounterAccess(counterAccessMutex);
-
-                        SpDebugPrint() << "[ACCESS] in write " << &domains_idxDomain;
-                        assert(counterAccess.find(&domains_idxDomain) == counterAccess.end()
-                               || counterAccess[&domains_idxDomain] == 0);
-                        counterAccess[&domains_idxDomain] = -1;
-
-                        for(int idxDom = 0 ; idxDom < domainsParam.getSize() ; ++idxDom){
-                            SpDebugPrint() << "[ACCESS] in read " << &domainsParam.getAt(idxDom);
-                            assert(counterAccess.find(&domainsParam.getAt(idxDom)) == counterAccess.end()
-                                   || counterAccess[&domainsParam.getAt(idxDom)] >= 0);
-                            counterAccess[&domainsParam.getAt(idxDom)] += 1;
-                        }
-                    }
-
-
                     Domain<double> movedDomain;
                     movedDomain = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
                     // Compute new energy
                     std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
-                    std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
+                    if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
                     // Accept/reject
                     bool accepted;
@@ -266,36 +252,16 @@ int main(){
                         energyAllParam.setColumn(idxDomain, deltaEnergy.second.data());
                         energyAllParam.setRow(idxDomain, deltaEnergy.second.data());
                         // TODO acceptedMoveParam += 1;
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
                         accepted = true;
                     }
                     else{
                         // leave as it is
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                         accepted = false;
                     }
-                    // TODO std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+                    // TODO if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                     // TODO          << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
-
-                    {
-                        std::unique_lock<std::mutex> lockCounterAccess(counterAccessMutex);
-
-                        SpDebugPrint() << "[ACCESS] leave write " << &domains_idxDomain;
-                        assert(counterAccess.find(&domains_idxDomain) != counterAccess.end()
-                                && counterAccess[&domains_idxDomain] == -1);
-                        counterAccess.erase(&domains_idxDomain);
-
-                        for(int idxDom = 0 ; idxDom < domainsParam.getSize() ; ++idxDom){
-                            SpDebugPrint() << "[ACCESS] leave read " << &domainsParam.getAt(idxDom);
-                            assert(counterAccess.find(&domainsParam.getAt(idxDom)) != counterAccess.end()
-                                    && counterAccess[&domainsParam.getAt(idxDom)] > 0);
-                            counterAccess[&domainsParam.getAt(idxDom)] -= 1;
-                            if(counterAccess[&domainsParam.getAt(idxDom)] == 0){
-                                counterAccess.erase(&domainsParam.getAt(idxDom));
-                            }
-                        }
-                    }
-
                     return accepted;
                 }).setTaskName("Accept -- Potential "+std::to_string(idxLoop)+"/"+std::to_string(idxDomain));
                 randGen.skip(1 + 3*NbParticlesPerDomain);
@@ -308,8 +274,8 @@ int main(){
 #endif //MODE1
 
             // TODO runtime.task(SpRead(energyAll), SpWrite(*acceptedMove),
-            // TODO              [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
-            // TODO     std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+            // TODO              [verbose, NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
+            // TODO     if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
             // TODO               << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
             // TODO     delete &acceptedMoveParam;
             // TODO }).setTaskName("Energy-print -- "+std::to_string(idxLoop));
@@ -331,7 +297,7 @@ int main(){
         }
     }
     if(runSpec){
-        for(int idxConsecutiveSpec = 0 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
+        for(int idxConsecutiveSpec = 1 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
             SpRuntime runtime(NumThreads);
 
             runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
@@ -363,7 +329,7 @@ int main(){
                                  SpMaybeWrite(energyAll),
                                  SpMaybeWrite(domains[idxDomain]),
                                  SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                                 [&NbDomains, idxDomain, idxLoop, &BoxWidth, &displacement, &Temperature, randGen](
+                                 [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                                  Matrix<double>& energyAllParam,
                                  Domain<double>& domains_idxDomain,
                                  const SpArrayAccessor<const Domain<double>>& domainsParam) mutable {
@@ -372,7 +338,7 @@ int main(){
                         // Compute new energy
                         std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
                         // Accept/reject
                         bool accepted;
@@ -382,15 +348,15 @@ int main(){
                             energyAllParam.setColumn(idxDomain, deltaEnergy.second.data());
                             energyAllParam.setRow(idxDomain, deltaEnergy.second.data());
                             // TODO acceptedMoveParam += 1;
-                            std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
+                            if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
                             accepted = true;
                         }
                         else{
                             // leave as it is
-                            std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
+                            if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                             accepted = false;
                         }
-                        // TODO std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+                        // TODO if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                         // TODO          << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
 
                         return accepted;
@@ -407,8 +373,8 @@ int main(){
                 }
 
                 // TODO runtime.task(SpRead(energyAll), SpWrite(*acceptedMove),
-                // TODO              [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
-                // TODO     std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+                // TODO              [verbose, NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
+                // TODO     if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                 // TODO               << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
                 // TODO     delete &acceptedMoveParam;
                 // TODO }).setTaskName("Energy-print -- "+std::to_string(idxLoop));
@@ -461,7 +427,7 @@ int main(){
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             [&NbDomains, idxDomain, idxLoop, &BoxWidth, &displacement, &Temperature, randGen](
+                             [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam) mutable {
@@ -470,7 +436,7 @@ int main(){
                     // Compute new energy
                     std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
-                    std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
+                    if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
                     // Accept/reject
                     bool accepted;
@@ -480,15 +446,15 @@ int main(){
                     // ALWAYS FAIL FOR TESTING     energyAllParam.setColumn(idxDomain, deltaEnergy.second.data());
                     // ALWAYS FAIL FOR TESTING     energyAllParam.setRow(idxDomain, deltaEnergy.second.data());
                     // ALWAYS FAIL FOR TESTING     // TODO acceptedMoveParam += 1;
-                    // ALWAYS FAIL FOR TESTING     std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
+                    // ALWAYS FAIL FOR TESTING     if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t accepted " << std::endl;
                     // ALWAYS FAIL FOR TESTING     accepted = true;
                     // ALWAYS FAIL FOR TESTING }
                     // ALWAYS FAIL FOR TESTING else{
                         // leave as it is
-                        std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
+                        if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                         accepted = false;
                     // ALWAYS FAIL FOR TESTING }
-                    // TODO std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+                    // TODO if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                     // TODO          << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
 
                     return accepted;
@@ -497,14 +463,14 @@ int main(){
             }
 
 #ifdef MODE1
-            runtime.task(SpWrite(energyAll), SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                [](const Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<const Domain<double>>& /*domainsParam*/){
+            runtime.task(SpWrite(energyAll), SpWriteArray(domains.data(),SpArrayView(NbDomains)),
+                [](const Matrix<double>& /*energyAllParam*/, const SpArrayAccessor<Domain<double>>& /*domainsParam*/){
             });
 #endif //MODE1
 
             // TODO runtime.task(SpRead(energyAll), SpWrite(*acceptedMove),
-            // TODO              [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
-            // TODO     std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
+            // TODO              [verbose, NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
+            // TODO     if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
             // TODO               << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
             // TODO     delete &acceptedMoveParam;
             // TODO }).setTaskName("Energy-print -- "+std::to_string(idxLoop));
@@ -526,7 +492,7 @@ int main(){
     std::cout << "task = " << timerTask.getElapsed() << std::endl;
     std::cout << "spec = " << timerSpec.getElapsed() << std::endl;
     std::cout << "spec-reject = " << timerSpecAllReject.getElapsed() << std::endl;
-    for(int idxConsecutiveSpec = 0 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
+    for(int idxConsecutiveSpec = 1 ; idxConsecutiveSpec < MaxidxConsecutiveSpec ; ++idxConsecutiveSpec){
         std::cout << "spec-max-" << idxConsecutiveSpec << " = " << timerSpecNoCons[idxConsecutiveSpec].getElapsed() << std::endl;
     }
 

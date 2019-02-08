@@ -94,7 +94,7 @@ class HeapBufferTest : public UTester< HeapBufferTest > {
             {
                 auto testBuffer = heapBuffer.getNewBuffer();
                 runtime.task(SpWrite(sequentialTaskFlow), SpWrite(testBuffer.getDataDep()),
-                             [&objectPtr](int& sequentialTaskFlow, SpDataBuffer<TestClassWithCounter> testObject){
+                             [&objectPtr](int& /*sequentialTaskFlow*/, SpDataBuffer<TestClassWithCounter> testObject){
                     objectPtr = &(*testObject);
                 });
             }
@@ -102,7 +102,7 @@ class HeapBufferTest : public UTester< HeapBufferTest > {
             for(int idx = 0 ; idx < 100 ; ++idx){
                 auto testBuffer = heapBuffer.getNewBuffer();
                 runtime.task(SpWrite(sequentialTaskFlow), SpWrite(testBuffer.getDataDep()),
-                             [this, &objectPtr](int& sequentialTaskFlow, SpDataBuffer<TestClassWithCounter> testObject){
+                             [this, &objectPtr](int& /*sequentialTaskFlow*/, SpDataBuffer<TestClassWithCounter> testObject){
                     UASSERTETRUE(objectPtr == &(*testObject));
                 });
             }
