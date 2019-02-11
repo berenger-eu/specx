@@ -357,7 +357,9 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             std::unordered_map<const void*, SpCurrentCopy> l2;
 
+            currentSpecGroup = currentGroupNormalTask.get();
             l2 = copyIfWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
+            currentSpecGroup = nullptr;
 
             auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
 
