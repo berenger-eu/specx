@@ -26,7 +26,7 @@ spetabaru-debug-coverage:
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     - lcov --directory ./ -c -o coverage-rapport.info
-    - genhtml -o ./coverage -t "Coverage example" coverage-rapport.info
+    - genhtml -o ../coverage -t "Coverage example" coverage-rapport.info
   artifacts:
     paths:
       - coverage/
