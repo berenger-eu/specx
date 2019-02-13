@@ -6,7 +6,7 @@ spetabaru:
     - cd build
     - VERBOSE=1 CXX=g++-7 cmake ..
     - make
-    - make test
+    - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
     
 spetabaru-debug:
@@ -15,5 +15,33 @@ spetabaru-debug:
     - cd build
     - VERBOSE=1 CXX=g++-7 cmake -DCMAKE_BUILD_TYPE=DEBUG ..
     - make
-    - make test
+    - CTEST_OUTPUT_ON_FAILURE=TRUE make test
+
+
+spetabaru-debug-coverage:
+  script:
+    - mkdir build
+    - cd build
+    - VERBOSE=1 CXX=g++-7 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
+    - make
+    - CTEST_OUTPUT_ON_FAILURE=TRUE make test
+    - lcov --directory ./ -c -o coverage-rapport.info
+    - lcov --list coverage-rapport.info
+    - genhtml -o ../coverage -t "Coverage example" coverage-rapport.info
+  artifacts:
+    paths:
+      - coverage/
+
+pages:
+  stage: deploy
+  dependencies:
+    - spetabaru-debug-coverage
+  script:
+    - mv coverage/ public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 30 days
+  only:
+    - master
 

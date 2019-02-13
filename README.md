@@ -1,3 +1,6 @@
+[![pipeline status](https://gitlab.inria.fr/bramas/spetabaru/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
+[![coverage report](https://gitlab.inria.fr/bramas/spetabaru/badges/master/coverage.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
+
 
 # Introduction
 SPETABARU is a task-based runtime system, which is

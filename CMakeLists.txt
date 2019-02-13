@@ -88,6 +88,17 @@ set(SPETABARU_VERSION  "${SPETABARU_MAJOR_VERSION}.${SPETABARU_MINOR_VERSION}.${
 # Options
 #===========================================================================
 
+option(SPETABARU_USE_COVERAGE "Should be ON to enable code coverage" OFF)
+
+if( SPETABARU_USE_COVERAGE )
+    message(STATUS "Main -- Use code coverage")
+    set(SPETABARU_CXX_FLAGS "${SPETABARU_CXX_FLAGS} -g -O0 --coverage")
+    list(APPEND SPETABARU_LIBRARIES gcov)
+    # Then one can use these commande:
+    # lcov --directory CMakeFiles/ -c -o coverage-rapport.info
+    # genhtml -o ./coverage -t "Coverage example" coverage-rapport.info
+endif()
+
 # Extra-flags
 SET( SPETABARU_EXTRA_CXX_FLAGS "-funroll-loops" CACHE STRING "These flags are used for all configurations"  )
 set(SPETABARU_CXX_FLAGS  "-std=c++17 ${SPETABARU_CXX_FLAGS} ${SPETABARU_EXTRA_CXX_FLAGS}")
