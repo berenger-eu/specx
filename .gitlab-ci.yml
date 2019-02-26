@@ -2,7 +2,7 @@ image: berenger/spetabaruci
 
 spetabaru:
   tags:
-    - large
+    - medium
   script:
     - mkdir build
     - cd build
@@ -13,7 +13,7 @@ spetabaru:
     
 spetabaru-debug:
   tags:
-    - large
+    - medium
   script:
     - mkdir build
     - cd build
@@ -24,7 +24,7 @@ spetabaru-debug:
 
 spetabaru-debug-coverage:
   tags:
-    - large
+    - medium
   script:
     - mkdir build
     - cd build
@@ -40,7 +40,7 @@ spetabaru-debug-coverage:
 
 pages:
   tags:
-    - large
+    - medium
   stage: deploy
   dependencies:
     - spetabaru-debug-coverage
