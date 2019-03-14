@@ -31,7 +31,7 @@ int main(){
 
         for(int idx = 0 ; idx < nbUncertainTasks ; ++idx){
             runtime.potentialTask(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
-                return false;
+                return true;
             }).setTaskName("Uncertain task -- " + std::to_string(idx));
         }
 
@@ -47,5 +47,3 @@ int main(){
     }
     return 0;
 }
-
-
