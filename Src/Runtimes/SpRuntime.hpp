@@ -421,10 +421,10 @@ class SpRuntime : public SpAbstractToKnowReady {
             }
         }
         const bool taskAlsoSpeculateOnOther = (groups.size() != 0 && !oneGroupDisableOrFailed);
-        
+              
         std::unique_ptr<SpGeneralSpecGroup> currentGroupNormalTask(new SpGeneralSpecGroup(taskAlsoSpeculateOnOther));
         currentGroupNormalTask->setProbability(inProbability);
-        if(taskAlsoSpeculateOnOther == true){ //cas 4 
+        if(taskAlsoSpeculateOnOther == true){ 
             currentGroupNormalTask->addParents(groups);
         }
         
@@ -438,45 +438,57 @@ class SpRuntime : public SpAbstractToKnowReady {
         currentSpecGroup = currentGroupNormalTask.get();  
           
         // création puis insertion tache incertaine
-        auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+        //auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
         
-        if(taskAlsoSpeculateOnOther == false){
+        //@debug
+        std::cout<<"group size: "<<groups.size()<<"\n"; 
+        std::cout<<"oneGroupDisableOrFailed: "<<oneGroupDisableOrFailed<<"\n";
+                
+        if(taskAlsoSpeculateOnOther == false){ std::cout<<"taskAlsoSpeculateOnOther == false"<<"\n"; //@debug
+            
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             
-            // X)
+            // X) 
             l1 = copyIfMaybeWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
             
+            //copy task, nécessaire ? etant donné que copyIfMaybeWriteAndNotDuplicate ajoute déja les tâches de copies
+            currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1)); 
+            
             // C)
-            currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
-        } else {
-          //créer et insérer t' sur la copie A)
-          auto taskViewSpec = coreTaskCreationSpeculative(l1l2, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
+            //currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
+            
+        } else { std::cout<<"taskAlsoSpeculateOnOther == true"<<"\n"; //@debug
           
-          //B) liste des données 
-          l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); 
-          
-          // C) 
-          currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
-          
-          // D) création select           
-          std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); 
-          currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
-          removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
-          
-          // E) mettre a jour la liste gloable des copies avec la liste issue de B)
-          for(auto& cp : l1p){ 
-              assert(copiedHandles.find(cp.first) == copiedHandles.end());
-              copiedHandles[cp.first] = cp.second;
-              copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
-          }
+          // //créer et insérer t' sur la copie A)
+          // auto taskViewSpec = coreTaskCreationSpeculative(l1l2, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
+          // taskViewSpec.setOriginalTask(taskView.getTaskPtr());          
+          // currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());          
+          // 
+          // //B) liste des données 
+          // l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); 
+          // 
+          // // C) 
+          // currentGroupNormalTask->setMainTask(taskView.getTaskPtr());         
+          // 
+          // // D) création select           
+          // std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); 
+          // currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
+          // removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
+          // 
+          // // E) mettre a jour la liste gloable des copies avec la liste issue de B)
+          // for(auto& cp : l1p){ 
+          //     assert(copiedHandles.find(cp.first) == copiedHandles.end());
+          //     copiedHandles[cp.first] = cp.second;
+          //     copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
+          // }
         }
 
+        auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+        currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
+        
         assert(taskAlsoSpeculateOnOther == true || l1.size());
         currentSpecGroup = nullptr;
-        currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1)); // copy tasks
-
-        
-
+  
         // if(taskAlsoSpeculateOnOther == true){
         //     //currentGroup should not be locked here
         //     currentSpecGroup = currentGroupNormalTask.get();

@@ -27,6 +27,13 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("First-task");
         
+        //standard task
+        // const int standardTasks = 2;
+        // for(int idx = 0; idx < standardTasks; idx++) {
+        //   runtime.task(SpWrite(val), [](int& /*valParam*/)  {
+        //   }).setTaskName("Certain task -- " + std::to_string(idx));
+        // }
+        
         const int nbUncertainTasks = 2;
 
         for(int idx = 0 ; idx < nbUncertainTasks ; ++idx){
