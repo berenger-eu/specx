@@ -458,6 +458,13 @@ class SpRuntime : public SpAbstractToKnowReady {
             // C)
             currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
             
+            //
+            for(auto& cp : l1){ //nécessaire pour la création du graphe. Pourquoi cela était fait après l'ajout du callback sur la tache ? (ligne ~530)
+                assert(copiedHandles.find(cp.first) == copiedHandles.end());
+                copiedHandles[cp.first] = cp.second;
+                copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
+            }
+            
         } else { 
           
            //créer et insérer t' sur la copie A)
@@ -504,29 +511,25 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         //currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); // C) Y)
         
-        // if(taskAlsoSpeculateOnOther == false){ //avertit le groupe si la spéculation a échoué ou non (nécessaire pour l'activation/désactivation)
-        //     taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
-        //                          (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-        //                          const bool isEnabled){
-        //         if(isEnabled){
-        //             if(!alreadyDone){
-        //                 assert(SpUtils::GetThreadId() != 0);
-        //                 specGroupMutex.lock();
-        //             }
-        //             specGroupPtr->setSpeculationCurrentResult(!taskRes);
-        //             if(!alreadyDone){
-        //                 assert(SpUtils::GetThreadId() != 0);
-        //                 specGroupMutex.unlock();
-        //             }
-        //         }
-        //     });
-        // 
-        //     for(auto& cp : l1){
-        //         assert(copiedHandles.find(cp.first) == copiedHandles.end());
-        //         copiedHandles[cp.first] = cp.second;
-        //         copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
-        //     }
-        // }
+        //if(taskAlsoSpeculateOnOther == false){ //avertit le groupe si la spéculation a échoué ou non (nécessaire pour l'activation/désactivation)
+            // taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
+            //                      (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
+            //                      const bool isEnabled){
+            //     if(isEnabled){
+            //         if(!alreadyDone){
+            //             assert(SpUtils::GetThreadId() != 0);
+            //             specGroupMutex.lock();
+            //         }
+            //         specGroupPtr->setSpeculationCurrentResult(!taskRes);
+            //         if(!alreadyDone){
+            //             assert(SpUtils::GetThreadId() != 0);
+            //             specGroupMutex.unlock();
+            //         }
+            //     }
+            // });
+        
+
+        //}
         // else {
         //     for(auto& cp : l1){
         //         assert(copiedHandles.find(cp.first) == copiedHandles.end());

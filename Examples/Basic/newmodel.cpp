@@ -28,11 +28,11 @@ int main(){
         }).setTaskName("First-task");
         
         //standard task
-        // const int standardTasks = 2;
-        // for(int idx = 0; idx < standardTasks; idx++) {
-        //   runtime.task(SpWrite(val), [](int& /*valParam*/)  {
-        //   }).setTaskName("Certain task -- " + std::to_string(idx));
-        // }
+        const int standardTasks = 2;
+        for(int idx = 0; idx < standardTasks; idx++) {
+          runtime.task(SpWrite(val), [](int& /*valParam*/)  {
+          }).setTaskName("Certain task -- " + std::to_string(idx));
+        }
         
         const int nbUncertainTasks = 2;
 
