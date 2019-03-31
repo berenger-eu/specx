@@ -439,7 +439,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                           
         //@debug
         std::cout<<"group size: "<<groups.size()<<"\n"; 
-        std::cout<<"oneGroupDisableOrFailed: "<<oneGroupDisableOrFailed<<"\n";
+        std::cout<<"!oneGroupDisableOrFailed: "<<!oneGroupDisableOrFailed<<"\n";
         std::cout<<"taskAlsoSpeculateOnOther: "<<taskAlsoSpeculateOnOther<<"\n";
                 
         if(taskAlsoSpeculateOnOther == false) {           
@@ -459,7 +459,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
             
             //
-            for(auto& cp : l1){ //nécessaire pour la création du graphe. Pourquoi cela était fait après l'ajout du callback sur la tache ? (ligne ~530)
+            for(auto& cp : l1){ //nécessaire pour la création du graphe. Pourquoi cela était fait après l'ajout du callback sur la tache ? 
                 assert(copiedHandles.find(cp.first) == copiedHandles.end());
                 copiedHandles[cp.first] = cp.second;
                 copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
@@ -471,24 +471,25 @@ class SpRuntime : public SpAbstractToKnowReady {
            auto taskViewSpec = coreTaskCreationSpeculative(l1l2, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
            taskViewSpec.setOriginalTask(taskView.getTaskPtr());          
            currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());          
-           
-           //B) liste des données 
-           l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); 
-           
+                      
            // C) 
            currentGroupNormalTask->setMainTask(taskView.getTaskPtr());         
            
-          // D) création select           
-          std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); 
-          currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
-          removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
+           // D) création select           
+           std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); 
+           currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
+           removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);     
+           
+           //B) liste des données / insertion copy (doit être fait après le select du coup)
+           l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); 
+           currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1p));                                  
           
           // E) mettre a jour la liste gloable des copies avec la liste issue de B)
           for(auto& cp : l1p){ 
               assert(copiedHandles.find(cp.first) == copiedHandles.end());
               copiedHandles[cp.first] = cp.second;
               copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
-          }
+          }                    
         }
           
         currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
@@ -507,10 +508,9 @@ class SpRuntime : public SpAbstractToKnowReady {
         //     l2 = copyIfWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
         //     currentSpecGroup = nullptr;
         //     currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l2));
-        // }
+        // } 
         
-        //currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); // C) Y)
-        
+
         //if(taskAlsoSpeculateOnOther == false){ //avertit le groupe si la spéculation a échoué ou non (nécessaire pour l'activation/désactivation)
             // taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
             //                      (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
@@ -527,8 +527,6 @@ class SpRuntime : public SpAbstractToKnowReady {
             //         }
             //     }
             // });
-        
-
         //}
         // else {
         //     for(auto& cp : l1){
@@ -539,11 +537,6 @@ class SpRuntime : public SpAbstractToKnowReady {
         //     for(auto& cp : l2){
         //         l1l2[cp.first] = cp.second;
         //     }
-        // 
-        //     auto taskViewSpec = coreTaskCreationSpeculative(l1l2, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); //A) l1l2 vide
-        //     taskViewSpec.setOriginalTask(taskView.getTaskPtr());
-        // 
-        //     currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
         // 
         //     taskViewSpec.addCallback([this, aTaskPtr = taskViewSpec.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
         //                          (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
@@ -561,17 +554,6 @@ class SpRuntime : public SpAbstractToKnowReady {
         //         }
         //     });
         // 
-        //     std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); // D) select
-        // 
-        //     currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
-        // 
-        //     removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
-        //       // fin D)
-        //     for(auto& cp : l1p){ // E) mettre a jour la liste gloable des copies avec la liste issue de B)
-        //         assert(copiedHandles.find(cp.first) == copiedHandles.end());
-        //         copiedHandles[cp.first] = cp.second;
-        //         copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
-        //     }
         // }
 
 
