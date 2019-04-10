@@ -358,7 +358,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             std::unordered_map<const void*, SpCurrentCopy> l2;
 
             currentSpecGroup = currentGroupNormalTask.get();
-            //l2 = copyIfWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction); une autre donée est utilisé mais pas dupliqué (pas dans notre cas on utilise une seule donée)
+            l2 = copyIfWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction); // une autre donée est utilisé mais pas dupliqué (pas dans notre cas on utilise une seule donée)
             currentSpecGroup = nullptr;
 
             auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
@@ -427,12 +427,16 @@ class SpRuntime : public SpAbstractToKnowReady {
         if(taskAlsoSpeculateOnOther == true){ 
             currentGroupNormalTask->addParents(groups);
         }
+
+        std::unordered_map<const void*, SpCurrentCopy> copiesBeforeCurrentTask = getCorrespondingCopyList(tuple, sequenceParamsNoFunction);
         
+        for(auto& iter : copiesBeforeCurrentTask){
+            assert(copiedHandles.find(iter.first) != copiedHandles.end());
+            copiedHandles.erase(iter.first);
+        }
+
         //mapping données
         std::unordered_map<const void*, SpCurrentCopy> l1;
-        std::unordered_map<const void*, SpCurrentCopy> l1p;
-        std::unordered_map<const void*, SpCurrentCopy> l2;
-        std::unordered_map<const void*, SpCurrentCopy> l1l2;
         
         //nécessaire 
         currentSpecGroup = currentGroupNormalTask.get();  
@@ -441,58 +445,45 @@ class SpRuntime : public SpAbstractToKnowReady {
         std::cout<<"group size: "<<groups.size()<<"\n"; 
         std::cout<<"!oneGroupDisableOrFailed: "<<!oneGroupDisableOrFailed<<"\n";
         std::cout<<"taskAlsoSpeculateOnOther: "<<taskAlsoSpeculateOnOther<<"\n";
-                
-        if(taskAlsoSpeculateOnOther == false) {           
-          // create copy tasks 
-          l1 = copyIfMaybeWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);          
+
+        {
+          // Always create copy tasks
+          l1 = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction);
           currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1));           
         }
         
-        //create and insert task
-        auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);        
+        // Create and insert normal task on the regular data
+        auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+        // C)
+        currentGroupNormalTask->setMainTask(taskView.getTaskPtr());
         
-        if(taskAlsoSpeculateOnOther == false){ 
-            
-            removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
-                        
-            // C)
-            currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
-            
-            //
+        if(taskAlsoSpeculateOnOther == false){
+            // removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             for(auto& cp : l1){ //nécessaire pour la création du graphe. Pourquoi cela était fait après l'ajout du callback sur la tache ? 
                 assert(copiedHandles.find(cp.first) == copiedHandles.end());
                 copiedHandles[cp.first] = cp.second;
                 copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
             }
             
-        } else { 
+        } else {
+            //créer et insérer t' sur la copie A)
+            auto taskViewSpec = coreTaskCreationSpeculative(copiesBeforeCurrentTask, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
+            taskViewSpec.setOriginalTask(taskView.getTaskPtr());
+            currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
+
+            // D) création select
+            std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(copiesBeforeCurrentTask, inPriority, tuple, sequenceParamsNoFunction);
+            currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
+
+            removeAllCorrespondingCopiesList(copiesBeforeCurrentTask, tuple, sequenceParamsNoFunction);
           
-           //créer et insérer t' sur la copie A)
-           auto taskViewSpec = coreTaskCreationSpeculative(l1l2, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
-           taskViewSpec.setOriginalTask(taskView.getTaskPtr());          
-           currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());          
-                      
-           // C) 
-           currentGroupNormalTask->setMainTask(taskView.getTaskPtr());         
-           
-           // D) création select           
-           std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction); 
-           currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
-           removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);     
-           
-           //B) liste des données / insertion copy (doit être fait après le select du coup)
-           l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); 
-           currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1p));                                  
-          
-          // E) mettre a jour la liste gloable des copies avec la liste issue de B)
-          for(auto& cp : l1p){ 
-              assert(copiedHandles.find(cp.first) == copiedHandles.end());
-              copiedHandles[cp.first] = cp.second;
-              copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
-          }                    
+            // E) mettre a jour la liste gloable des copies avec la liste issue de B)
+            for(auto& cp : l1){
+                assert(copiedHandles.find(cp.first) == copiedHandles.end());
+                copiedHandles[cp.first] = cp.second;
+                copiedHandles[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
+            }
         }
-          
-        currentGroupNormalTask->setMainTask(taskView.getTaskPtr()); 
         
         assert(taskAlsoSpeculateOnOther == true || l1.size());
         currentSpecGroup = nullptr;
@@ -894,9 +885,52 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
+    template <class Tuple, std::size_t IdxData>
+    std::unordered_map<const void*, SpCurrentCopy> coreGetCorrespondingCopyList(Tuple& args){
+        using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
+        auto& scalarOrContainerData = std::get<IdxData>(args);
+
+        std::unordered_map<const void*, SpCurrentCopy> copies;
+
+        auto hh = getDataHandle(scalarOrContainerData);
+        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+        long int indexHh = 0;
+        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+
+            auto found = copiedHandles.find(ptr);
+            if(found != copiedHandles.end()){
+                assert(found->second.lastestSpecGroup);
+                copies[ptr] = (found->second);
+            }
+
+            indexHh += 1;
+        }
+
+        return copies;
+    }
+
+    template <class Tuple, std::size_t... Is>
+    std::unordered_map<const void*, SpCurrentCopy> getCorrespondingCopyList(Tuple& args, std::index_sequence<Is...>){
+        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
+        std::unordered_map<const void*, SpCurrentCopy> result;
+        // Add the handles
+        std::unordered_map<const void*, SpCurrentCopy> groups[] = {std::unordered_map<const void*, SpCurrentCopy>(), coreGetCorrespondingCopyList<Tuple, Is>(args) ...};
+        constexpr int nbRes = sizeof(groups)/sizeof(std::unordered_map<const void*, SpCurrentCopy>);
+        static_assert(sizeof...(Is) == nbRes-1, "oups");
+        for(int idxRes = 0 ; idxRes < nbRes ; ++idxRes){
+            result.insert(groups[idxRes].begin(), groups[idxRes].end());
+        }
+
+        return result;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
 
     template <class Tuple, std::size_t IdxData>
-    bool coreRemoveAllCorrespondingCopies(Tuple& args){
+    bool coreRemoveAllCorrespondingCopies(std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -914,7 +948,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                 assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-                if(auto found = copiedHandles.find(ptr); found != copiedHandles.end()){
+                if(auto found = copiesList.find(ptr); found != copiesList.end()){
                     if(accessMode != SpDataAccessMode::READ){
                         if(found->second.hasBeenDeleted == false){
                             assert(std::is_copy_assignable<TargetParamType>::value);
@@ -927,7 +961,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                                 delete &output;
                             }).setTaskName("delete");
                         }
-                        copiedHandles.erase(found);
+                        copiesList.erase(found);
                         removeSomething = true;
                      }
 // This is not true anymore
@@ -946,8 +980,16 @@ class SpRuntime : public SpAbstractToKnowReady {
     template <class Tuple, std::size_t... Is>
     void removeAllCorrespondingCopies(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        bool result[] = {true, coreRemoveAllCorrespondingCopies<Tuple, Is>(args) ...};
+        bool result[] = {true, coreRemoveAllCorrespondingCopies<Tuple, Is>(copiedHandles, args) ...};
         (void)result;
+    }
+
+
+    template <class Tuple, std::size_t... Is>
+    void removeAllCorrespondingCopiesList( std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args, std::index_sequence<Is...>){
+        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
+        const bool returnValues[] = {true, coreRemoveAllCorrespondingCopies<Tuple, Is>(copiesList, args) ...};
+        (void)returnValues;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
