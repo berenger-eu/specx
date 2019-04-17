@@ -25,5 +25,5 @@ https://gitlab.inria.fr/bramas/spetabaru
 
 # Citing
 
-You can refer to the preprint available at https://arxiv.org/abs/1803.04211
+You can refer to the paper available at https://peerj.com/articles/cs-183/
 This document is also describing the current models.
