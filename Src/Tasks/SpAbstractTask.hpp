@@ -237,6 +237,14 @@ public:
     void setEnabled(const SpTaskActivation inIsEnable) {
         isEnabled = inIsEnable;
     }
+    
+    bool isOnNormalPath()
+    {
+      if (originalTask == NULL) {
+        return true;
+      }
+      return false;
+    }
 
     ///////////////////////////////////////////////////////////////////////////
 

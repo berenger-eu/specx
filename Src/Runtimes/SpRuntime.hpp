@@ -445,18 +445,19 @@ class SpRuntime : public SpAbstractToKnowReady {
         std::cout<<"group size: "<<groups.size()<<"\n"; 
         std::cout<<"!oneGroupDisableOrFailed: "<<!oneGroupDisableOrFailed<<"\n";
         std::cout<<"taskAlsoSpeculateOnOther: "<<taskAlsoSpeculateOnOther<<"\n";
+        
 
-        {
-          // Always create copy tasks
-          l1 = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction);
-          currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1));           
-        }
+        
+        // Always create copy tasks
+        l1 = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction);
+        currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1));           
+        
         
         // Create and insert normal task on the regular data
         auto taskView = coreTaskCreation(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
         // C)
         currentGroupNormalTask->setMainTask(taskView.getTaskPtr());
-        
+          
         if(taskAlsoSpeculateOnOther == false){
             // removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             for(auto& cp : l1){ //nécessaire pour la création du graphe. Pourquoi cela était fait après l'ajout du callback sur la tache ? 
@@ -468,7 +469,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         } else {
             //créer et insérer t' sur la copie A)
             auto taskViewSpec = coreTaskCreationSpeculative(copiesBeforeCurrentTask, SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction); // l1l2 vide
-            taskViewSpec.setOriginalTask(taskView.getTaskPtr());
+            taskViewSpec.setOriginalTask(taskView.getTaskPtr());            
             currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
 
             // D) création select
@@ -487,66 +488,95 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         assert(taskAlsoSpeculateOnOther == true || l1.size());
         currentSpecGroup = nullptr;
-  
-        // if(taskAlsoSpeculateOnOther == true){
-        //     //currentGroup should not be locked here
-        //     currentSpecGroup = currentGroupNormalTask.get();
-        //     l1p = copyIfMaybeWriteAndDuplicate(inPriority, tuple, sequenceParamsNoFunction); //B)
-        //     currentSpecGroup = nullptr;
-        //     currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1p));
-        // 
-        //     currentSpecGroup = currentGroupNormalTask.get();
-        //     l2 = copyIfWriteAndNotDuplicate(inPriority, tuple, sequenceParamsNoFunction);
-        //     currentSpecGroup = nullptr;
-        //     currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l2));
-        // } 
         
-
-        //if(taskAlsoSpeculateOnOther == false){ //avertit le groupe si la spéculation a échoué ou non (nécessaire pour l'activation/désactivation)
-            // taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
-            //                      (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-            //                      const bool isEnabled){
-            //     if(isEnabled){
-            //         if(!alreadyDone){
-            //             assert(SpUtils::GetThreadId() != 0);
-            //             specGroupMutex.lock();
-            //         }
-            //         specGroupPtr->setSpeculationCurrentResult(!taskRes);
-            //         if(!alreadyDone){
-            //             assert(SpUtils::GetThreadId() != 0);
-            //             specGroupMutex.unlock();
-            //         }
-            //     }
-            // });
-        //}
-        // else {
-        //     for(auto& cp : l1){
-        //         assert(copiedHandles.find(cp.first) == copiedHandles.end());
-        //         assert(l1p.find(cp.first) != l1p.end());
-        //         l1l2[cp.first] = cp.second;
-        //     }
-        //     for(auto& cp : l2){
-        //         l1l2[cp.first] = cp.second;
-        //     }
-        // 
-        //     taskViewSpec.addCallback([this, aTaskPtr = taskViewSpec.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
-        //                          (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-        //                          const bool isEnabled){
-        //         if(isEnabled){
-        //             if(!alreadyDone){
-        //                 assert(SpUtils::GetThreadId() != 0);
-        //                 specGroupMutex.lock();
-        //             }
-        //             specGroupPtr->setSpeculationCurrentResult(!taskRes);
-        //             if(!alreadyDone){
-        //                 assert(SpUtils::GetThreadId() != 0);
-        //                 specGroupMutex.unlock();
-        //             }
-        //         }
-        //     });
-        // 
-        // }
-
+        
+        //le callback doit etre ajouté tout le temps non ?
+        if(taskAlsoSpeculateOnOther == false) { 
+            taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
+                                 (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
+                                 const bool isEnabled) { // paramètres alors que dans la méthode addCallBack il n'y en a que  3 std::function<void(const bool, SpTaskViewer&, const boo
+                if(isEnabled) {
+                  if(!alreadyDone) {
+                        assert(SpUtils::GetThreadId() != 0);
+                        specGroupMutex.lock();
+                  }
+                                    
+                  //si la tâche est sur le chemin normal
+                  if (aTaskPtr->isOnNormalPath()) {
+                    //si la tache à écrit
+                    if (specGroupPtr->didSpeculationFailed()) {
+                        //si la tache spéculant sur t est finit
+                        if (specGroupPtr->getSpecTask()->isOver()) {
+                          // Lorsqu'elle a finit elle n'a rien fait car "t" n'était pas finit (CAS1)
+                        } else {
+                          //désactiver la tache qui spécule sur "t"
+                          specGroupPtr->getSpecTask()->setEnabled(SpTaskActivation::DISABLE);
+                        }
+                        // désactiver la tache de select associée
+                        specGroupPtr->disableOrEnableSelectTasks(false);
+                        // activer le bloque spéculatif suivant (copy, + tache incertaine + tache spéculative || tache normale)  (+ tache select ?)
+                        specGroupPtr->getNextGroup()->enableOrDisableCopyAndTasks(true);
+                    } else {
+                      //spéculation réussi
+                      //si la tache qui spécule sur t est finit
+                      if (specGroupPtr->getMainTask()->isOver()) {
+                        // desactiver la copie suivante (en fait ça pourrait être une fausse copie)
+                          specGroupPtr->getNextGroup()->disableOrEnableCopyTasks(false);
+                        
+                        // désactiver la tâche incertaine suivante || la tache normale suivante 
+                        specGroupPtr->getMainTask()->setEnabled(SpTaskActivation::DISABLE);
+                        
+                        //si la tache qui spécule sur "t" n'a pas ecrit les données
+                        if (specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationFailed()) {
+                          // désactiver le select car les données seront le même 
+                          specGroupPtr->disableOrEnableSelectTasks(false);
+                        } else {
+                          // activer le select associée 
+                          specGroupPtr->disableOrEnableSelectTasks(true);
+                        }                        
+                        // désactiver la speculation suivante , par exemple si t=B, désactiver D', etc. 
+                        specGroupPtr->getNextGroup()->getSpecTask()->setEnabled(SpTaskActivation::DISABLE);
+                      } else {
+                          // on ne fait rien (CAS2)
+                      }                    
+                    }
+                  } else {
+                    // ici on sait que "t" est une tache incertaine et qui spécule
+                    // mais peut que etre que le résultat de la spéculation n'est pas fini
+                    //si la tache spéculant sur t est finit
+                    if (specGroupPtr->getSpecTask()->isOver()) {
+                      // on sait que la spéculation a réussi sinon "t" serait désactivée (CAS2)
+                      //si t a écrit
+                      if (specGroupPtr->didSpeculationFailed()) {
+                        // la spéculation suivante a échouée c'est comme si la tache incertaine de "t"
+                        // dans le chemine normale avait écrit sur les données                                              
+                        // désactiver la tache qui spécule sur "t" (= tache sur le chemin normale étant donné que nous sommes dans le cas ou t est incertain et n'est pas sur le chemin normal)
+                        specGroupPtr->getMainTask()->setEnabled(SpTaskActivation::DISABLE);
+                        
+                        // désactiver la tache de select associée
+                        specGroupPtr->getNextGroup()->disableOrEnableSelectTasks(false);
+                        
+                         //activer le bloque spéculatif suivant (copy, + tache incertaine + tache spéculative || tache normale)
+                         specGroupPtr->getNextGroup()->enableOrDisableCopyAndTasks(true);
+                      } else {
+                          // désactiver le select car les données seront le même
+                          specGroupPtr->disableOrEnableSelectTasks(false);
+                      }                      
+                    } else {
+                       // on ne fait rien (CAS1)
+                    }                    
+                  }
+                    
+                                                                      
+                specGroupPtr->setSpeculationCurrentResult(!taskRes);
+                  if(!alreadyDone){
+                          assert(SpUtils::GetThreadId() != 0);
+                          specGroupMutex.unlock();
+                  }
+                }                                
+            });
+        }
+        
 
         specGroups.emplace_back(std::move(currentGroupNormalTask));
 
@@ -555,6 +585,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         return taskView;
     }
+    
+    
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
 

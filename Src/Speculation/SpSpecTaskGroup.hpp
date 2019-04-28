@@ -199,6 +199,16 @@ public:
     bool isSpeculationDisable() const {
         return state == States::DO_NOT_SPEC;
     }
+    
+    SpAbstractTask* getSpecTask()
+    {
+      return specTask;
+    }
+    
+    SpAbstractTask* getMainTask()
+    {
+      return mainTask;
+    }
 
     /////////////////////////////////////////////////////////////////////////
 
@@ -457,10 +467,44 @@ public:
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
     }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////
+    
+    SpGeneralSpecGroup* getNextGroup()
+    {
+        assert(subGroups.size()>0);
+        return subGroups.front();
+    }
+            
+    void enableOrDisableCopyAndTasks(bool enable)
+    {
+      assert(isSpeculationEnableOrDisable() == false);
+      mainTask->setEnabled(SpTaskActivation::ENABLE);
+      EnableAllTasks(copyTasks);
+      EnableAllTasks(selectTasks);
+    }
+    
+    
+    void disableOrEnableSelectTasks(bool enable)
+    {
+      if (enable) {
+        EnableAllTasks(selectTasks);
+      } else {
+        DisableAllTasks(selectTasks);
+      }
+    }
+    
+    void disableOrEnableCopyTasks(bool enable)
+    {
+      if (enable) {
+        EnableAllTasks(copyTasks);
+      } else {
+        DisableAllTasks(copyTasks);
+      }
+    }
+    
 };
 
 
 
 #endif
-
-
