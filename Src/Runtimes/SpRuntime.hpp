@@ -526,8 +526,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                         // désactiver la tâche incertaine suivante || la tache normale suivante 
                         specGroupPtr->getMainTask()->setEnabled(SpTaskActivation::DISABLE);
                         
-                        //si la tache qui spécule sur "t" n'a pas ecrit les données
-                        if (specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationFailed()) {
+                        //si la tache qui spécule sur "t" n'a pas ecrit les données @TODO specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationFailed()  ?
+                        if (true) {
                           // désactiver le select car les données seront le même 
                           specGroupPtr->disableOrEnableSelectTasks(false);
                         } else {
