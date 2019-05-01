@@ -477,11 +477,11 @@ public:
     }
             
     void enableOrDisableCopyAndTasks(bool enable)
-    {
-      assert(isSpeculationEnableOrDisable() == false);
+    {      
       mainTask->setEnabled(SpTaskActivation::ENABLE);
+      specTask->setEnabled(SpTaskActivation::ENABLE);
       EnableAllTasks(copyTasks);
-      EnableAllTasks(selectTasks);
+      //EnableAllTasks(selectTasks); nécessaire pour activer le bloc spéculatif ?
     }
     
     

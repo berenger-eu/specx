@@ -240,7 +240,8 @@ public:
     
     bool isOnNormalPath()
     {
-      if (originalTask == NULL) {
+      
+      if (!originalTask) {
         return true;
       }
       return false;

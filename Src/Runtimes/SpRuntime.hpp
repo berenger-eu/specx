@@ -490,47 +490,48 @@ class SpRuntime : public SpAbstractToKnowReady {
         currentSpecGroup = nullptr;
         
         
-        //le callback doit etre ajouté tout le temps non ?
-        if(taskAlsoSpeculateOnOther == false) { 
+        // Q: le callback doit etre ajouté tout le temps non  ou uniquement pour les tâches dont les données sont copiées ?
+        if(taskAlsoSpeculateOnOther == true) {  
             taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
                                  (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-                                 const bool isEnabled) { // paramètres alors que dans la méthode addCallBack il n'y en a que  3 std::function<void(const bool, SpTaskViewer&, const boo
+                                 const bool isEnabled) { 
+                                   
                 if(isEnabled) {
                   if(!alreadyDone) {
                         assert(SpUtils::GetThreadId() != 0);
                         specGroupMutex.lock();
                   }
-                                    
-                  //si la tâche est sur le chemin normal
-                  if (aTaskPtr->isOnNormalPath()) {
-                    //si la tache à écrit
-                    if (specGroupPtr->didSpeculationFailed()) {
+                  
+                  //si la tâche est sur le chemin normal | Q: pas sur @TODO 
+                  if (aTaskPtr->isOnNormalPath()) { 
+                    //si la tache à écrit la spéculation à donc échouée
+                    if (specGroupPtr->didSpeculationFailed()) { 
                         //si la tache spéculant sur t est finit
                         if (specGroupPtr->getSpecTask()->isOver()) {
                           // Lorsqu'elle a finit elle n'a rien fait car "t" n'était pas finit (CAS1)
-                        } else {
+                        } else { 
                           //désactiver la tache qui spécule sur "t"
                           specGroupPtr->getSpecTask()->setEnabled(SpTaskActivation::DISABLE);
                         }
                         // désactiver la tache de select associée
                         specGroupPtr->disableOrEnableSelectTasks(false);
-                        // activer le bloque spéculatif suivant (copy, + tache incertaine + tache spéculative || tache normale)  (+ tache select ?)
+                        // activer le bloque spéculatif suivant (copy, + tache incertaine + tache spéculative || tache normale)  | Q: (+ tache select ?)
                         specGroupPtr->getNextGroup()->enableOrDisableCopyAndTasks(true);
-                    } else {
+                    } else { 
                       //spéculation réussi
                       //si la tache qui spécule sur t est finit
-                      if (specGroupPtr->getMainTask()->isOver()) {
+                      if (specGroupPtr->getSpecTask()->isOver()) {
                         // desactiver la copie suivante (en fait ça pourrait être une fausse copie)
                           specGroupPtr->getNextGroup()->disableOrEnableCopyTasks(false);
                         
                         // désactiver la tâche incertaine suivante || la tache normale suivante 
-                        specGroupPtr->getMainTask()->setEnabled(SpTaskActivation::DISABLE);
+                        specGroupPtr->getNextGroup()->getMainTask()->setEnabled(SpTaskActivation::DISABLE);
                         
-                        //si la tache qui spécule sur "t" n'a pas ecrit les données @TODO specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationFailed()  ?
-                        if (true) {
-                          // désactiver le select car les données seront le même 
+                        //si la tache qui spécule sur "t" n'a pas ecrit les données | Q: groupe de la tâche spéculative du groupe courant =/= groupe courant ?
+                        if (specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationSucceed()) { //std::cout<<"spec succeed "<<specGroupPtr->getSpecTask()->getTaskName()<<"\n"; //@DEBUG
+                          // désactiver le select car les données seront le même  
                           specGroupPtr->disableOrEnableSelectTasks(false);
-                        } else {
+                        } else {  //std::cout<<"spec failed "<<specGroupPtr->getSpecTask()->getTaskName()<<"\n"; //@DEBUG
                           // activer le select associée 
                           specGroupPtr->disableOrEnableSelectTasks(true);
                         }                        
@@ -541,13 +542,14 @@ class SpRuntime : public SpAbstractToKnowReady {
                       }                    
                     }
                   } else {
-                    // ici on sait que "t" est une tache incertaine et qui spécule
+                    // ici on sait que "t" est une tache incertaine et qui spécule 
                     // mais peut que etre que le résultat de la spéculation n'est pas fini
                     //si la tache spéculant sur t est finit
-                    if (specGroupPtr->getSpecTask()->isOver()) {
+                    std::cout<<"t chemin incertain "<<aTaskPtr->getTaskName()<<"\n";
+                    if (specGroupPtr->getSpecTask()->isOver()) { 
                       // on sait que la spéculation a réussi sinon "t" serait désactivée (CAS2)
                       //si t a écrit
-                      if (specGroupPtr->didSpeculationFailed()) {
+                      if (specGroupPtr->getSpecTask()->getSpecGroup()->didSpeculationSucceed()) { std::cout<<"t chemin incertain et spéculation echec"<<aTaskPtr->getTaskName()<<"\n";
                         // la spéculation suivante a échouée c'est comme si la tache incertaine de "t"
                         // dans le chemine normale avait écrit sur les données                                              
                         // désactiver la tache qui spécule sur "t" (= tache sur le chemin normale étant donné que nous sommes dans le cas ou t est incertain et n'est pas sur le chemin normal)
