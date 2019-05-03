@@ -290,9 +290,9 @@ public:
             // It is new, now we know parents failed
             parentSpeculationResults = SpecResult::SPECULATION_FAILED;
             // Inform children
-            for(auto* child : subGroups){
-                child->setParentSpecResult(false);
-            }
+//            for(auto* child : subGroups){
+//                child->setParentSpecResult(false);
+//            }
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
             mainTask->setEnabled(SpTaskActivation::ENABLE);
@@ -306,62 +306,69 @@ public:
             assert(specTask->isEnable());
             if(didSpeculationSucceed()){
                 DisableAllTasks(selectTasks);
-
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
                 }
             }
             else if(didSpeculationFailed()){
                 // Already done EnableAllTasks(selectTasks);
-                for(auto* child : subGroups){
-                    child->setParentSpecResult(false);
-                }
+//                for(auto* child : subGroups){
+//                    child->setParentSpecResult(false);
+//                }
             }
         }
     }
 
-    void setSpeculationCurrentResult(const bool inSpeculationSucceed){
-        assert(isSpeculationEnable());
-        assert((specTask != nullptr &&  parentGroups.size())
-               || (specTask == nullptr &&  parentGroups.empty()));
-        assert(isSpeculationResultUndefined());
-
-        if(inSpeculationSucceed){
-            selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
+    void setSpeculationCurrentResult(const bool inSpeculationSucceed, const bool isEnable, const bool isOnNormalPath){
+        assert(isSpeculatif == false || isOnNormalPath == false || didParentSpeculationFailed() == isEnable);
+        if(didParentSpeculationFailed()){
+            for(auto& slt : selectTasks){
+                // simply ensure that selects are disable
+                assert(slt->isEnable() == false);
+            }
         }
-        else{
-            selfSpeculationResults = SpecResult::SPECULATION_FAILED;
-        }
-
         if(parentGroups.empty()){
             assert(specTask == nullptr);
             assert(selectTasks.size() == 0);
-
-            for(auto* child : subGroups){
-                child->setParentSpecResult(inSpeculationSucceed);
-            }
+            assert(isOnNormalPath == true);
         }
         else{
             assert(isSpeculatif);
             assert(specTask != nullptr);
             assert(selectTasks.size() != 0);
+        }
+        assert(!isSpeculatif || mainTask->isEnable() == didParentSpeculationFailed());
+        assert((specTask != nullptr &&  parentGroups.size())
+               || (specTask == nullptr &&  parentGroups.empty()));
 
+        if(isOnNormalPath){
+            assert(isSpeculatif == false || didParentSpeculationSucceed() || didParentSpeculationFailed());
+            if(isSpeculatif == false || didParentSpeculationFailed()){
+                assert(isEnable);
+                if(inSpeculationSucceed){
+                    selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
+                }
+                else{
+                    selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+                }
+                for(auto* child : subGroups){
+                    child->setParentSpecResult(inSpeculationSucceed);
+                }
+            }
+        }
+        else{
+            assert(isEnable);
+            if(inSpeculationSucceed){
+                selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
+            }
+            else{
+                selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+            }
             if(didParentSpeculationSucceed()){
                 for(auto* child : subGroups){
                     child->setParentSpecResult(inSpeculationSucceed);
                 }
-                assert(mainTask->isEnable() == false);
-                if(inSpeculationSucceed){
-                    DisableAllTasks(selectTasks);
-                }
             }
-            else if(didParentSpeculationFailed()){
-                // Check
-                for(auto* child : subGroups){
-                    assert(child->didParentSpeculationFailed());
-                }
-            }
-            // If parent is undefined, we have to wait
         }
     }
 
@@ -468,31 +475,6 @@ public:
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////////////
-    
-    SpGeneralSpecGroup* getNextGroup()
-    {
-        assert(subGroups.size()>0);
-        return subGroups.front();
-    }
-            
-    void enableOrDisableCopyAndTasks(bool enable)
-    {      
-      mainTask->setEnabled(SpTaskActivation::ENABLE);
-      specTask->setEnabled(SpTaskActivation::ENABLE);
-      EnableAllTasks(copyTasks);
-      //EnableAllTasks(selectTasks); nécessaire pour activer le bloc spéculatif ?
-    }
-    
-    
-    void disableOrEnableSelectTasks(bool enable)
-    {
-      if (enable) {
-        EnableAllTasks(selectTasks);
-      } else {
-        DisableAllTasks(selectTasks);
-      }
-    }
     
     void disableOrEnableCopyTasks(bool enable)
     {
