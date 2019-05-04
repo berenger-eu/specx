@@ -286,9 +286,9 @@ public:
         if(didParentSpeculationFailed()){
             // We know already that parents failed
         }
-        else if(inSpeculationSucceed == false){
+        else if(inSpeculationSucceed == false){ 
             // It is new, now we know parents failed
-            parentSpeculationResults = SpecResult::SPECULATION_FAILED;
+            parentSpeculationResults = SpecResult::SPECULATION_FAILED;            
             // Inform children
 //            for(auto* child : subGroups){
 //                child->setParentSpecResult(false);
@@ -299,27 +299,36 @@ public:
             specTask->setDisabledIfNotOver();
             DisableAllTasks(selectTasks);
         }
-        else if(counterParentResults == int(parentGroups.size())){
+        else if(counterParentResults == int(parentGroups.size())){ 
             // All parents are over, and none of them failed, then it is a success!
             parentSpeculationResults = SpecResult::SPECULATION_SUCCED;
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
-            if(didSpeculationSucceed()){
+            if(didSpeculationSucceed()){ 
                 DisableAllTasks(selectTasks);
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
                 }
             }
-            else if(didSpeculationFailed()){
-                // Already done EnableAllTasks(selectTasks);
-//                for(auto* child : subGroups){
-//                    child->setParentSpecResult(false);
-//                }
+            else if(didSpeculationFailed()){ std::cout<<"parent suceed, current grp: "<<specTask->getTaskName()<<"\n";
+                EnableAllTasks(selectTasks);
+                
+                //if we are on speculative path, the next select has to be disabled because we write on data
+               for(auto* child : subGroups){
+                   child->setParentSpecResult(false);
+               }
             }
         }
     }
 
     void setSpeculationCurrentResult(const bool inSpeculationSucceed, const bool isEnable, const bool isOnNormalPath){
+      std::cout<<"specSucceed: "<<inSpeculationSucceed<<" & isEnable "<<isEnable<<" & is on NormalPath "<<isOnNormalPath;
+      
+      if (isOnNormalPath) {
+        std::cout<<" & main task: "<<mainTask->getTaskName()<<"\n";
+      }else{
+        std::cout<<" & spec task: "<<specTask->getTaskName()<<"\n";
+      }
         assert(isSpeculatif == false || isOnNormalPath == false || didParentSpeculationFailed() == isEnable);
         if(didParentSpeculationFailed()){
             for(auto& slt : selectTasks){
@@ -349,24 +358,24 @@ public:
                     selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
                 }
                 else{
-                    selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+                    selfSpeculationResults = SpecResult::SPECULATION_FAILED; 
                 }
                 for(auto* child : subGroups){
                     child->setParentSpecResult(inSpeculationSucceed);
                 }
             }
         }
-        else{
-            assert(isEnable);
-            if(inSpeculationSucceed){
+        else{ 
+            assert(isEnable); 
+            if(inSpeculationSucceed){ 
                 selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
             }
             else{
-                selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+                selfSpeculationResults = SpecResult::SPECULATION_FAILED; 
             }
             if(didParentSpeculationSucceed()){
                 for(auto* child : subGroups){
-                    child->setParentSpecResult(inSpeculationSucceed);
+                    child->setParentSpecResult(inSpeculationSucceed);                    
                 }
             }
         }
