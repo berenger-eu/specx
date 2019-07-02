@@ -237,7 +237,7 @@ public:
     void setEnabled(const SpTaskActivation inIsEnable) {
         isEnabled = inIsEnable;
     }
-    
+#ifdef SPETABARU_USE_MW2L    
     bool isOnNormalPath()
     {
       
@@ -246,7 +246,7 @@ public:
       }
       return false;
     }
-
+#endif
     ///////////////////////////////////////////////////////////////////////////
 
     void setDisabledIfNotOver(){
