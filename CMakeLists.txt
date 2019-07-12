@@ -66,7 +66,7 @@ if(NOT DEFINED SPETABARU_JUST_LIB)
 endif()
 
 if(NOT DEFINED SPETABARU_DO_INSTALL)
-    set(SPETABARU_DO_INSTALL OFF CACHE BOOL
+    set(SPETABARU_DO_INSTALL ON CACHE BOOL
         "Set to on to install the headers file of SPETABARU" FORCE)
 endif()
 
