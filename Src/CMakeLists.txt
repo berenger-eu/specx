@@ -12,21 +12,7 @@ INCLUDE_DIRECTORIES(
      ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-file(
-    GLOB_RECURSE 	 	 	 	
- 	hpp_in_dir
-	./*.hpp ./*.h
-)
-FOREACH(hpp_file ${hpp_in_dir})	
-    file(RELATIVE_PATH relative_hpp_file ${CMAKE_CURRENT_SOURCE_DIR} ${hpp_file})
-    if(SPETABARU_DO_INSTALL)
-        INSTALL( FILES ${hpp_file} DESTINATION include/${relative_hpp_file} )
-    endif()
-
-    if($ENV{VERBOSE})
-        MESSAGE(STATUS "Src -- Add ${relative_hpp_file}")
-    endif()
-ENDFOREACH()
+INSTALL(DIRECTORY ./ DESTINATION include/ )
 
 if(SPETABARU_DO_INSTALL)
     INSTALL( FILES "${SPETABARU_BINARY_DIR}/Src/SPETABARUConfig.h" DESTINATION include/Src )
@@ -34,15 +20,17 @@ endif()
 
 
 # Searching all cpp file
-file(
-	GLOB_RECURSE
-	source_lib_files
-	./*.cpp
-)
+file(GLOB_RECURSE source_lib_files ./*.cpp)
 
 # Adding cpp files to project
 add_library(
 	spetabaru
 	${source_lib_files}
 )
+
+if(SPETABARU_DO_INSTALL)
+    target_include_directories(spetabaru INTERFACE $<INSTALL_INTERFACE:include>)
+    INSTALL(TARGETS spetabaru EXPORT spetabaru DESTINATION lib )
+    INSTALL(EXPORT spetabaru DESTINATION lib )
+endif()
 
