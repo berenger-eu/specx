@@ -12,7 +12,7 @@
 int main(){
     std::cout << "Example 1:" << std::endl;
     {
-        SpRuntime runtime;
+        SpRuntime<SpSpeculativeModel::SP_MODEL_2> runtime;
 
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/,
                                    const SpProbability& /*inProbability*/) -> bool{

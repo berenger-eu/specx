@@ -88,13 +88,6 @@ set(SPETABARU_VERSION  "${SPETABARU_MAJOR_VERSION}.${SPETABARU_MINOR_VERSION}.${
 # Options
 #===========================================================================
 
-option(SPETABARU_USE_MW2L "Use the second model" OFF)    
-
-if(SPETABARU_USE_MW2L)
-    set(SPETABARU_CXX_FLAGS "${SPETABARU_CXX_FLAGS} -DSPETABARU_USE_MW2L")
-endif()
-
-
 option(SPETABARU_USE_COVERAGE "Should be ON to enable code coverage" OFF)
 
 if( SPETABARU_USE_COVERAGE )
