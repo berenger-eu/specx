@@ -17,8 +17,6 @@
 #include "Utils/SpModes.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpProbability.hpp"
-// Speculation
-class SpGeneralSpecGroup;
 
 /** The possible state of a task */
 enum class SpTaskState {
@@ -83,7 +81,7 @@ class SpAbstractTask{
     //! To know if the callback has to be executed
     std::atomic<SpTaskActivation> isEnabled;
 
-    SpGeneralSpecGroup* specTaskGroup;
+    void* specTaskGroup;
     SpAbstractTask* originalTask;
 
 public:
@@ -237,7 +235,16 @@ public:
     void setEnabled(const SpTaskActivation inIsEnable) {
         isEnabled = inIsEnable;
     }
-
+// Only used for Model 2
+    bool isOnNormalPath()
+    {
+      
+      if (!originalTask) {
+        return true;
+      }
+      return false;
+    }
+// End Only used for Model 2
     ///////////////////////////////////////////////////////////////////////////
 
     void setDisabledIfNotOver(){
@@ -249,12 +256,14 @@ public:
         }
     }
 
-    void setSpecGroup(SpGeneralSpecGroup* inSpecTaskGroup){
+    template <class SpSpecGroupType>
+    void setSpecGroup(SpSpecGroupType* inSpecTaskGroup){
         specTaskGroup = inSpecTaskGroup;
     }
 
-    SpGeneralSpecGroup* getSpecGroup(){
-        return specTaskGroup;
+    template <class SpSpecGroupType>
+    SpSpecGroupType* getSpecGroup(){
+        return reinterpret_cast<SpSpecGroupType*>(specTaskGroup);
     }
 
     void setOriginalTask(SpAbstractTask* inOriginal){
