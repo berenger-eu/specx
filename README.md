@@ -12,6 +12,10 @@ Replica Exchange Monte Carlo (RMC/Parallel tempering).
 
 This is an on-going project under development.
 
+# Installation requirements
+1. C++17 standard compliant toolchain
+2. CMake (version 2.8.3 or after)
+
 # Installation
 SPETABARU requires an out of source tree build.
 1. First create a new directory outside of SPETABARU's source tree with mkdir <dir_name>

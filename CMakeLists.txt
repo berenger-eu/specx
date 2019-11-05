@@ -27,9 +27,9 @@ endif(insource)
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
 
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # need pthread
 set(SPETABARU_LIBRARIES pthread)
@@ -90,7 +90,7 @@ if( SPETABARU_USE_COVERAGE )
     message(STATUS "Main -- Use code coverage")
     set(SPETABARU_CXX_FLAGS "${SPETABARU_CXX_FLAGS} -g -O0 --coverage")
     list(APPEND SPETABARU_LIBRARIES gcov)
-    # Then one can use these commande:
+    # Then one can use these commands:
     # lcov --directory CMakeFiles/ -c -o coverage-rapport.info
     # genhtml -o ./coverage -t "Coverage example" coverage-rapport.info
 endif()
