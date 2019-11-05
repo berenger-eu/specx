@@ -34,17 +34,6 @@ INCLUDE(CMakeDependentOption)
 # need pthread
 set(SPETABARU_LIBRARIES pthread)
 
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# when building, don't use the install RPATH already
-# (but later on when installing)
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 
-# the RPATH to be used when installing
-SET(CMAKE_INSTALL_RPATH "/home/bbramas/Downloads/gcc7/lib64/")
-# don't add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-
 # Release by default
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "RELEASE" CACHE STRING
