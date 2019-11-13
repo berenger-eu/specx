@@ -39,19 +39,17 @@ enum class SpSpeculativeModel {
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
 class SpRuntime : public SpAbstractToKnowReady {
     template <class Tuple, std::size_t IdxData>
-    static bool CheckParam(){
+    static void CheckParam(){
         using ParamType = typename std::remove_reference<typename std::tuple_element<IdxData, Tuple>::type>::type;
         static_assert(has_getView<ParamType>::value, "Converted object to a task must have getView method");
         static_assert(has_getAllData<ParamType>::value, "Converted object to a task must have getAllData method");
-        return true;
     }
 
     template <class Tuple, std::size_t... Is>
     static auto CheckPrototypeCore(std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value >= 1, "You must pass at least a function to create a task");
 
-        bool do_in_order[] = {0, CheckParam<Tuple, Is>() ...};
-        (void)do_in_order;
+        ((void) CheckParam<Tuple, Is>(), ...);
 
         using TaskCore = typename std::remove_reference<typename std::tuple_element<std::tuple_size<Tuple>::value-1, Tuple>::type>::type;
         static_assert(std::is_invocable<TaskCore, decltype(std::declval<typename std::tuple_element<Is, Tuple>::type>().getView()) ...>::value,
@@ -121,18 +119,17 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <std::size_t IdxData, class ParamsType, class TaskCorePtr>
-    typename std::enable_if<ParamsType::IsScalar,bool>::type
+    typename std::enable_if<ParamsType::IsScalar,void>::type
     createHandleAndAddToTaskCore(ParamsType& scalarData, TaskCorePtr& aTask){
         SpDataHandle* h1 = getDataHandle(scalarData)[0];
         const SpDataAccessMode accessMode = ParamsType::AccessMode;
         SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
         const long int handleKey1 = h1->addDependence(aTask, accessMode);
         aTask->template setDataHandle<IdxData>(h1, handleKey1);
-        return true;
     }
 
     template <std::size_t IdxData, class ParamsType, class TaskCorePtr>
-    typename std::enable_if<!ParamsType::IsScalar,bool>::type
+    typename std::enable_if<!ParamsType::IsScalar,void>::type
     createHandleAndAddToTaskCore(ParamsType& containerData, TaskCorePtr& aTask){
         std::vector<SpDataHandle*> hh = getDataHandle(containerData);
         bool isFirstHandle = true;
@@ -146,13 +143,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                 aTask->template addDataHandleExtra<IdxData>(h1, handleKey1);
             }
         }
-        return true;
     }
 
     template <class Tuple, std::size_t IdxData, class TaskCorePtr>
-    bool createHandleAndAddToTask(Tuple& args, TaskCorePtr& aTask){
+    void createHandleAndAddToTask(Tuple& args, TaskCorePtr& aTask){
         auto& scalarOrContainerData = std::get<IdxData>(args);
-        return createHandleAndAddToTaskCore<IdxData>(scalarOrContainerData, aTask);
+        createHandleAndAddToTaskCore<IdxData>(scalarOrContainerData, aTask);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -184,8 +180,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         aTask->takeControl();
 
         // Add the handles
-        bool do_in_order[] = {0, createHandleAndAddToTask<Tuple, Is, decltype(aTask)>(args, aTask) ...};
-        (void)do_in_order;
+        ((void) createHandleAndAddToTask<Tuple, Is, decltype(aTask)>(args, aTask), ...);
 
         // Check coherency
         assert(aTask->areDepsCorrect());
@@ -297,8 +292,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         aTask->takeControl();
 
         // Add the handles
-        bool do_in_order[] = {0, coreHandleCreationSpec<Tuple, Is, decltype(aTask)>(args, aTask, extraCopies) ...};
-        (void)do_in_order;
+        ((void) coreHandleCreationSpec<Tuple, Is, decltype(aTask)>(args, aTask, extraCopies), ...);
 
         // Check coherency
         assert(aTask->areDepsCorrect());
@@ -749,13 +743,14 @@ class SpRuntime : public SpAbstractToKnowReady {
                                                Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         // Add the handles
-        std::vector<SpAbstractTask*> merged[] = {std::vector<SpAbstractTask*>(), coreMergeIfInList<Tuple, Is>(inPriority, args, extraCopie) ...};
-        constexpr int nbLists = sizeof(merged)/sizeof(std::vector<SpAbstractTask*>);
-        static_assert(sizeof...(Is) == nbLists-1, "oups");
         std::vector<SpAbstractTask*> fullList;
-        for(int idxList = 0 ; idxList < nbLists ; ++idxList){
-            fullList.insert(fullList.end(), merged[idxList].begin(), merged[idxList].end());
+        
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::vector<SpAbstractTask*> &l, std::vector<SpAbstractTask*>&& l2) {
+                l.insert(l.end(), l2.begin(), l2.end());
+            }(fullList, coreMergeIfInList<Tuple, Is>(inPriority, args, extraCopie)), ...);
         }
+        
         return fullList;
     }
 
@@ -841,59 +836,43 @@ class SpRuntime : public SpAbstractToKnowReady {
             return std::vector<SpCurrentCopy>();
         }
     }
-
-    template <class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndNotDuplicate(const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...>){
+    
+    template <const bool copyIfAlreadyDuplicate, SpDataAccessMode targetMode, class Tuple, std::size_t... Is>
+    std::unordered_map<const void*, SpCurrentCopy> copyAux(const SpPriority& inPriority, Tuple& args){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        std::unordered_map<const void*, SpCurrentCopy> result;
-        // Add the handles
-        std::vector<SpCurrentCopy> copies[] = {std::vector<SpCurrentCopy>(), coreCopyIfAccess<Tuple, Is, SpDataAccessMode::MAYBE_WRITE>(inPriority, false, args) ...};
-        constexpr int nbCopies = sizeof(copies)/sizeof(std::vector<SpCurrentCopy>);
-        static_assert(sizeof...(Is) == nbCopies-1, "oups");
-        for(int idxCopy = 0 ; idxCopy < nbCopies ; ++idxCopy){
-            for(const SpCurrentCopy& cp : copies[idxCopy]){
-                result[cp.originAdress] = cp;
-            }
+        
+        std::unordered_map<const void*, SpCurrentCopy> copyMap;
+        
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::unordered_map<const void*, SpCurrentCopy> &cm, std::vector<SpCurrentCopy>&& copies) {
+                for(const SpCurrentCopy &c : copies) {
+                   cm[c.originAdress] = c; 
+                }
+            }(copyMap, coreCopyIfAccess<Tuple, Is, targetMode>(inPriority, copyIfAlreadyDuplicate, args)), ...);
         }
-        return result;
+        
+        return copyMap;
     }
 
     template <class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndDuplicate(const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...>){
-        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        std::unordered_map<const void*, SpCurrentCopy> result;
-        // Add the handles
-        std::vector<SpCurrentCopy> copies[] = {std::vector<SpCurrentCopy>(), coreCopyIfAccess<Tuple, Is, SpDataAccessMode::MAYBE_WRITE>(inPriority, true, args) ...};
-        constexpr int nbCopies = sizeof(copies)/sizeof(std::vector<SpCurrentCopy>);
-        static_assert(sizeof...(Is) == nbCopies-1, "oups");
-        for(int idxCopy = 0 ; idxCopy < nbCopies ; ++idxCopy){
-            for(const SpCurrentCopy& cp : copies[idxCopy]){
-                result[cp.originAdress] = cp;
-            }
-        }
-        return result;
+    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndNotDuplicate(const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...>){
+        return copyAux<false, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(inPriority, args);
+    }
+
+    template <class Tuple, std::size_t... Is>
+    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndDuplicate(const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...>){
+        return copyAux<true, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(inPriority, args);
     }
 
     template <class Tuple, std::size_t... Is>
     std::unordered_map<const void*, SpCurrentCopy> copyIfWriteAndNotDuplicate(const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...>){
-        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        std::unordered_map<const void*, SpCurrentCopy> result;
-        // Add the handles
-        std::vector<SpCurrentCopy> copies[] = {std::vector<SpCurrentCopy>(), coreCopyIfAccess<Tuple, Is, SpDataAccessMode::WRITE>(inPriority, false, args) ...};
-        constexpr int nbCopies = sizeof(copies)/sizeof(std::vector<SpCurrentCopy>);
-        static_assert(sizeof...(Is) == nbCopies-1, "oups");
-        for(int idxCopy = 0 ; idxCopy < nbCopies ; ++idxCopy){
-            for(const SpCurrentCopy& cp : copies[idxCopy]){
-                result[cp.originAdress] = cp;
-            }
-        }
-        return result;
+        return copyAux<false, SpDataAccessMode::WRITE, Tuple, Is...>(inPriority, args);
     }
     
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     template <class Tuple, std::size_t IdxData>
-    bool coreManageReadDuplicate(Tuple& args){
+    void coreManageReadDuplicate(Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -931,15 +910,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                 indexHh += 1;
             }
         }
-
-        return true;
     }
 
     template <class Tuple, std::size_t... Is>
     void manageReadDuplicate(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        const bool returnValues[] = {true, coreManageReadDuplicate<Tuple, Is>(args) ...};
-        (void)returnValues;
+        ((void) coreManageReadDuplicate<Tuple, Is>(args), ...);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -973,15 +949,16 @@ class SpRuntime : public SpAbstractToKnowReady {
     template <class Tuple, std::size_t... Is>
     std::vector<SpSelectedSpecGroup*> getCorrespondingCopyGroups(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
+        
         std::vector<SpSelectedSpecGroup*> result;
+        
         // Add the handles
-        std::vector<SpSelectedSpecGroup*> groups[] = {std::vector<SpSelectedSpecGroup*>(), coreGetCorrespondingCopyGroups<Tuple, Is>(args) ...};
-        constexpr int nbRes = sizeof(groups)/sizeof(std::vector<SpSelectedSpecGroup*>);
-        static_assert(sizeof...(Is) == nbRes-1, "oups");
-        for(int idxRes = 0 ; idxRes < nbRes ; ++idxRes){
-            result.insert(result.end(),groups[idxRes].begin(), groups[idxRes].end());
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::vector<SpSelectedSpecGroup*> &res, std::vector<SpSelectedSpecGroup*>&& cg) {
+                res.insert(res.end(), cg.begin(), cg.end());
+            }(result, coreGetCorrespondingCopyGroups<Tuple, Is>(args)), ...);
         }
-
+        
         std::sort(result.begin(), result.end());
         result.erase(std::unique(result.begin(), result.end()), result.end());
 
@@ -1020,12 +997,12 @@ class SpRuntime : public SpAbstractToKnowReady {
     std::unordered_map<const void*, SpCurrentCopy> getCorrespondingCopyList(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         std::unordered_map<const void*, SpCurrentCopy> result;
+        
         // Add the handles
-        std::unordered_map<const void*, SpCurrentCopy> groups[] = {std::unordered_map<const void*, SpCurrentCopy>(), coreGetCorrespondingCopyList<Tuple, Is>(args) ...};
-        constexpr int nbRes = sizeof(groups)/sizeof(std::unordered_map<const void*, SpCurrentCopy>);
-        static_assert(sizeof...(Is) == nbRes-1, "oups");
-        for(int idxRes = 0 ; idxRes < nbRes ; ++idxRes){
-            result.insert(groups[idxRes].begin(), groups[idxRes].end());
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::unordered_map<const void*, SpCurrentCopy> &res, std::unordered_map<const void*, SpCurrentCopy>&& group) {
+                res.insert(group.begin(), group.end());
+            }(result, coreGetCorrespondingCopyList<Tuple, Is>(args)), ...);
         }
 
         return result;
@@ -1035,14 +1012,12 @@ class SpRuntime : public SpAbstractToKnowReady {
 
 
     template <class Tuple, std::size_t IdxData>
-    bool coreRemoveAllCorrespondingCopies(std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args){
+    void coreRemoveAllCorrespondingCopies(std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
-
-        bool removeSomething = false;
 
         if constexpr (std::is_destructible<TargetParamType>::value){
 
@@ -1067,7 +1042,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                             }).setTaskName("delete");
                         }
                         copiesList.erase(found);
-                        removeSomething = true;
                      }
 // This is not true anymore
 //                     else{
@@ -1078,23 +1052,18 @@ class SpRuntime : public SpAbstractToKnowReady {
                 indexHh += 1;
             }
         }
-
-        return removeSomething;
     }
 
     template <class Tuple, std::size_t... Is>
-    void removeAllCorrespondingCopies(Tuple& args, std::index_sequence<Is...>){
-        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        bool result[] = {true, coreRemoveAllCorrespondingCopies<Tuple, Is>(copiedHandles, args) ...};
-        (void)result;
+    inline void removeAllCorrespondingCopies(Tuple& args, std::index_sequence<Is...> is){
+        removeAllCorrespondingCopiesList<Tuple, Is...>(copiedHandles, args, is);
     }
 
 
     template <class Tuple, std::size_t... Is>
     void removeAllCorrespondingCopiesList( std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        const bool returnValues[] = {true, coreRemoveAllCorrespondingCopies<Tuple, Is>(copiesList, args) ...};
-        (void)returnValues;
+        ((void) coreRemoveAllCorrespondingCopies<Tuple, Is>(copiesList, args), ...);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1113,21 +1082,17 @@ class SpRuntime : public SpAbstractToKnowReady {
     template <class Tuple, std::size_t... Is>
     static constexpr bool allAreCopiableAndDeleteable(std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        const bool results[] = {true, coreAllAreCopiable<Tuple, Is>() ...};
-        constexpr int nbHandles = sizeof(results)/sizeof(bool);
-        static_assert(sizeof...(Is) == nbHandles-1, "oups");
-        for(int idxHandle = 0 ; idxHandle < nbHandles ; ++idxHandle){
-            if(results[idxHandle] == false){
-                return false;
-            }
+        if constexpr(sizeof...(Is) > 0) {
+            return (coreAllAreCopiable<Tuple, Is>() && ...);
+        } else {
+            return true;
         }
-        return true;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     template <class Tuple, std::size_t IdxData, class TaskCorePtr>
-    bool coreHandleCreationSpec(Tuple& args, TaskCorePtr& aTask, std::unordered_map<const void*, SpCurrentCopy>& extraCopies){
+    void coreHandleCreationSpec(Tuple& args, TaskCorePtr& aTask, std::unordered_map<const void*, SpCurrentCopy>& extraCopies){
         using ScalarOrContainerType = typename std::remove_reference<typename std::tuple_element<IdxData, Tuple>::type>::type;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -1194,7 +1159,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             indexHh += 1;
         }
-        return true;
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
