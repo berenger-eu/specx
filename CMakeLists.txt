@@ -14,29 +14,25 @@ project(SPETABARU CXX)
 # check if compiling into source directories
 string(COMPARE EQUAL "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" insource)
 if(insource)
-  message(FATAL_ERROR "${PROJECT_NAME} requires an out of source build. Goto ./Build and tapes cmake ../")
+  message(FATAL_ERROR "${PROJECT_NAME} requires an out of source build.\
+                      Remove CMakeCache.txt (alternatively you can remove all untracked files with\
+                      git clean -i, git clean -d or git clean -df). Then, create a subirectory outside\
+                      the spetabaru source tree, cd into the directory you just created and then type\
+                      cmake <path to spetabaru repository>.\
+                      Alternatively you can create a build directory at the root of the spetabaru\
+                      source tree but then it is recommended to name it 'build' as it is the only\
+                      build directory name that is explicitly marked as to be ignored by Git.")
 endif(insource)
 
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
 
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # need pthread
 set(SPETABARU_LIBRARIES pthread)
-
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-# when building, don't use the install RPATH already
-# (but later on when installing)
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 
-# the RPATH to be used when installing
-SET(CMAKE_INSTALL_RPATH "/home/bbramas/Downloads/gcc7/lib64/")
-# don't add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
 
 # Release by default
 if(NOT CMAKE_BUILD_TYPE)
@@ -94,7 +90,7 @@ if( SPETABARU_USE_COVERAGE )
     message(STATUS "Main -- Use code coverage")
     set(SPETABARU_CXX_FLAGS "${SPETABARU_CXX_FLAGS} -g -O0 --coverage")
     list(APPEND SPETABARU_LIBRARIES gcov)
-    # Then one can use these commande:
+    # Then one can use these commands:
     # lcov --directory CMakeFiles/ -c -o coverage-rapport.info
     # genhtml -o ./coverage -t "Coverage example" coverage-rapport.info
 endif()
