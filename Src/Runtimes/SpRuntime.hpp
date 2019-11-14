@@ -157,7 +157,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
-    template <template<typename...> typename TaskType, bool returnTaskPtrAndDontPushToScheduler, class Tuple, std::size_t... Is>
+    template <template<typename...> typename TaskType, class Tuple, std::size_t... Is>
     auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
@@ -170,11 +170,12 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         // Get the return type of the task (can be void)
         using RetType = decltype(taskCore(std::get<Is>(args).getView()...));
-
+        
+        using TaskTy = TaskType<TaskCore, RetType, typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >;
+        using SelectTaskTy = SpSelectTask<TaskCore, RetType, typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >;
+        
         // Create a task with a copy of the args
-        auto aTask = new TaskType<TaskCore, RetType,
-                typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >(std::move(taskCore), inPriority,
-                                                                   std::make_tuple(std::get<Is>(args)...));
+        auto aTask = new TaskTy(std::move(taskCore), inPriority, std::make_tuple(std::get<Is>(args)...));
 
         // Lock the task
         aTask->takeControl();
@@ -203,7 +204,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         SpDebugPrint() << "SpRuntime -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
         
-        if constexpr(returnTaskPtrAndDontPushToScheduler) {
+        if constexpr(std::is_same<TaskTy, SelectTaskTy>::value) {
             (void) descriptor;
             return aTask;
         } else {
@@ -216,7 +217,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     template <class Tuple, std::size_t... Is>
     inline auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...> is){
-            return coreTaskCreation<SpTask, false, Tuple, Is...>(inActivation, inPriority, args, is);
+            return coreTaskCreation<SpTask, Tuple, Is...>(inActivation, inPriority, args, is);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -699,7 +700,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(accessMode == SpDataAccessMode::READ || found->second.usedInRead == false);
                 if(accessMode != SpDataAccessMode::READ){
                     SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskPtr = this->taskInternal<SpSelectTask, true>(SpTaskActivation::ENABLE, inPriority,
+                    auto taskPtr = this->taskInternal<SpSelectTask>(SpTaskActivation::ENABLE, inPriority,
                                        SpWrite(*h1->castPtr<TargetParamType>()),
                                        SpWrite(*h1copy->castPtr<TargetParamType>()),
                                        [](TargetParamType& output, TargetParamType& input){
@@ -732,7 +733,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(accessMode == SpDataAccessMode::READ || found2->second.usedInRead == false);
                 if(accessMode != SpDataAccessMode::READ){
                     SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskPtr = this->taskInternal<SpSelectTask, true>(SpTaskActivation::ENABLE, inPriority,
+                    auto taskPtr = this->taskInternal<SpSelectTask>(SpTaskActivation::ENABLE, inPriority,
                                        SpWrite(*h1->castPtr<TargetParamType>()),
                                        SpWrite(*h1copy->castPtr<TargetParamType>()),
                                        [](TargetParamType& output, TargetParamType& input){
@@ -1188,16 +1189,15 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    template <template<typename...> typename TaskType, bool returnTaskPtrAndDontPushToScheduler, class... ParamsAndTask>
+    template <template<typename...> typename TaskType, class... ParamsAndTask>
     auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreation<TaskType, returnTaskPtrAndDontPushToScheduler>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
+        return coreTaskCreation<TaskType>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
     }
     
     template <class... ParamsAndTask>
-    auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
-        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreation<SpTask, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
+    inline auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
+        return taskInternal<SpTask>(inActivation, inPriority, inParamsAndTask...);
     }
 
 
