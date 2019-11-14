@@ -157,7 +157,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
-    template <class Tuple, std::size_t... Is>
+    template <template<typename...> typename TaskType, bool returnTaskPtrAndDontPushToScheduler, class Tuple, std::size_t... Is>
     auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
@@ -172,7 +172,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         using RetType = decltype(taskCore(std::get<Is>(args).getView()...));
 
         // Create a task with a copy of the args
-        auto aTask = new SpTask<TaskCore, RetType,
+        auto aTask = new TaskType<TaskCore, RetType,
                 typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >(std::move(taskCore), inPriority,
                                                                    std::make_tuple(std::get<Is>(args)...));
 
@@ -202,12 +202,21 @@ class SpRuntime : public SpAbstractToKnowReady {
         aTask->releaseControl();
 
         SpDebugPrint() << "SpRuntime -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-
-        // Push to the scheduler
-        scheduler.addNewTask(aTask);
-
-        // Return the view
-        return descriptor;
+        
+        if constexpr(returnTaskPtrAndDontPushToScheduler) {
+            (void) descriptor;
+            return aTask;
+        } else {
+            // Push to the scheduler
+            scheduler.addNewTask(aTask);
+            // Return the view
+            return descriptor;
+        }
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    inline auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...> is){
+            return coreTaskCreation<SpTask, false, Tuple, Is...>(inActivation, inPriority, args, is);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -690,14 +699,22 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(accessMode == SpDataAccessMode::READ || found->second.usedInRead == false);
                 if(accessMode != SpDataAccessMode::READ){
                     SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskView = this->taskInternal(SpTaskActivation::DISABLE, inPriority,
+                    auto taskPtr = this->taskInternal<SpSelectTask, true>(SpTaskActivation::ENABLE, inPriority,
                                        SpWrite(*h1->castPtr<TargetParamType>()),
                                        SpWrite(*h1copy->castPtr<TargetParamType>()),
                                        [](TargetParamType& output, TargetParamType& input){
                         output = std::move(input);
                         delete &input;
                     });
+                    
+                    if(accessMode == SpDataAccessMode::WRITE) {
+                        taskPtr->setIsCarryingSurelyWrittenValuesOver(true);
+                    }
+                    scheduler.addNewTask(taskPtr);
+                    
+                    auto taskView = taskPtr->getViewer();
                     taskView.setTaskName("sp-merge");
+                    
                     mergeList.emplace_back(taskView.getTaskPtr());
                     found->second.hasBeenDeleted = true;
                     found->second.latestAdress = nullptr;
@@ -715,13 +732,20 @@ class SpRuntime : public SpAbstractToKnowReady {
                 assert(accessMode == SpDataAccessMode::READ || found2->second.usedInRead == false);
                 if(accessMode != SpDataAccessMode::READ){
                     SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskView = this->taskInternal(SpTaskActivation::DISABLE, inPriority,
+                    auto taskPtr = this->taskInternal<SpSelectTask, true>(SpTaskActivation::ENABLE, inPriority,
                                        SpWrite(*h1->castPtr<TargetParamType>()),
                                        SpWrite(*h1copy->castPtr<TargetParamType>()),
                                        [](TargetParamType& output, TargetParamType& input){
                         output = std::move(input);
                         delete &input;
                     });
+                    
+                    if(accessMode == SpDataAccessMode::WRITE) {
+                        taskPtr->setIsCarryingSurelyWrittenValuesOver(true);
+                    }
+                    scheduler.addNewTask(taskPtr);
+                    
+                    auto taskView = taskPtr->getViewer();
                     taskView.setTaskName("sp-merge");
                     mergeList.emplace_back(taskView.getTaskPtr());
                     found2->second.hasBeenDeleted = true;
@@ -1164,10 +1188,16 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    template <class... ParamsAndTask>
-    SpAbstractTaskWithReturn<void>::SpTaskViewer taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
+    template <template<typename...> typename TaskType, bool returnTaskPtrAndDontPushToScheduler, class... ParamsAndTask>
+    auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreation(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
+        return coreTaskCreation<TaskType, returnTaskPtrAndDontPushToScheduler>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
+    }
+    
+    template <class... ParamsAndTask>
+    auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
+        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+        return coreTaskCreation<SpTask, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
     }
 
 

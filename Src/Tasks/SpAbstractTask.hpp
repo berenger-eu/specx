@@ -231,6 +231,10 @@ public:
     bool isTaskEnabled() const{
         return isEnabled == SpTaskActivation::ENABLE;
     }
+    
+    virtual void setEnabledDynamicDispatch(const SpTaskActivation inIsEnable) {
+        setEnabled(inIsEnable);
+    }
 
     void setEnabled(const SpTaskActivation inIsEnable) {
         isEnabled = inIsEnable;

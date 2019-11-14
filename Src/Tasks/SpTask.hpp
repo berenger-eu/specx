@@ -322,4 +322,28 @@ public:
     }
 };
 
+template <class TaskFuncType, class RetType, class ... Params>
+class SpSelectTask : public SpTask<TaskFuncType, RetType, Params...>
+{
+    using Parent = SpTask<TaskFuncType, RetType, Params...>;
+    using TupleParamsType = std::tuple<Params...>;
+    
+    bool isCarryingSurelyWrittenValuesOver;
+    
+public:
+    template <typename... T>
+    explicit SpSelectTask(T&&... t) : Parent(std::forward<T>(t)...), isCarryingSurelyWrittenValuesOver(false) {}
+    
+    void setIsCarryingSurelyWrittenValuesOver(bool iCSWVO) {
+        isCarryingSurelyWrittenValuesOver = iCSWVO;
+    }
+    
+    void setEnabledDynamicDispatch(const SpTaskActivation inIsEnable) override final {
+        if((inIsEnable == SpTaskActivation::DISABLE && !isCarryingSurelyWrittenValuesOver)
+            || inIsEnable == SpTaskActivation::ENABLE) {
+            static_cast<Parent*>(this)->Parent::setEnabled(inIsEnable);
+        }
+    }
+};
+
 #endif
