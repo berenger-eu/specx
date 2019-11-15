@@ -157,8 +157,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
-    template <class Tuple, std::size_t... Is>
-    auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>){
+    template <template<typename...> typename TaskType, class Tuple, std::size_t... Is, typename... T>
+    auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>, T... additionalArgs){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
 
@@ -170,11 +170,11 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         // Get the return type of the task (can be void)
         using RetType = decltype(taskCore(std::get<Is>(args).getView()...));
-
+        
+        using TaskTy = TaskType<TaskCore, RetType, typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >;
+        
         // Create a task with a copy of the args
-        auto aTask = new SpTask<TaskCore, RetType,
-                typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >(std::move(taskCore), inPriority,
-                                                                   std::make_tuple(std::get<Is>(args)...));
+        auto aTask = new TaskTy(std::move(taskCore), inPriority, std::make_tuple(std::get<Is>(args)...), additionalArgs...);
 
         // Lock the task
         aTask->takeControl();
@@ -202,12 +202,17 @@ class SpRuntime : public SpAbstractToKnowReady {
         aTask->releaseControl();
 
         SpDebugPrint() << "SpRuntime -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-
+        
         // Push to the scheduler
         scheduler.addNewTask(aTask);
-
+        
         // Return the view
         return descriptor;
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    inline auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...> is){
+            return coreTaskCreation<SpTask>(inActivation, inPriority, args, is, nullptr);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -674,66 +679,56 @@ class SpRuntime : public SpAbstractToKnowReady {
         auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
         long int indexHh = 0;
-
+        
+        std::unordered_map<const void*, SpCurrentCopy>* m[] = {std::addressof(extraCopies), std::addressof(copiedHandles)};
+        
+        
         for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
             assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             SpDataHandle* h1 = hh[indexHh];
+            for(auto me : m) {
+                
+                if(auto found = me->find(ptr); found != me->end()){
+                    if(me == std::addressof(extraCopies)) {
+                        assert(copiedHandles.find(ptr) == copiedHandles.end());
+                    }
+                    const SpCurrentCopy& cp = found->second;
+                    assert(cp.isDefined());
+                    assert(cp.originAdress == ptr);
+                    assert(cp.latestAdress != nullptr);
 
-            if(auto found = extraCopies.find(ptr); found != extraCopies.end()){
-                assert(copiedHandles.find(ptr) == copiedHandles.end());
-                const SpCurrentCopy& cp = found->second;
-                assert(cp.isDefined());
-                assert(cp.originAdress == ptr);
-                assert(cp.latestAdress != nullptr);
-
-                assert(accessMode == SpDataAccessMode::READ || found->second.usedInRead == false);
-                if(accessMode != SpDataAccessMode::READ){
-                    SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskView = this->taskInternal(SpTaskActivation::DISABLE, inPriority,
-                                       SpWrite(*h1->castPtr<TargetParamType>()),
-                                       SpWrite(*h1copy->castPtr<TargetParamType>()),
-                                       [](TargetParamType& output, TargetParamType& input){
-                        output = std::move(input);
-                        delete &input;
-                    });
-                    taskView.setTaskName("sp-merge");
-                    mergeList.emplace_back(taskView.getTaskPtr());
-                    found->second.hasBeenDeleted = true;
-                    found->second.latestAdress = nullptr;
+                    assert(accessMode == SpDataAccessMode::READ || found->second.usedInRead == false);
+                    if(accessMode != SpDataAccessMode::READ){
+                        bool isCarryingSurelyWrittenValuesOver = accessMode == SpDataAccessMode::WRITE;
+                        
+                        SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
+                        
+                        auto taskView = this->taskInternalSpSelect(SpTaskActivation::ENABLE, inPriority,
+                                           isCarryingSurelyWrittenValuesOver,
+                                           SpWrite(*h1->castPtr<TargetParamType>()),
+                                           SpWrite(*h1copy->castPtr<TargetParamType>()),
+                                           [](TargetParamType& output, TargetParamType& input){
+                                               output = std::move(input);
+                                               delete &input;
+                                           }
+                        );
+                        
+                        taskView.setTaskName("sp-select");
+                        mergeList.emplace_back(taskView.getTaskPtr());
+                        found->second.hasBeenDeleted = true;
+                        found->second.latestAdress = nullptr;
+                    }
+                    else{
+                       found->second.usedInRead = true;
+                    }
                 }
-                else{
-                   found->second.usedInRead = true;
-                }
+                
             }
-            else if(auto found2 = copiedHandles.find(ptr); found2 != copiedHandles.end()){
-                const SpCurrentCopy& cp = found2->second;
-                assert(cp.isDefined());
-                assert(cp.originAdress == ptr);
-                assert(cp.latestAdress != nullptr);
-
-                assert(accessMode == SpDataAccessMode::READ || found2->second.usedInRead == false);
-                if(accessMode != SpDataAccessMode::READ){
-                    SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                    auto taskView = this->taskInternal(SpTaskActivation::DISABLE, inPriority,
-                                       SpWrite(*h1->castPtr<TargetParamType>()),
-                                       SpWrite(*h1copy->castPtr<TargetParamType>()),
-                                       [](TargetParamType& output, TargetParamType& input){
-                        output = std::move(input);
-                        delete &input;
-                    });
-                    taskView.setTaskName("sp-merge");
-                    mergeList.emplace_back(taskView.getTaskPtr());
-                    found2->second.hasBeenDeleted = true;
-                    found2->second.latestAdress = nullptr;
-                }
-                else{
-                   found2->second.usedInRead = true;
-                }
-            }
-
+            
             indexHh += 1;
         }
+        
         return mergeList;
     }
 
@@ -1164,10 +1159,24 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-    template <class... ParamsAndTask>
-    SpAbstractTaskWithReturn<void>::SpTaskViewer taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
+    template <template<typename...> typename TaskType, class... ParamsAndTask>
+    auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreation(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction);
+        return coreTaskCreation<TaskType>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, nullptr);
+    }
+    
+    
+    template <class... ParamsAndTask>
+    inline auto taskInternal(const SpTaskActivation inActivation, SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
+        return taskInternal<SpTask>(inActivation, inPriority, inParamsAndTask...);
+    }
+    
+    template <class... ParamsAndTask>
+    auto taskInternalSpSelect(const SpTaskActivation inActivation, SpPriority inPriority, bool isCarryingSurelyWrittenValuesOver,
+                                     ParamsAndTask&&... inParamsAndTask){
+        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+        return coreTaskCreation<SpSelectTask>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
+                                             isCarryingSurelyWrittenValuesOver);
     }
 
 

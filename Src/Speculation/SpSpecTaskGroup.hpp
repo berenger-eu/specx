@@ -57,6 +57,12 @@ protected:
             ptr->setEnabled(SpTaskActivation::DISABLE);
         }
     }
+    
+    static void DisableTasksDelegate(const std::vector<SpAbstractTask*>& inTasks){
+        for(auto* ptr : inTasks){
+            ptr->setEnabledDelegate(SpTaskActivation::DISABLE);
+        }
+    }
 
     static void DisableIfPossibleAllTasks(const std::vector<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
@@ -295,7 +301,7 @@ public:
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
             if(didSpeculationSucceed()){
-                DisableAllTasks(selectTasks);
+                DisableTasksDelegate(selectTasks);
 
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
@@ -342,7 +348,7 @@ public:
                 }
                 assert(mainTask->isEnable() == false);
                 if(inSpeculationSucceed){
-                    DisableAllTasks(selectTasks);
+                    DisableTasksDelegate(selectTasks);
                 }
             }
             else if(didParentSpeculationFailed()){
@@ -446,13 +452,13 @@ public:
         assert(specTask);
         assert(isSpeculatif == true);
 
-        if(isSpeculationEnable() &&
-                (didParentSpeculationFailed() == false
-                || (didParentSpeculationSucceed() && didSpeculationSucceed()) == false)){
-            EnableAllTasks(inselectTasks);
+        if(!isSpeculationEnable() || didParentSpeculationFailed()){
+            DisableAllTasks(inselectTasks);
+        }else if(isSpeculationEnable() && didParentSpeculationSucceed() && didSpeculationSucceed()){
+            DisableTasksDelegate(inselectTasks);
         }
         else{
-            DisableAllTasks(inselectTasks);
+            EnableAllTasks(inselectTasks);
         }
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
