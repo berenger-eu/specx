@@ -42,7 +42,6 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
         
         runtime.waitAllTasks();
         runtime.stopAllThreads();
-        runtime.generateDot("/tmp/graph.dot");
     }
 
     void SetTests() {

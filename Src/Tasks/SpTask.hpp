@@ -75,11 +75,12 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
 public:
     //! Constructor from a task function
-    template <class TaskFuncTypeCstr>
+    template <class TaskFuncTypeCstr, typename... T>
     explicit SpTask(TaskFuncTypeCstr&& inTaskCallback, const SpPriority& inPriority,
-                   TupleParamsType&& inTupleParams)
+                   TupleParamsType&& inTupleParams, T... t) 
         : SpAbstractTaskWithReturn<RetType>(inPriority), taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
           tupleParams(inTupleParams){
+        ((void)t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
 
@@ -331,12 +332,11 @@ class SpSelectTask : public SpTask<TaskFuncType, RetType, Params...>
     bool isCarryingSurelyWrittenValuesOver;
     
 public:
-    template <typename... T>
-    explicit SpSelectTask(T&&... t) : Parent(std::forward<T>(t)...), isCarryingSurelyWrittenValuesOver(false) {}
-    
-    void setIsCarryingSurelyWrittenValuesOver(bool iCSWVO) {
-        isCarryingSurelyWrittenValuesOver = iCSWVO;
-    }
+    template <class TaskFuncTypeCstr, typename... T>
+    explicit SpSelectTask(TaskFuncTypeCstr&& inTaskCallback, const SpPriority& inPriority,
+                          TupleParamsType&& inTupleParams, bool iCSWVO)
+                        : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), inPriority,
+                          std::forward<TupleParamsType>(inTupleParams)), isCarryingSurelyWrittenValuesOver(iCSWVO) {}
     
     void setEnabledDynamicDispatch(const SpTaskActivation inIsEnable) override final {
         if((inIsEnable == SpTaskActivation::DISABLE && !isCarryingSurelyWrittenValuesOver)
