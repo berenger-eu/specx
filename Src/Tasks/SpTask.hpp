@@ -338,10 +338,10 @@ public:
                         : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), inPriority,
                           std::forward<TupleParamsType>(inTupleParams)), isCarryingSurelyWrittenValuesOver(iCSWVO) {}
     
-    void setEnabledDynamicDispatch(const SpTaskActivation inIsEnable) override final {
+    void setEnabledDelegate(const SpTaskActivation inIsEnable) override final {
         if((inIsEnable == SpTaskActivation::DISABLE && !isCarryingSurelyWrittenValuesOver)
             || inIsEnable == SpTaskActivation::ENABLE) {
-            static_cast<Parent*>(this)->Parent::setEnabled(inIsEnable);
+            this->setEnabled(inIsEnable);
         }
     }
 };

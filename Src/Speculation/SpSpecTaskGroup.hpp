@@ -58,9 +58,9 @@ protected:
         }
     }
     
-    static void DisableAllTasksDynamicDispatch(const std::vector<SpAbstractTask*>& inTasks){
+    static void DisableTasksDelegate(const std::vector<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
-            ptr->setEnabledDynamicDispatch(SpTaskActivation::DISABLE);
+            ptr->setEnabledDelegate(SpTaskActivation::DISABLE);
         }
     }
 
@@ -301,7 +301,7 @@ public:
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
             if(didSpeculationSucceed()){
-                DisableAllTasksDynamicDispatch(selectTasks);
+                DisableTasksDelegate(selectTasks);
 
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
@@ -348,7 +348,7 @@ public:
                 }
                 assert(mainTask->isEnable() == false);
                 if(inSpeculationSucceed){
-                    DisableAllTasksDynamicDispatch(selectTasks);
+                    DisableTasksDelegate(selectTasks);
                 }
             }
             else if(didParentSpeculationFailed()){
@@ -455,7 +455,7 @@ public:
         if(!isSpeculationEnable() || didParentSpeculationFailed()){
             DisableAllTasks(inselectTasks);
         }else if(isSpeculationEnable() && didParentSpeculationSucceed() && didSpeculationSucceed()){
-            DisableAllTasksDynamicDispatch(inselectTasks);
+            DisableTasksDelegate(inselectTasks);
         }
         else{
             EnableAllTasks(inselectTasks);

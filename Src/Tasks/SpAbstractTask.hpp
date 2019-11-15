@@ -232,7 +232,7 @@ public:
         return isEnabled == SpTaskActivation::ENABLE;
     }
     
-    virtual void setEnabledDynamicDispatch(const SpTaskActivation inIsEnable) {
+    virtual void setEnabledDelegate(const SpTaskActivation inIsEnable) {
         setEnabled(inIsEnable);
     }
 
