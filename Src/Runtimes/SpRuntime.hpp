@@ -869,13 +869,19 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
-
-    template <class Tuple, std::size_t IdxData>
-    std::vector<SpSelectedSpecGroup*> coreGetCorrespondingCopyGroups(Tuple& args){
+    
+    template <template <typename...> class Template, typename T>
+    struct is_instantiation_of : std::false_type {};
+    
+    template <template <typename...> class Template, typename... Args>
+    struct is_instantiation_of<Template, Template<Args...> > : std::true_type {};
+    
+    template <class Tuple, std::size_t IdxData, class RetType>
+    auto coreGetCorrespondingCopyAux(Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
-        std::vector<SpSelectedSpecGroup*> groups;
+        RetType res;
 
         auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
@@ -887,13 +893,22 @@ class SpRuntime : public SpAbstractToKnowReady {
             auto found = copiedHandles.find(ptr);
             if(found != copiedHandles.end()){
                 assert(found->second.lastestSpecGroup);
-                groups.emplace_back(found->second.lastestSpecGroup);
+                if constexpr(is_instantiation_of<std::vector, RetType>::value) {
+                    res.emplace_back(found->second.lastestSpecGroup);
+                } else if constexpr(is_instantiation_of<std::unordered_map, RetType>::value){
+                    res[ptr] = (found->second);
+                }
             }
 
             indexHh += 1;
         }
 
-        return groups;
+        return res;
+    }
+    
+    template <class Tuple, std::size_t IdxData>
+    inline auto coreGetCorrespondingCopyGroups(Tuple& args){
+        return coreGetCorrespondingCopyAux<Tuple, IdxData, std::vector<SpSelectedSpecGroup*>>(args);
     }
 
     template <class Tuple, std::size_t... Is>
@@ -918,29 +933,8 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
     template <class Tuple, std::size_t IdxData>
-    std::unordered_map<const void*, SpCurrentCopy> coreGetCorrespondingCopyList(Tuple& args){
-        using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
-        auto& scalarOrContainerData = std::get<IdxData>(args);
-
-        std::unordered_map<const void*, SpCurrentCopy> copies;
-
-        auto hh = getDataHandle(scalarOrContainerData);
-        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
-        long int indexHh = 0;
-        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
-            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
-
-            auto found = copiedHandles.find(ptr);
-            if(found != copiedHandles.end()){
-                assert(found->second.lastestSpecGroup);
-                copies[ptr] = (found->second);
-            }
-
-            indexHh += 1;
-        }
-
-        return copies;
+    inline auto coreGetCorrespondingCopyList(Tuple& args){
+        return coreGetCorrespondingCopyAux<Tuple, IdxData, std::unordered_map<const void*, SpCurrentCopy> >(args);
     }
 
     template <class Tuple, std::size_t... Is>
