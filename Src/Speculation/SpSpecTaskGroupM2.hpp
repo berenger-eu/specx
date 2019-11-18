@@ -339,7 +339,7 @@ public:
         else{
             assert(isSpeculatif);
             assert(specTask != nullptr);
-            assert(selectTasks.size() != 0);
+            //assert(selectTasks.size() != 0);
         }
         assert(!isSpeculatif || mainTask->isEnable() == didParentSpeculationFailed());
         assert((specTask != nullptr &&  parentGroups.size())
