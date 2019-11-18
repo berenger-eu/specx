@@ -56,6 +56,8 @@ int main(){
     const bool runSpec = true;
     const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
 
+    double energySeq = 0;
+
     SpTimer timerSeq;
     SpTimer timerTask;
     SpTimer timerSpec;
@@ -67,7 +69,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
         size_t cptGenerated = randGen.getNbValuesGenerated();
 
         timerSeq.start();
@@ -84,7 +86,7 @@ int main(){
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                 // Move domain
                 Domain<double> movedDomain = MoveDomain<double>(domains[idxDomain], BoxWidth, displacement, randGen);
-                assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
+                always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
                 cptGenerated = randGen.getNbValuesGenerated();
 
                 // Compute new energy
@@ -106,7 +108,7 @@ int main(){
                     // leave as it is
                     if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t\t reject " << std::endl;
                 }
-                assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
+                always_assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                 cptGenerated = randGen.getNbValuesGenerated();
             }
 
@@ -123,6 +125,7 @@ int main(){
             Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
             std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << ", Accepted moves = "
                       << 100. * static_cast<double>(totalAcceptedMove)/static_cast<double>(NbDomains*NbLoops) << "%" << std::endl;
+            energySeq = GetEnergy(energyAllTmp);
         }
     }
     if(runTask){
@@ -132,7 +135,7 @@ int main(){
 
         timerTask.start();
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -192,7 +195,7 @@ int main(){
         runtime.waitAllTasks();
         timerTask.stop();
 
-        assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        always_assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
 
         runtime.generateDot("mc_nospec_without_collision.dot");
         runtime.generateTrace("mc_nospec_without_collision.svg");
@@ -200,6 +203,7 @@ int main(){
         {
             Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
             std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << std::endl;
+            always_assert(runSeq == false || GetEnergy(energyAllTmp) == energySeq);
         }
     }
     if(runSpec){
@@ -213,7 +217,7 @@ int main(){
 
         timerSpec.start();
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -286,7 +290,7 @@ int main(){
 
         timerSpec.stop();
 
-        assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        always_assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
 
         runtime.generateDot("mc_spec_without_collision.dot");
         runtime.generateTrace("mc_spec_without_collision.svg");
@@ -294,6 +298,7 @@ int main(){
         {
             Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
             std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << std::endl;
+            always_assert(runSeq == false || GetEnergy(energyAllTmp) == energySeq);
         }
     }
     if(runSpec){
@@ -308,7 +313,7 @@ int main(){
 
             timerSpecNoCons[idxConsecutiveSpec].start();
             std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-            assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+            always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
             // Compute all
             Matrix<double> energyAll(0,0);
@@ -385,7 +390,7 @@ int main(){
 
             timerSpecNoCons[idxConsecutiveSpec].stop();
 
-            assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+            always_assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
 
             runtime.generateDot("mc_spec_without_collision_" + std::to_string(idxConsecutiveSpec) + ".dot");
             runtime.generateTrace("mc_spec_without_collision_" + std::to_string(idxConsecutiveSpec) + ".svg");
@@ -393,6 +398,7 @@ int main(){
             {
                 Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
                 std::cout << "[End] energy = " << GetEnergy(energyAllTmp) << std::endl;
+                always_assert(runSeq == false || GetEnergy(energyAllTmp) == energySeq);
             }
         }
     }
@@ -408,7 +414,7 @@ int main(){
         timerSpecAllReject.start();
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -481,7 +487,8 @@ int main(){
 
         timerSpecAllReject.stop();
 
-        //assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        //always_assert(runSeq == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        //always_assert(runSeq == false || GetEnergy(energyAllTmp) == energySeq);
 
         runtime.generateDot("mc_spec_without_collision-all-reject.dot");
         runtime.generateTrace("mc_spec_without_collision-all-reject.svg");

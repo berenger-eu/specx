@@ -78,6 +78,19 @@ namespace SpUtils{
         }
         return sentence;
     }
+
+    /** To perform some assert/check */
+    inline void CheckCorrect(const char* test, const bool isCorrect, const int line, const char* file){
+        if(!isCorrect){
+            std::cout << "Error in file " << file << " line " << line << std::endl;
+            std::cout << "Test was " << test << std::endl;
+            exit(-1);
+        }
+    }
 }
+
+#define spetabaru_xstr(s) spetabaru_str(s)
+#define spetabaru_str(s) #s
+#define always_assert(X) SpUtils::CheckCorrect(spetabaru_str(X), (X), __LINE__, __FILE__)
 
 #endif

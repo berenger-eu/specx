@@ -35,6 +35,8 @@ int main(){
     const bool runTaskMove = false;
     const bool runSpecMove = false;
 
+    double energySeq = 0;
+
     const int MaxIterationToMove = 5;
     const double collisionLimit = 0.00001;
 
@@ -42,7 +44,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
         size_t cptGenerated = randGen.getNbValuesGenerated();
 
         // Compute all
@@ -68,12 +70,12 @@ int main(){
                         break;
                     }
                 }
-                assert(randGen.getNbValuesGenerated()-cptGenerated == size_t((3 * NbParticlesPerDomain)*nbAttempts));
+                always_assert(randGen.getNbValuesGenerated()-cptGenerated == size_t((3 * NbParticlesPerDomain)*nbAttempts));
                 randGen.skip((3 * NbParticlesPerDomain)*(MaxIterationToMove-nbAttempts));
                 cptGenerated = randGen.getNbValuesGenerated();
 
                 if(movedDomain.getNbParticles()){
-                    assert(nbAttempts != MaxIterationToMove);
+                    always_assert(nbAttempts != MaxIterationToMove);
                     // Compute new energy
                     const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                             energyAll, idxDomain, movedDomain);
@@ -93,7 +95,7 @@ int main(){
                         // leave as it is
                         std::cout << "[" << idxLoop <<"] \t\t reject " << std::endl;
                     }
-                    assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
+                    always_assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                     cptGenerated = randGen.getNbValuesGenerated();
                 }
                 else{
@@ -107,6 +109,10 @@ int main(){
         }
 
         cptGeneratedSeq = randGen.getNbValuesGenerated();
+        {
+            Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
+            energySeq = GetEnergy(energyAllTmp);
+        }
     }
     if(runTaskMove){
         SpRuntime runtime(NumThreads);
@@ -114,7 +120,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -210,7 +216,11 @@ int main(){
         // Wait for task to finish
         runtime.waitAllTasks();
 
-        assert(runSeqMove == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        always_assert(runSeqMove == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        {
+            Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
+            always_assert(runSeqMove == false || GetEnergy(energyAllTmp) == energySeq);
+        }
 
         runtime.generateDot("/tmp/no_spec_with_collision.dot");
         runtime.generateTrace("/tmp/no_spec_with_collision.svg");
@@ -221,7 +231,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -321,7 +331,11 @@ int main(){
         // Wait for task to finish
         runtime.waitAllTasks();
 
-        assert(runSeqMove == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        always_assert(runSeqMove == false || cptGeneratedSeq == randGen.getNbValuesGenerated());
+        {
+            Matrix<double> energyAllTmp = ComputeForAll(domains.data(), NbDomains);
+            always_assert(runSeqMove == false || GetEnergy(energyAllTmp) == energySeq);
+        }
 
         runtime.generateDot("/tmp/spec_with_collision.dot");
         runtime.generateTrace("/tmp/spec_with_collision.svg");

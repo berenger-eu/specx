@@ -146,6 +146,8 @@ add_subdirectory(Src)
 
 
 if(NOT SPETABARU_JUST_LIB)
+    option(USE_ADVANCE_TESTING "Should be ON to enable more tests" OFF)
+
     #===========================================================================
     # Build unit tests
     #===========================================================================

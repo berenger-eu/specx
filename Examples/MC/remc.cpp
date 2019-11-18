@@ -37,7 +37,7 @@ int main(){
     const int NbInnerLoops = 5;
     const int NbLoops = std::max(NbInnerLoops,EnvStrToOther<int>("NBLOOPS", 5));
     std::cout << "NbLoops = " << NbLoops << std::endl;
-    assert(NbInnerLoops <= NbLoops);
+    always_assert(NbInnerLoops <= NbLoops);
 
     const int NbDomains = 5;
     std::cout << "NbDomains = " << NbDomains << std::endl;
@@ -68,6 +68,8 @@ int main(){
     const bool runSpec = true;
     const bool verbose = (getenv("VERBOSE") && strcmp(getenv("VERBOSE"),"TRUE") == 0 ? true : false);
 
+    std::array<double,NbReplicas> energySeq = {0};
+
     SpTimer timerSeq;
     SpTimer timerTask;
     SpTimer timerSpec;
@@ -92,7 +94,7 @@ int main(){
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-            assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+            always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
             cptGenerated = randGen.getNbValuesGenerated();
 
             // Compute all
@@ -116,7 +118,7 @@ int main(){
                     for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                         // Move domain
                         Domain<double> movedDomain = MoveDomain<double>(domains[idxDomain], BoxWidth, displacement, randGen);
-                        assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
+                        always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
                         cptGenerated = randGen.getNbValuesGenerated();
 
                         // Compute new energy
@@ -138,7 +140,7 @@ int main(){
                             // leave as it is
                             if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t\t reject " << std::endl;
                         }
-                        assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
+                        always_assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                         cptGenerated = randGen.getNbValuesGenerated();
                     }
                     if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] energy = " << GetEnergy(energyAll)
@@ -178,6 +180,7 @@ int main(){
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
             std::cout << "[END][" << idxReplica << "]" << " energy = " << GetEnergy(energyAll) << std::endl;
+            energySeq[idxReplica] = GetEnergy(energyAll);
         }
     }
     if(runTask){
@@ -309,7 +312,7 @@ int main(){
         timerTask.stop();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            always_assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
         }
 
         runtime.generateDot("remc_nospec_without_collision.dot");
@@ -317,7 +320,8 @@ int main(){
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
-            std::cout << "[END][" << idxReplica << "]" << " energy = " << GetEnergy(energyAll) << std::endl;
+            std::cout << "[END][" << idxReplica << "]" << " energy = " << GetEnergy(energyAll) << std::endl;            
+            always_assert(runSeq == false || GetEnergy(energyAll) == energySeq[idxReplica]);
         }
     }
     if(runSpec){
@@ -470,7 +474,7 @@ int main(){
         timerSpec.stop();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            always_assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
         }
 
         runtime.generateDot("remc_spec_without_collision.dot");
@@ -479,6 +483,7 @@ int main(){
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
             std::cout << "[END][" << idxReplica << "]" << " energy = " << GetEnergy(energyAll) << std::endl;
+            always_assert(runSeq == false || GetEnergy(energyAll) == energySeq[idxReplica]);
         }
     }
     if(runSpec){
@@ -637,7 +642,7 @@ int main(){
             timerSpecNoCons[idxConsecutiveSpec].stop();
 
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+                always_assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
             }
 
             runtime.generateDot("remc_spec_without_collision_" + std::to_string(idxConsecutiveSpec) + ".dot");
@@ -647,6 +652,7 @@ int main(){
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 std::cout << "[END][" << idxReplica << "]" << " energy = " << GetEnergy(energyAll) << std::endl;
+                always_assert(runSeq == false || GetEnergy(energyAll) == energySeq[idxReplica]);
             }
         }
     }
@@ -809,7 +815,7 @@ int main(){
         timerSpecAllReject.stop();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            always_assert(runSeq == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
         }
 
         runtime.generateDot("remc_spec_without_collision-all-reject.dot");

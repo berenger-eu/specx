@@ -49,5 +49,12 @@ if(SPETABARU_BUILD_EXAMPLES)
             spetabaru
 	        ${SPETABARU_LIBRARIES}
             )
+            
+        if(USE_ADVANCE_TESTING)
+            if($ENV{VERBOSE})
+                MESSAGE(STATUS "Examples -- Add more tests   : ${execname}")
+            endif()
+            add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
+        endif()
     endforeach(exec)
 endif()

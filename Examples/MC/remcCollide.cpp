@@ -45,9 +45,11 @@ int main(){
     /// With a possible failure move
     ///////////////////////////////////////////////////////////////////////////
 
-    const bool runSeqMove = true;
-    const bool runTaskMove = true;
-    const bool runSpecMove = true;
+    const bool runSeqMove = false;
+    const bool runTaskMove = false;
+    const bool runSpecMove = false;
+
+    std::array<double,NbReplicas> energySeq = {0};
 
     const int MaxIterationToMove = 5;
     const double collisionLimit = 0.00001;
@@ -67,7 +69,7 @@ int main(){
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-            assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+            always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
             cptGenerated = randGen.getNbValuesGenerated();
 
             // Compute all
@@ -103,12 +105,12 @@ int main(){
                                 break;
                             }
                         }
-                        assert(randGen.getNbValuesGenerated()-cptGenerated == size_t((3 * NbParticlesPerDomain)*nbAttempts));
+                        always_assert(randGen.getNbValuesGenerated()-cptGenerated == size_t((3 * NbParticlesPerDomain)*nbAttempts));
                         randGen.skip((3 * NbParticlesPerDomain)*(MaxIterationToMove-nbAttempts));
                         cptGenerated = randGen.getNbValuesGenerated();
 
                         if(movedDomain.getNbParticles()){
-                            assert(nbAttempts != MaxIterationToMove);
+                            always_assert(nbAttempts != MaxIterationToMove);
                             // Compute new energy
                             const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                                     energyAll, idxDomain, movedDomain);
@@ -128,7 +130,7 @@ int main(){
                                 // leave as it is
                                 std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t\t reject " << std::endl;
                             }
-                            assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
+                            always_assert(randGen.getNbValuesGenerated()-cptGenerated == 1);
                             cptGenerated = randGen.getNbValuesGenerated();
                         }
                         else{
@@ -167,6 +169,9 @@ int main(){
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             cptGeneratedSeq[idxReplica] = replicaRandGen[idxReplica].getNbValuesGenerated();
+
+            Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
+            energySeq[idxReplica] = GetEnergy(energyAll);
         }
     }
     if(runTaskMove){
@@ -329,7 +334,9 @@ int main(){
         runtime.waitAllTasks();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            assert(runSeqMove == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            always_assert(runSeqMove == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
+            always_assert(runSeqMove == false || GetEnergy(energyAll) == energySeq[idxReplica]);
         }
     }
     if(runSpecMove){
@@ -498,7 +505,9 @@ int main(){
         runtime.waitAllTasks();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            assert(runSeqMove == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            always_assert(runSeqMove == false || cptGeneratedSeq[idxReplica] == replicaRandGen[idxReplica].getNbValuesGenerated());
+            Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
+            always_assert(runSeqMove == false || GetEnergy(energyAll) == energySeq[idxReplica]);
         }
     }
 
