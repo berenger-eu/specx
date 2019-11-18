@@ -1140,7 +1140,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 aTask->template updatePtr<IdxData>(indexHh, reinterpret_cast<TargetParamType*>(cp.latestAdress));
             }
             else{
-                assert(accessMode == SpDataAccessMode::READ);
+                // Requested access mode could be anything here
                 SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
                 const long int handleKey1 = h1->addDependence(aTask, accessMode);
                 if(indexHh == 0){
