@@ -1098,58 +1098,46 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
-
         long int indexHh = 0;
+        
+        std::unordered_map<const void*, SpCurrentCopy>* cm[] = {std::addressof(extraCopies), std::addressof(copiedHandles)};
+        
         for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
             assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
-            SpDataHandle* h1 = hh[indexHh];
-
-            if(auto found = extraCopies.find(ptr); found != extraCopies.end()){
-                const SpCurrentCopy& cp = found->second;
-                assert(cp.isDefined());
-                assert(cp.originAdress == ptr);
-                assert(cp.latestAdress != nullptr);
-
-                SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                const long int handleKey1 = h1copy->addDependence(aTask, accessMode);
-                if(indexHh == 0){
-                    aTask->template setDataHandle<IdxData>(h1copy, handleKey1);
+            SpDataHandle* h = hh[indexHh];
+            
+            bool foundAddressInCopies = false;
+            void *cpLatestAddress = nullptr;
+            
+            for(auto me : cm) {
+                if(auto found = me->find(ptr); found != me->end()){
+                    const SpCurrentCopy& cp = found->second;
+                    assert(cp.isDefined());
+                    assert(cp.originAdress == ptr);
+                    assert(cp.latestAdress != nullptr);
+                    h = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
+                    cpLatestAddress = cp.latestAdress;
+                    foundAddressInCopies = true;
+                    break;
                 }
-                else{
-                    assert(ScalarOrContainerType::IsScalar == false);
-                    aTask->template addDataHandleExtra<IdxData>(h1copy, handleKey1);
-                }
-                aTask->template updatePtr<IdxData>(indexHh, reinterpret_cast<TargetParamType*>(cp.latestAdress));
             }
-            else if(auto found2 = copiedHandles.find(ptr); found2 != copiedHandles.end()){
-                const SpCurrentCopy& cp = found2->second;
-                assert(cp.isDefined());
-                assert(cp.originAdress == ptr);
-                assert(cp.latestAdress != nullptr);
-
-                SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
-                const long int handleKey1 = h1copy->addDependence(aTask, accessMode);
-                if(indexHh == 0){
-                    aTask->template setDataHandle<IdxData>(h1copy, handleKey1);
-                }
-                else{
-                    assert(ScalarOrContainerType::IsScalar == false);
-                    aTask->template addDataHandleExtra<IdxData>(h1copy, handleKey1);
-                }
-                aTask->template updatePtr<IdxData>(indexHh, reinterpret_cast<TargetParamType*>(cp.latestAdress));
+            
+            if(!foundAddressInCopies) {
+                SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
+            }
+            
+            const long int handleKey = h->addDependence(aTask, accessMode);
+            if(indexHh == 0){
+                aTask->template setDataHandle<IdxData>(h, handleKey);
             }
             else{
-                // Requested access mode could be anything here
-                SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
-                const long int handleKey1 = h1->addDependence(aTask, accessMode);
-                if(indexHh == 0){
-                    aTask->template setDataHandle<IdxData>(h1, handleKey1);
-                }
-                else{
-                    assert(ScalarOrContainerType::IsScalar == false);
-                    aTask->template addDataHandleExtra<IdxData>(h1, handleKey1);
-                }
+                assert(ScalarOrContainerType::IsScalar == false);
+                aTask->template addDataHandleExtra<IdxData>(h, handleKey);
+            }
+            
+            if(foundAddressInCopies) {
+                aTask->template updatePtr<IdxData>(indexHh, reinterpret_cast<TargetParamType*>(cpLatestAddress));
             }
 
             indexHh += 1;
