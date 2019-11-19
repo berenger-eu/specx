@@ -337,8 +337,10 @@ class SpRuntime : public SpAbstractToKnowReady {
             currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
 
             std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l2, inPriority, tuple, sequenceParamsNoFunction);
-
-            currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
+            currentGroupNormalTask->addSelectTasks(mergeTasks);
+            for(auto mt : mergeTasks) {
+                scheduler.addNewTask(mt);
+            }
 
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
 
@@ -466,7 +468,10 @@ class SpRuntime : public SpAbstractToKnowReady {
 		    });
 
 		    std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(l1l2, inPriority, tuple, sequenceParamsNoFunction);
-		    currentGroupNormalTask->addSelectTasks(std::move(mergeTasks));
+		    currentGroupNormalTask->addSelectTasks(mergeTasks);
+            for(auto mt : mergeTasks) {
+                scheduler.addNewTask(mt);
+            }
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
 		} else {
             taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
@@ -998,7 +1003,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     auto taskInternalSpSelect(const SpTaskActivation inActivation, SpPriority inPriority, bool isCarryingSurelyWrittenValuesOver,
                                      ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreationAux<SpSelectTask, false, true>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
+        return coreTaskCreationAux<SpSelectTask, false, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
                                                  isCarryingSurelyWrittenValuesOver);
     }
 
