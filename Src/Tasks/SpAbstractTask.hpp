@@ -239,17 +239,6 @@ public:
     void setEnabled(const SpTaskActivation inIsEnable) {
         isEnabled = inIsEnable;
     }
-// Only used for Model 2
-    bool isOnNormalPath()
-    {
-      
-      if (!originalTask) {
-        return true;
-      }
-      return false;
-    }
-// End Only used for Model 2
-    ///////////////////////////////////////////////////////////////////////////
 
     void setDisabledIfNotOver(){
         if(canTakeControl()){
