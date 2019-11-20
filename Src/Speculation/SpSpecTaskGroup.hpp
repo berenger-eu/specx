@@ -340,7 +340,6 @@ public:
         else{
             assert(isSpeculatif);
             assert(specTask != nullptr);
-            assert(selectTasks.size() != 0);
 
             if(didParentSpeculationSucceed()){
                 for(auto* child : subGroups){

@@ -579,7 +579,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
                         
-                        auto taskView = this->taskInternalSpSelect(SpTaskActivation::ENABLE, inPriority,
+                        auto taskView = this->taskInternalSpSelect(SpTaskActivation::DISABLE, inPriority,
                                            isCarryingSurelyWrittenValuesOver,
                                            SpWrite(*h1->castPtr<TargetParamType>()),
                                            SpWrite(*h1copy->castPtr<TargetParamType>()),
