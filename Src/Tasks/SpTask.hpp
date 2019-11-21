@@ -180,32 +180,38 @@ public:
     //! when filling with potentialReady we are able to find tasks that have more
     //! than one dependence in common with the current task.
     void releaseDependences(std::vector<SpAbstractTask*>* potentialReady) final {
+        // Arrays of boolean flags indicating for each released dependency whether the "after release" pointed to
+        // dependency slot in the corresponding data handle contains any unfullfilled memory access
+        // requests.
+        std::array<bool, NbParams> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles;
+        std::vector<bool> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra(dataHandlesExtra.size());
+        
         SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences";
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
-            dataHandles[idxDeps]->releaseByTask(this, dataHandlesKeys[idxDeps]);
+            curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles[idxDeps] = dataHandles[idxDeps]->releaseByTask(this, dataHandlesKeys[idxDeps]);
             SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandles[idxDeps]
                               << " address " << dataHandles[idxDeps]->template castPtr<int>() << "\n";
         }
         if(dataHandlesExtra.size()){
             for(long int idxDeps = 0 ; idxDeps < static_cast<long int>(dataHandlesExtra.size()) ; ++idxDeps){
-                dataHandlesExtra[idxDeps]->releaseByTask(this, dataHandlesKeysExtra[idxDeps]);
+                curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra[idxDeps] = dataHandlesExtra[idxDeps]->releaseByTask(this, dataHandlesKeysExtra[idxDeps]);
                 SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandlesExtra[idxDeps]
-                                  << " address " << dataHandlesExtra[idxDeps]->template castPtr<int>() << "\n";
+                                  << " address " << dataHandlesExtra[idxDeps]->template castPtr<int>();
             }
         }
 
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
-            if(dataHandles[idxDeps]->isReadyForNextTasks() == true){
+            if(curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles[idxDeps]){
                 dataHandles[idxDeps]->fillCurrentTaskList(potentialReady);
             }
         }
         if(dataHandlesExtra.size()){
             for(long int idxDeps = 0 ; idxDeps < static_cast<long int>(dataHandlesExtra.size()) ; ++idxDeps){
-                if(dataHandlesExtra[idxDeps]->isReadyForNextTasks() == true){
+                if(curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra[idxDeps]){
                     dataHandlesExtra[idxDeps]->fillCurrentTaskList(potentialReady);
                 }
             }

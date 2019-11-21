@@ -118,19 +118,44 @@ public:
     }
 
     //! Marks the dependence as release by the given task
-    //! Must be call after setUsedByTask
-    void releaseByTask(SpAbstractTask* useTaskId){
+    //! Must be called after setUsedByTask
+    bool releaseByTask(SpAbstractTask* useTaskId){
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             assert(nbTasksReleased == 0);
             assert(nbTasksInUsed == 1);
             assert(idTaskWrite == useTaskId);
             nbTasksReleased += 1;
+            // The dependency slot can only be used by the task currently releasing the
+            // the dependency slot, since write and maybe-write accesses are exclusive.
+            // After this dependency slot has been released it can't be reused by another task, 
+            // that's why we are returning false in this case, basically saying this dependency slot 
+            // is not available for any further memory access requests and we should move onto the next dependency slot.
+            return false;
         }
         else{
             assert(std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
             assert(0 < nbTasksInUsed);
             assert(nbTasksReleased < nbTasksInUsed);
             nbTasksReleased += 1;
+            assert(nbTasksReleased <= int(idTasksMultiple.size()));
+            if(accessMode == SpDataAccessMode::COMMUTE_WRITE){
+                assert(nbTasksReleased == nbTasksInUsed);
+                // Return true if there still are any unfullfilled commutative write access requests
+                // on the data handle. So basically, by returning true in this case we notify the caller
+                // that the data handle is now available for another task to request its
+                // commutative write access onto. If all commutative write access requests on the data handle have
+                // been fulfilled we return false, basically saying this dependency slot
+                // is not available for any further memory accesses and we should move onto the next dependency slot.
+                return (nbTasksReleased != int(idTasksMultiple.size()));
+            }
+            else{
+                // Tasks that want to read can read however they please,
+                // they don't have to wait for a previous task reading from the data handle
+                // to give them permission to access to the data handle through the dependency slot.
+                // So basically we are saying read requests are already "fulfilled" by default (note that this does not
+                // necessarily mean that the read request has already been released from the dependency slot).
+                return false;
+            }
         }
     }
 
