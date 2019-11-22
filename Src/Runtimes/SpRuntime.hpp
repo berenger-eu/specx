@@ -155,7 +155,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
-    template <template<typename...> typename TaskType, const bool isSpeculative, const bool pushToSchedulerRightAway=true, class Tuple, std::size_t... Is, typename... T>
+    template <template<typename...> typename TaskType, const bool isSpeculative, class Tuple, std::size_t... Is, typename... T>
     auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>, T... additionalArgs){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
@@ -205,18 +205,16 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         SpDebugPrint() << "SpRuntime -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
         
-        if constexpr(pushToSchedulerRightAway) {
-            // Push to the scheduler
-            scheduler.addNewTask(aTask);
-        }
+        // Push to the scheduler
+        scheduler.addNewTask(aTask);
         
         // Return the view
         return descriptor;
     }
     
-    template <bool pushToSchedulerRightAway=true, class Tuple, std::size_t... Is>
+    template <class Tuple, std::size_t... Is>
     inline auto coreTaskCreation(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...> is){
-            return coreTaskCreationAux<SpTask, false, pushToSchedulerRightAway>(inActivation, inPriority, args, is, nullptr);
+            return coreTaskCreationAux<SpTask, false>(inActivation, inPriority, args, is, nullptr);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -277,10 +275,10 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     //! Convert tuple to data and call the function
-    template <bool pushToSchedulerRightAway=true, class Tuple, std::size_t... Is>
+    template <class Tuple, std::size_t... Is>
     inline auto coreTaskCreationSpeculative(std::unordered_map<const void*, SpCurrentCopy>& extraCopies, const SpTaskActivation inActivation,
                                      const SpPriority& inPriority, Tuple& args, std::index_sequence<Is...> is) {
-        return coreTaskCreationAux<SpTask, true, pushToSchedulerRightAway>(inActivation, inPriority, args, is, extraCopies);
+        return coreTaskCreationAux<SpTask, true>(inActivation, inPriority, args, is, extraCopies);
     }
 
 
@@ -339,9 +337,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(currentGroupNormalTask.get(), l2, inPriority, tuple, sequenceParamsNoFunction);
             currentGroupNormalTask->addSelectTasks(mergeTasks);
-            for(auto mt : mergeTasks) {
-                scheduler.addNewTask(mt);
-            }
 
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
 
@@ -506,10 +501,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(currentGroupNormalTask.get(), l1l2, inPriority, tuple, sequenceParamsNoFunction);
             currentGroupNormalTask->addSelectTasks(mergeTasks);
-            
-            for(auto mt : mergeTasks) {
-                scheduler.addNewTask(mt);
-            }
             
             removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
         }else{
@@ -1039,8 +1030,8 @@ class SpRuntime : public SpAbstractToKnowReady {
     auto taskInternalSpSelect(const SpTaskActivation inActivation, SpPriority inPriority, bool isCarryingSurelyWrittenValuesOver,
                                      ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreationAux<SpSelectTask, false, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
-                                                 isCarryingSurelyWrittenValuesOver);
+        return coreTaskCreationAux<SpSelectTask, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
+                                                        isCarryingSurelyWrittenValuesOver);
     }
 
 
