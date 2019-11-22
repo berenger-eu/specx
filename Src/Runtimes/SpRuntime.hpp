@@ -321,7 +321,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             std::unordered_map<const void*, SpCurrentCopy> l2;
 
             currentSpecGroup = currentGroupNormalTask.get();
-            l2 = copyIfWriteAndNotDuplicate(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+            l2 = copyIfWriteAndNotDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
             currentSpecGroup = nullptr;
 
             auto taskView = coreTaskCreation(currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
@@ -396,7 +396,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 		    currentGroupNormalTask->addParents(groups);
             
             currentSpecGroup = currentGroupNormalTask.get();
-            l1 = copyIfMaybeWriteAndNotDuplicate(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+            l1 = copyIfMaybeWriteAndNotDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
             assert(taskAlsoSpeculateOnOther == true || l1.size());
             currentSpecGroup = nullptr;
             currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1));
@@ -408,7 +408,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             }
             
             currentSpecGroup = currentGroupNormalTask.get();
-		    l2 = copyIfWriteAndNotDuplicate(SpTaskActivation::ENABLE, inPriority, tuple, sequenceParamsNoFunction);
+		    l2 = copyIfWriteAndNotDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
 		    currentSpecGroup = nullptr;
             currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l2));
             
@@ -442,15 +442,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         }
         
         currentSpecGroup = currentGroupNormalTask.get();
-        SpTaskActivation l1pCopiesInitialActivationState;
-        
-        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
-            l1pCopiesInitialActivationState = currentSpecGroup->getActivationStateForCopyTasks();
-        } else {
-            l1pCopiesInitialActivationState = SpTaskActivation::ENABLE;
-        }
-        
-        l1p = copyIfMaybeWriteAndDuplicate(l1pCopiesInitialActivationState, inPriority, tuple, sequenceParamsNoFunction);
+        l1p = copyIfMaybeWriteAndDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
         currentSpecGroup = nullptr;
         currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1p));
         
