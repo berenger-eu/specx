@@ -140,7 +140,7 @@ public:
             assert(nbTasksReleased <= int(idTasksMultiple.size()));
             if(accessMode == SpDataAccessMode::COMMUTE_WRITE){
                 assert(nbTasksReleased == nbTasksInUsed);
-                // Return true if there still are any unfullfilled commutative write access requests
+                // Return true if there still are any unfulfilled commutative write access requests
                 // on the data handle. So basically, by returning true in this case we notify the caller
                 // that the data handle is now available for another task to request its
                 // commutative write access onto. If all commutative write access requests on the data handle have

@@ -335,17 +335,18 @@ class SpSelectTask : public SpTask<TaskFuncType, RetType, Params...>
     using Parent = SpTask<TaskFuncType, RetType, Params...>;
     using TupleParamsType = std::tuple<Params...>;
     
-    bool isCarryingSurelyWrittenValuesOver;
+    // flag indicating if the select task is carrying surely written values over
+    bool isCarrSurWrittValuesOver;
     
 public:
     template <class TaskFuncTypeCstr, typename... T>
     explicit SpSelectTask(TaskFuncTypeCstr&& inTaskCallback, const SpPriority& inPriority,
                           TupleParamsType&& inTupleParams, bool iCSWVO)
                         : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), inPriority,
-                          std::forward<TupleParamsType>(inTupleParams)), isCarryingSurelyWrittenValuesOver(iCSWVO) {}
+                          std::forward<TupleParamsType>(inTupleParams)), isCarrSurWrittValuesOver(iCSWVO) {}
     
     void setEnabledDelegate(const SpTaskActivation inIsEnable) override final {
-        if((inIsEnable == SpTaskActivation::DISABLE && !isCarryingSurelyWrittenValuesOver)
+        if((inIsEnable == SpTaskActivation::DISABLE && !isCarrSurWrittValuesOver)
             || inIsEnable == SpTaskActivation::ENABLE) {
             this->setEnabled(inIsEnable);
         }

@@ -151,6 +151,8 @@ public:
 
             EnableAllTasks(copyTasks);
             EnableAllTasks(selectTasks);
+        } else {
+            state = States::DO_NOT_SPEC;
         }
     }
 
@@ -392,73 +394,80 @@ public:
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
-
-    void addCopyTasks(const std::vector<SpAbstractTask*>& incopyTasks){
+    
+    SpTaskActivation getActivationStateForCopyTasks() {
         assert(didParentSpeculationFailed() == false);
         assert(didSpeculationFailed() == false);
-
         if(isSpeculationEnable()){
-            EnableAllTasks(incopyTasks);
+            return SpTaskActivation::ENABLE;
         }
         else {
-            DisableAllTasks(incopyTasks);
+            return SpTaskActivation::DISABLE;
         }
-        copyTasks.reserve(copyTasks.size() + incopyTasks.size());
-        copyTasks.insert(std::end(copyTasks), std::begin(incopyTasks), std::end(incopyTasks));
     }
-
+    
+    SpTaskActivation getActivationStateForMainTask() {
+        if(!isSpeculatif || isSpeculationDisable() || didParentSpeculationFailed()){
+            return SpTaskActivation::ENABLE;
+        }
+        else {
+            return SpTaskActivation::DISABLE;
+        }
+    }
+    
+    SpTaskActivation getActivationStateForSpeculativeTask() {
+        assert(didSpeculationFailed() == false);
+        assert(isSpeculatif == true);
+        
+        if(isSpeculationEnable() && !didParentSpeculationFailed()){
+            return SpTaskActivation::ENABLE;
+        }
+        else {
+            return SpTaskActivation::DISABLE;
+        }
+    }
+    
+    SpTaskActivation getActivationStateForSelectTask(bool isCarryingSurelyWrittenValuesOver) {
+        assert(mainTask);
+        assert(specTask);
+        assert(isSpeculatif == true);
+        
+        if(!isSpeculationEnable() || didParentSpeculationFailed()){
+            return SpTaskActivation::DISABLE;
+        }else if(isSpeculationEnable() && didParentSpeculationSucceed() && didSpeculationSucceed()){
+            if(isCarryingSurelyWrittenValuesOver){
+                return SpTaskActivation::ENABLE;
+            } else {
+                return SpTaskActivation::DISABLE;
+            }
+        }else{
+            return SpTaskActivation::ENABLE;
+        }
+    }
+    
     void addCopyTask(SpAbstractTask* inPreTask){
         assert(didParentSpeculationFailed() == false);
         assert(didSpeculationFailed() == false);
         assert(inPreTask->isOver() == false);
-
-        if(isSpeculationEnable()){
-            inPreTask->setEnabled(SpTaskActivation::ENABLE);
-        }
-        else {
-            inPreTask->setEnabled(SpTaskActivation::DISABLE);
-        }
         copyTasks.push_back(inPreTask);
+    }
+    
+    void addCopyTasks(const std::vector<SpAbstractTask*>& incopyTasks){
+        copyTasks.reserve(copyTasks.size() + incopyTasks.size());
+        copyTasks.insert(std::end(copyTasks), std::begin(incopyTasks), std::end(incopyTasks));
     }
 
     void setMainTask(SpAbstractTask* inMainTask){
-        if(isSpeculatif == false || isSpeculationDisable() || didParentSpeculationFailed()){
-            inMainTask->setEnabled(SpTaskActivation::ENABLE);
-        }
-        else {
-            inMainTask->setEnabled(SpTaskActivation::DISABLE);
-        }
         assert(mainTask == nullptr);
         mainTask = inMainTask;
     }
 
     void setSpecTask(SpAbstractTask* inSpecTask){
-        assert(didSpeculationFailed() == false);
-        assert(isSpeculatif == true);
-
-        if(isSpeculationEnable() && didParentSpeculationFailed() == false){
-            inSpecTask->setEnabled(SpTaskActivation::ENABLE);
-        }
-        else {
-            inSpecTask->setEnabled(SpTaskActivation::DISABLE);
-        }
         assert(specTask == nullptr);
         specTask = inSpecTask;
     }
 
     void addSelectTasks(const std::vector<SpAbstractTask*>& inselectTasks){
-        assert(mainTask);
-        assert(specTask);
-        assert(isSpeculatif == true);
-
-        if(!isSpeculationEnable() || didParentSpeculationFailed()){
-            DisableAllTasks(inselectTasks);
-        }else if(isSpeculationEnable() && didParentSpeculationSucceed() && didSpeculationSucceed()){
-            DisableTasksDelegate(inselectTasks);
-        }
-        else{
-            EnableAllTasks(inselectTasks);
-        }
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
     }
