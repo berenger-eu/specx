@@ -85,11 +85,11 @@ class SpAbstractTask{
     SpAbstractTask* originalTask;
 
 public:
-    explicit SpAbstractTask(const SpPriority& inPriority):
+    explicit SpAbstractTask(const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
                                currentState(SpTaskState::NOT_INITIALIZED),
                                threadIdComputer(-1), priority(inPriority),
-                               isEnabled(SpTaskActivation::ENABLE),
+                               isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr){
     }
@@ -339,8 +339,8 @@ private:
     std::vector<std::function<void(const bool, const RetType&, SpTaskViewer&, const bool)>> callbacks;
 
 public:
-    explicit SpAbstractTaskWithReturn(const SpPriority& inPriority):
-        SpAbstractTask(inPriority), resultValue(){
+    explicit SpAbstractTaskWithReturn(const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
+        SpAbstractTask(initialAtivationState, inPriority), resultValue(){
     }
 
     const RetType& getValue() const {

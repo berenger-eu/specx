@@ -76,10 +76,12 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 public:
     //! Constructor from a task function
     template <class TaskFuncTypeCstr, typename... T>
-    explicit SpTask(TaskFuncTypeCstr&& inTaskCallback, const SpPriority& inPriority,
-                   TupleParamsType&& inTupleParams, T... t) 
-        : SpAbstractTaskWithReturn<RetType>(inPriority), taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
-          tupleParams(inTupleParams){
+    explicit SpTask(TaskFuncTypeCstr&& inTaskCallback, const SpTaskActivation initialActivationState, 
+                    const SpPriority& inPriority,
+                    TupleParamsType&& inTupleParams, T... t) 
+        : SpAbstractTaskWithReturn<RetType>(initialActivationState, inPriority),
+        taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
+        tupleParams(inTupleParams){
         ((void)t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
@@ -340,9 +342,10 @@ class SpSelectTask : public SpTask<TaskFuncType, RetType, Params...>
     
 public:
     template <class TaskFuncTypeCstr, typename... T>
-    explicit SpSelectTask(TaskFuncTypeCstr&& inTaskCallback, const SpPriority& inPriority,
+    explicit SpSelectTask(TaskFuncTypeCstr&& inTaskCallback, const SpTaskActivation initialActivationState, 
+                          const SpPriority& inPriority,
                           TupleParamsType&& inTupleParams, bool iCSWVO)
-                        : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), inPriority,
+                        : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), initialActivationState, inPriority,
                           std::forward<TupleParamsType>(inTupleParams)), isCarrSurWrittValuesOver(iCSWVO) {}
     
     void setEnabledDelegate(const SpTaskActivation inIsEnable) override final {

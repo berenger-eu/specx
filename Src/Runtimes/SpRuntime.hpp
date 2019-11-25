@@ -172,12 +172,10 @@ class SpRuntime : public SpAbstractToKnowReady {
         using TaskTy = TaskType<TaskCore, RetType, typename std::remove_reference_t<typename std::tuple_element<Is, Tuple>::type> ... >;
         
         // Create a task with a copy of the args
-        auto aTask = new TaskTy(std::move(taskCore), inPriority, std::make_tuple(std::get<Is>(args)...), additionalArgs...);
+        auto aTask = new TaskTy(std::move(taskCore), inActivation, inPriority, std::make_tuple(std::get<Is>(args)...), additionalArgs...);
 
         // Lock the task
         aTask->takeControl();
-        
-        aTask->setEnabled(inActivation);
         
         // Add the handles
         if constexpr(!isSpeculative) {
