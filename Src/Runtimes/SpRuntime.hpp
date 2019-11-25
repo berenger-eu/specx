@@ -399,7 +399,6 @@ class SpRuntime : public SpAbstractToKnowReady {
             l1 = copyIfMaybeWriteAndNotDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
             assert(taskAlsoSpeculateOnOther == true || l1.size());
             currentSpecGroup = nullptr;
-            currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1));
             
             for(auto& iter : l1){
                 assert(copiedHandles.find(iter.first) == copiedHandles.end());
@@ -410,7 +409,6 @@ class SpRuntime : public SpAbstractToKnowReady {
             currentSpecGroup = currentGroupNormalTask.get();
 		    l2 = copyIfWriteAndNotDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
 		    currentSpecGroup = nullptr;
-            currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l2));
             
             for(auto& iter : l2){
                 assert(copiedHandles.find(iter.first) == copiedHandles.end());
@@ -444,7 +442,6 @@ class SpRuntime : public SpAbstractToKnowReady {
         currentSpecGroup = currentGroupNormalTask.get();
         l1p = copyIfMaybeWriteAndDuplicate(currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
         currentSpecGroup = nullptr;
-        currentGroupNormalTask->addCopyTasks(copyMapToTaskVec(l1p));
         
         if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1){
             if(taskAlsoSpeculateOnOther) {
