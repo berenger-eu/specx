@@ -107,12 +107,16 @@ public:
     //! Copy all the tasks related to the dependence into the given vector
     void fillWithTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
-            potentialReady->push_back(idTaskWrite);
+            if(idTaskWrite->isState(SpTaskState::WAITING_TO_BE_READY)) {
+                potentialReady->push_back(idTaskWrite);
+            }
         }
         else{
             potentialReady->reserve(potentialReady->size() + idTasksMultiple.size());
             for(auto&& ptr : idTasksMultiple){
-                potentialReady->push_back(ptr);
+                if(ptr->isState(SpTaskState::WAITING_TO_BE_READY)) {
+                    potentialReady->push_back(ptr);
+                }
             }
         }
     }

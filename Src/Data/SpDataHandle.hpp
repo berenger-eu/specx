@@ -164,8 +164,9 @@ public:
     //! Get the potential ready tasks on the current cursor
     void fillCurrentTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
-        assert(currentDependenceCursor != static_cast<long int>(dependencesOnData.size()));
-        dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+        if(currentDependenceCursor != static_cast<long int>(dependencesOnData.size())) {
+            dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+        }
     }
 
     //! Get the list of tasks that depend on dependence at idx afterIdx
