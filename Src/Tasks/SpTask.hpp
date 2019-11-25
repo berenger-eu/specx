@@ -89,7 +89,9 @@ public:
 #ifdef __GNUG__
         // if GCC then we ask for a clean type as default task name
         int status;
-        Parent::setTaskName(abi::__cxa_demangle(typeid(TaskFuncType).name(), 0, 0, &status));
+        char *demangledName = abi::__cxa_demangle(typeid(TaskFuncType).name(), 0, 0, &status);
+        Parent::setTaskName(demangledName);
+        free(demangledName);
 #else
         Parent::setTaskName(typeid(TaskFuncType).name());
 #endif
