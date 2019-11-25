@@ -31,16 +31,11 @@ class SpDataHandle {
     //! Current execution state in the dependences list
     long int currentDependenceCursor;
 
-    //! Boolean to say if the data is available for the next tasks
-    //! For example, it is set to false when some tasks use the data
-    //! and it is set to true if it is available
-    std::atomic<bool> readyForNextTasks;
-
 public:
     template <class Datatype>
     explicit SpDataHandle(Datatype* inPtrToData)
         : ptrToData(inPtrToData), datatypeName(typeid(Datatype).name()),
-          currentDependenceCursor(0), readyForNextTasks(false){
+          currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
 
@@ -128,43 +123,50 @@ public:
                        << " mode " << SpModeToStr(dependencesOnData[inDependenceIdx].getMode()) << " address " << ptrToData;
         std::unique_lock<std::mutex> lock(mutexDependences);
         dependencesOnData[inDependenceIdx].setUsedByTask(inTask);
-        readyForNextTasks = false;
     }
 
     //! Release the dependence, the dependence must have been set to used by
-    //! the input task
-    //! The method returns true if it release potential ready tasks
+    //! the input task.
+    //! The method returns true if there still are any unfulfilled memory access
+    //! requests on the data handle.
     bool releaseByTask(SpAbstractTask* inTask, const long int inDependenceIdx){
         std::unique_lock<std::mutex> lock(mutexDependences);
         assert(inDependenceIdx == currentDependenceCursor);
         SpDebugPrint() << "[SpDataHandle] " << this << " releaseByTask " << inTask << " inDependenceIdx " << inDependenceIdx << " address " << ptrToData;
-        // inform the dependence to be released by the task
-        dependencesOnData[inDependenceIdx].releaseByTask(inTask);
-        // does all task have use and release the dependence
+        
+        // Release memory access request on dependency slot. As a return value we get a boolean flag
+        // telling us if there are still any unfulfilled memory access requests registered on the dependency slot.
+        const bool thereStillAreUnfulfilledMemoryAccessRequestsOnTheDependencySlot = dependencesOnData[inDependenceIdx].releaseByTask(inTask);
+        
+        // Have all memory accesses registered on the dependency slot been performed on the data ?
         if(dependencesOnData[inDependenceIdx].isOver()){
-            // move to the next one
+            assert(thereStillAreUnfulfilledMemoryAccessRequestsOnTheDependencySlot == false);
+            
+            // Move on to the next dependency slot
             currentDependenceCursor += 1;
-            // mask as available
-            readyForNextTasks = true;
+            
+            // Mask as available
             SpDebugPrint() << "[SpDataHandle] releaseByTask isOver dependencesOnData true currentDependenceCursor " << currentDependenceCursor << " dependencesOnData.size() " << dependencesOnData.size();
-            // return true if there are some other dependences
+            
+            // Return true if we still have not fulfilled all memory access requests on the data handle  
             return (currentDependenceCursor != static_cast<long int>(dependencesOnData.size()));
+            
+        } else { // There still are unfulfilled or unreleased memory access requests registered on the dependency slot
+            SpDebugPrint() << "[SpDataHandle] releaseByTask isAvailable dependencesOnData true currentDependenceCursor " 
+                           << currentDependenceCursor << " dependencesOnData.size() " << dependencesOnData.size();
+            return thereStillAreUnfulfilledMemoryAccessRequestsOnTheDependencySlot;
         }
-        // does the dependence is available and not over
-        if(dependencesOnData[inDependenceIdx].isAvailable()){
-            SpDebugPrint() << "[SpDataHandle] releaseByTask isAvailable dependencesOnData true currentDependenceCursor " << currentDependenceCursor << " dependencesOnData.size() " << dependencesOnData.size();
-            readyForNextTasks = true;
-            return true;
-        }
-        // it releases nothing
+        
+        // All memory access requests on the data handle have been released.
         return false;
     }
 
     //! Get the potential ready tasks on the current cursor
     void fillCurrentTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
-        assert(currentDependenceCursor != static_cast<long int>(dependencesOnData.size()));
-        dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+        if(currentDependenceCursor != static_cast<long int>(dependencesOnData.size())) {
+            dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+        }
     }
 
     //! Get the list of tasks that depend on dependence at idx afterIdx
@@ -209,13 +211,7 @@ public:
         }
     }
 
-    //! Tells if the data can be used by some other tasks
-    bool isReadyForNextTasks() const{
-        std::unique_lock<std::mutex> lock(mutexDependences);
-        return readyForNextTasks && (currentDependenceCursor != static_cast<long int>(dependencesOnData.size()));
-    }
 };
-
 
 // For variadic expansion
 template <class NewType>
