@@ -430,7 +430,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
             
             }else{
-               removeAllCopiesInMap(copiedHandles, false);
+                manageReadDuplicate(tuple, sequenceParamsNoFunction);
+                removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             }
             
             if constexpr(isPotentialTask) {
