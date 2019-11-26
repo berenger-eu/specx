@@ -644,7 +644,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Copy all the data of a mode if the access mode matches or if copyIfAlreadyDuplicate is true
     template <class Tuple, std::size_t IdxData, SpDataAccessMode targetMode>
-    std::vector<SpCurrentCopy> coreCopyIfAccess(std::unordered_map<const void*,SpCurrentCopy> &firstCopyMapToLookInto,
+    std::vector<SpCurrentCopy> coreCopyIfAccess(std::unordered_map<const void*,SpCurrentCopy> &copyMapToFirstLookInto,
                                                 const SpTaskActivation initialActivationState,
                                                 const SpPriority& inPriority,
                                                 const bool copyIfAlreadyDuplicate,
@@ -659,7 +659,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                           && std::is_copy_assignable<TargetParamType>::value,
                           "Data must be copiable");
                           
-            std::unordered_map<const void*, SpCurrentCopy>* m[] = {std::addressof(firstCopyMapToLookInto), std::addressof(copiedHandles)};
+            std::unordered_map<const void*, SpCurrentCopy>* m[] = {std::addressof(copyMapToFirstLookInto), std::addressof(copiedHandles)};
 
             std::vector<SpCurrentCopy> allCopies;
 
@@ -699,7 +699,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
                 
                 if(!doCopy){ // if none of the above has been triggered, copy the data only if it has not already been duplicated
-                    doCopy = firstCopyMapToLookInto.find(h1->castPtr<TargetParamType>()) == firstCopyMapToLookInto.end()
+                    doCopy = copyMapToFirstLookInto.find(h1->castPtr<TargetParamType>()) == copyMapToFirstLookInto.end()
                              && copiedHandles.find(h1->castPtr<TargetParamType>()) == copiedHandles.end();
                     mPtr = std::addressof(copiedHandles);
                 }
@@ -724,7 +724,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool copyIfAlreadyDuplicate, const bool copyIfUsedInRead, SpDataAccessMode targetMode, class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> copyAux(std::unordered_map<const void*,SpCurrentCopy> &firstCopyMapToLookInto,
+    std::unordered_map<const void*, SpCurrentCopy> copyAux(std::unordered_map<const void*,SpCurrentCopy> &copyMapToFirstLookInto,
                                                            const SpTaskActivation initialActivationState, const SpPriority& inPriority, Tuple& args){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
@@ -735,7 +735,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 for(const SpCurrentCopy &c : copies) {
                    cm[c.originAdress] = c; 
                 }
-            }(copyMap, coreCopyIfAccess<Tuple, Is, targetMode>(firstCopyMapToLookInto, initialActivationState, inPriority, copyIfAlreadyDuplicate,
+            }(copyMap, coreCopyIfAccess<Tuple, Is, targetMode>(copyMapToFirstLookInto, initialActivationState, inPriority, copyIfAlreadyDuplicate,
               copyIfUsedInRead, args)), ...);
         }
         
@@ -743,24 +743,24 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <class Tuple, std::size_t... Is>
-    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndNotDuplicateOrUsedInRead(std::unordered_map<const void*,SpCurrentCopy> &firstCopyMapToLookInto,
+    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndNotDuplicateOrUsedInRead(std::unordered_map<const void*,SpCurrentCopy> &copyMapToFirstLookInto,
                                                                                                       const SpTaskActivation initialActivationState, const SpPriority& inPriority,
                                                                                                       Tuple& args, std::index_sequence<Is...>){
-        return copyAux<false, true, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(firstCopyMapToLookInto, initialActivationState, inPriority, args);
+        return copyAux<false, true, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapToFirstLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t... Is>
-    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndDuplicate(std::unordered_map<const void*,SpCurrentCopy> &firstCopyMapToLookInto,
+    inline std::unordered_map<const void*, SpCurrentCopy> copyIfMaybeWriteAndDuplicate(std::unordered_map<const void*,SpCurrentCopy> &copyMapToFirstLookInto,
                                                                                        const SpTaskActivation initialActivationState, const SpPriority& inPriority,
                                                                                        Tuple& args, std::index_sequence<Is...>){
-        return copyAux<true, false, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(firstCopyMapToLookInto, initialActivationState, inPriority, args);
+        return copyAux<true, false, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapToFirstLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> copyIfWriteAndNotDuplicateOrUsedInRead(std::unordered_map<const void*,SpCurrentCopy> &firstCopyMapToLookInto,
+    std::unordered_map<const void*, SpCurrentCopy> copyIfWriteAndNotDuplicateOrUsedInRead(std::unordered_map<const void*,SpCurrentCopy> &copyMapToFirstLookInto,
                                                                                           const SpTaskActivation initialActivationState, const SpPriority& inPriority,
                                                                                           Tuple& args, std::index_sequence<Is...>){
-        return copyAux<false, true, SpDataAccessMode::WRITE, Tuple, Is...>(firstCopyMapToLookInto, initialActivationState, inPriority, args);
+        return copyAux<false, true, SpDataAccessMode::WRITE, Tuple, Is...>(copyMapToFirstLookInto, initialActivationState, inPriority, args);
     }
     
     ////////////////////////////////////////////////////////////////////////////////////////////////
