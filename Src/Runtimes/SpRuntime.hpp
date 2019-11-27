@@ -248,7 +248,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     struct SpCurrentCopy{
         SpCurrentCopy()
             :originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
-              latestCopyTask(nullptr), usedInRead(false), hasBeenDeleted(false){
+              latestCopyTask(nullptr), usedInRead(false){
         }
 
         bool isDefined() const{
@@ -261,7 +261,6 @@ class SpRuntime : public SpAbstractToKnowReady {
         SpGeneralSpecGroup* lastestSpecGroup;
         SpAbstractTask* latestCopyTask;
         bool usedInRead;
-        bool hasBeenDeleted;
 
         std::shared_ptr<SpAbstractDeleter> deleter;
     };
@@ -273,7 +272,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     void releaseCopies(){
         for(auto& iter : copiedHandles){
-            assert(iter.second.hasBeenDeleted == false);
             assert(iter.second.latestAdress);
             assert(iter.second.deleter);
             iter.second.deleter->deleteObject(iter.second.latestAdress);
@@ -527,12 +525,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                                            SpWrite(*h1copy->castPtr<TargetParamType>()),
                                            [](TargetParamType& output, TargetParamType& input){
                                                output = std::move(input);
-                                               delete &input;
                                            }
                         );
                         
                         taskView.setTaskName("sp-select");
                         mergeList.emplace_back(taskView.getTaskPtr());
+                        cp.deleter->createDeleteTaskForObject(*this, cp.latestAdress);
                         me->erase(found);
                     }
                     else{
@@ -756,7 +754,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                     SpCurrentCopy& cp = found->second;
                     assert(cp.latestAdress != ptr);
                     assert(cp.latestAdress);
-                    assert(cp.hasBeenDeleted == false);
                     this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
                                        SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
                                        [](TargetParamType& output){
@@ -806,6 +803,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             indexHh += 1;
         }
+        
+        (void) hh;
 
         return res;
     }
@@ -878,23 +877,17 @@ class SpRuntime : public SpAbstractToKnowReady {
 
                 if(auto found = copiesList.find(ptr); found != copiesList.end()){
                     if(accessMode != SpDataAccessMode::READ){
-                        if(found->second.hasBeenDeleted == false){
-                            assert(std::is_copy_assignable<TargetParamType>::value);
-                            SpCurrentCopy& cp = found->second;
-                            assert(cp.latestAdress);
-                            this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
-                                               SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                               [ptr = cp.latestAdress](TargetParamType& output){
-                                assert(ptr ==  &output);
-                                delete &output;
-                            }).setTaskName("delete");
-                        }
+                        assert(std::is_copy_assignable<TargetParamType>::value);
+                        SpCurrentCopy& cp = found->second;
+                        assert(cp.latestAdress);
+                        this->taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
+                                           SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                           [ptr = cp.latestAdress](TargetParamType& output){
+                            assert(ptr ==  &output);
+                            delete &output;
+                        }).setTaskName("delete");
                         copiesList.erase(found);
                      }
-// This is not true anymore
-//                     else{
-//                         assert(found->second.usedInRead == true);
-//                     }
                 }
 
                 indexHh += 1;
