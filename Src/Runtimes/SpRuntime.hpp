@@ -224,7 +224,6 @@ class SpRuntime : public SpAbstractToKnowReady {
     public:
         virtual ~SpAbstractDeleter(){}
         virtual void deleteObject(void* ptr) = 0;
-        virtual void createDeleteTaskForObject(SpRuntime &rt, void *ptr) = 0;
     };
 
     template <class ObjectType>
@@ -234,14 +233,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         void deleteObject(void* ptr) override final{
             delete reinterpret_cast<ObjectType*>(ptr);
-        }
-        
-        void createDeleteTaskForObject(SpRuntime &rt, void *ptr) override final{
-            rt.taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
-                            SpWrite(*reinterpret_cast<ObjectType*>(ptr)),
-                            [](ObjectType& output){
-                                delete &output;
-                            }).setTaskName("delete");
         }
     };
 
@@ -304,7 +295,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 		auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
                       
         if constexpr (!isPotentialTask && allAreCopiableAndDeleteable<decltype (tuple)>(sequenceParamsNoFunction) == false){
-            removeAllCopiesInMap(copiedHandles);
+            manageReadDuplicate(tuple, sequenceParamsNoFunction);
+            removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             return coreTaskCreation(SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }else{
             static_assert(allAreCopiableAndDeleteable<decltype(tuple)>(sequenceParamsNoFunction) == true, "Add data passed to a potential task must be copiable");
@@ -325,7 +317,8 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             if constexpr(!isPotentialTask){
                 if(!taskAlsoSpeculateOnOther){
-                    removeAllCopiesInMap(copiedHandles);
+                    manageReadDuplicate(tuple, sequenceParamsNoFunction);
+                    removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
                     specGroupMutex.unlock();
                     scheduler.unlockListenersReadyMutex();
                     return coreTaskCreation(SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
@@ -367,12 +360,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
             
             }else{
-                if constexpr(isPotentialTask && SpecModel == SpSpeculativeModel::SP_MODEL_1) {
-                    manageReadDuplicate(tuple, sequenceParamsNoFunction);
-                    removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
-                }else {
-                    removeAllCopiesInMap(copiedHandles);
-                }
+                manageReadDuplicate(tuple, sequenceParamsNoFunction);
+                removeAllCorrespondingCopies(tuple, sequenceParamsNoFunction);
             }
             
             if constexpr(isPotentialTask) {
@@ -534,7 +523,15 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         taskView.setTaskName("sp-select");
                         mergeList.emplace_back(taskView.getTaskPtr());
-                        cp.deleter->createDeleteTaskForObject(*this, cp.latestAdress);
+                        
+                        // delete copied data carried over by select task
+                        taskInternal(SpTaskActivation::ENABLE, SpPriority(0),
+                                     SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                     [](TargetParamType& output){
+                                         delete &output;
+                                     }).setTaskName("delete");
+                        
+                        // delete copy from copy map
                         me->erase(found);
                     }
                     else{
@@ -908,13 +905,6 @@ class SpRuntime : public SpAbstractToKnowReady {
     void removeAllCorrespondingCopiesList( std::unordered_map<const void*,SpCurrentCopy>& copiesList, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         ((void) coreRemoveAllCorrespondingCopies<Tuple, Is>(copiesList, args), ...);
-    }
-    
-    void removeAllCopiesInMap(std::unordered_map<const void*,SpCurrentCopy>& copyMap) {
-        for(auto iter : copyMap) {
-            iter.second.deleter->createDeleteTaskForObject(*this, iter.second.latestAdress);
-        }
-        copyMap.clear();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
