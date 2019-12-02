@@ -284,10 +284,10 @@ public:
 
     class SpTaskViewer{
         SpAbstractTaskWithReturn<RetType>* target;
-
-        SpTaskViewer(SpAbstractTaskWithReturn<RetType>* inTarget) : target(inTarget){
-        }
+        
+        SpTaskViewer(SpAbstractTaskWithReturn<RetType>* inTarget) : target(inTarget){}
     public:
+        SpTaskViewer() : target(nullptr) {}
         SpTaskViewer(const SpTaskViewer&) = default;
         SpTaskViewer(SpTaskViewer&&) = default;
         SpTaskViewer& operator=(const SpTaskViewer&) = default;
@@ -385,9 +385,9 @@ public:
     class SpTaskViewer{
         SpAbstractTaskWithReturn<void>* target;
 
-        SpTaskViewer(SpAbstractTaskWithReturn<void>* inTarget) : target(inTarget){
-        }
+        SpTaskViewer(SpAbstractTaskWithReturn<void>* inTarget) : target(inTarget){}
     public:
+        SpTaskViewer() : target(nullptr) {}
         SpTaskViewer(const SpTaskViewer&) = default;
         SpTaskViewer(SpTaskViewer&&) = default;
         SpTaskViewer& operator=(const SpTaskViewer&) = default;
