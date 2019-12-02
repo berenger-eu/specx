@@ -185,8 +185,8 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t IdxData, class TaskCorePtr>
-    inline void coreHandleCreationModel3(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy &copyMapsToLookInto){
-        coreHandleCreationAuxModel3<false, Tuple, IdxData, TaskCorePtr>(args, aTask, copyMapsToLookInto);
+    inline void coreHandleCreation(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy &copyMapsToLookInto){
+        coreHandleCreationAux<false, Tuple, IdxData, TaskCorePtr>(args, aTask, copyMapsToLookInto);
     }
     
     ///////////////////////////////////////////////////////////////////////////
@@ -196,8 +196,8 @@ class SpRuntime : public SpAbstractToKnowReady {
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
     template <template<typename...> typename TaskType, const bool isSpeculative, class Tuple, std::size_t... Is, typename... T>
-    auto coreTaskCreationAuxModel3(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>,
-                                   const CollectionOfCopyMapsTy &copyMapsToLookInto, T... additionalArgs){
+    auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, Tuple args, std::index_sequence<Is...>,
+                             const CollectionOfCopyMapsTy &copyMapsToLookInto, T... additionalArgs){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
 
@@ -220,9 +220,9 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         // Add the handles
         if constexpr(!isSpeculative) {
-            ((void) coreHandleCreationModel3<Tuple, Is, decltype(aTask)>(args, aTask, copyMapsToLookInto), ...);
+            ((void) coreHandleCreation<Tuple, Is, decltype(aTask)>(args, aTask, copyMapsToLookInto), ...);
         } else {
-            ((void) coreHandleCreationSpecModel3<Tuple, Is, decltype(aTask)>(args, aTask, copyMapsToLookInto), ...);
+            ((void) coreHandleCreationSpec<Tuple, Is, decltype(aTask)>(args, aTask, copyMapsToLookInto), ...);
         }
         // Check coherency
         assert(aTask->areDepsCorrect());
@@ -252,22 +252,22 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t... Is>
-    inline auto coreTaskCreationModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto, 
-                                       const SpTaskActivation inActivation, 
-                                       const SpPriority& inPriority, 
-                                       Tuple args, 
-                                       std::index_sequence<Is...> is){
-            return coreTaskCreationAuxModel3<SpTask, false>(inActivation, inPriority, args, is, copyMapsToLookInto);
+    inline auto coreTaskCreation(const CollectionOfCopyMapsTy &copyMapsToLookInto, 
+                                 const SpTaskActivation inActivation, 
+                                 const SpPriority& inPriority, 
+                                 Tuple args, 
+                                 std::index_sequence<Is...> is){
+            return coreTaskCreationAux<SpTask, false>(inActivation, inPriority, args, is, copyMapsToLookInto);
     }
     
     //! Convert tuple to data and call the function
     template <class Tuple, std::size_t... Is>
-    inline auto coreTaskCreationSpeculativeModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                  const SpTaskActivation inActivation,
-                                                  const SpPriority& inPriority,
-                                                  Tuple& args,
-                                                  std::index_sequence<Is...> is) {
-        return coreTaskCreationAuxModel3<SpTask, true>(inActivation, inPriority, args, is, copyMapsToLookInto);
+    inline auto coreTaskCreationSpeculative(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                            const SpTaskActivation inActivation,
+                                            const SpPriority& inPriority,
+                                            Tuple& args,
+                                            std::index_sequence<Is...> is) {
+        return coreTaskCreationAux<SpTask, true>(inActivation, inPriority, args, is, copyMapsToLookInto);
     }
 
     static std::vector<SpAbstractTask*> copyMapToTaskVec(const std::unordered_map<const void*, SpCurrentCopy>& map){
@@ -280,7 +280,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
-    inline auto preCoreTaskCreationAuxModel3(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
+    inline auto preCoreTaskCreationAux(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         return preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), nullptr, inPriority, inProbability, params...);
     }
     
@@ -300,15 +300,15 @@ class SpRuntime : public SpAbstractToKnowReady {
         }
         
         if constexpr (!isPotentialTask && allAreCopiableAndDeleteable<decltype (tuple)>(sequenceParamsNoFunction) == false){
-            manageReadDuplicateModel3(*it, tuple, sequenceParamsNoFunction);
-            removeAllCorrespondingCopiesModel3(*it, tuple, sequenceParamsNoFunction);
-            return coreTaskCreationModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
+            manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+            removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
+            return coreTaskCreation({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }else{
             static_assert(allAreCopiableAndDeleteable<decltype(tuple)>(sequenceParamsNoFunction) == true, "Add data passed to a potential task must be copiable");
             scheduler.lockListenersReadyMutex();
             specGroupMutex.lock();
 
-            auto groups = getCorrespondingCopyGroupsModel3(*it, tuple, sequenceParamsNoFunction);
+            auto groups = getCorrespondingCopyGroups(*it, tuple, sequenceParamsNoFunction);
             bool oneGroupDisableOrFailed = false;
             
             for(auto gp : groups){
@@ -322,11 +322,11 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             if constexpr(!isPotentialTask){
                 if(!taskAlsoSpeculateOnOther){
-                    manageReadDuplicateModel3(*it, tuple, sequenceParamsNoFunction);
-                    removeAllCorrespondingCopiesModel3(*it, tuple, sequenceParamsNoFunction);
+                    manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                    removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
                     specGroupMutex.unlock();
                     scheduler.unlockListenersReadyMutex();
-                    return coreTaskCreationModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
+                    return coreTaskCreation({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
                 }
             }
 
@@ -334,19 +334,19 @@ class SpRuntime : public SpAbstractToKnowReady {
             if constexpr(isPotentialTask) {
                 currentGroupNormalTask->setProbability(inProbability);
             }
-            std::unordered_map<const void*, SpCurrentCopy> l1p, l1, l2, l1l2, copiesBeforeAnyInsertion = getCorrespondingCopyListModel3(*it, tuple, sequenceParamsNoFunction);
+            std::unordered_map<const void*, SpCurrentCopy> l1p, l1, l2, l1l2, copiesBeforeAnyInsertion = getCorrespondingCopyList(*it, tuple, sequenceParamsNoFunction);
             
             if(taskAlsoSpeculateOnOther){
                 currentGroupNormalTask->addParents(groups);
                 if constexpr(isPotentialTask) {
                     currentSpecGroup = currentGroupNormalTask.get();
-                    l1 = copyIfMaybeWriteAndNotDuplicateOrUsedInReadModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
+                    l1 = copyIfMaybeWriteAndNotDuplicateOrUsedInRead({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                     assert(taskAlsoSpeculateOnOther == true || l1.size());
                     currentSpecGroup = nullptr;
                 }
                 
                 currentSpecGroup = currentGroupNormalTask.get();
-                l2 = copyIfWriteAndNotDuplicateOrUsedInReadModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
+                l2 = copyIfWriteAndNotDuplicateOrUsedInRead({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                 currentSpecGroup = nullptr;
                 
                 for(auto& cp : l1){
@@ -365,17 +365,17 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
             
             }else{
-                manageReadDuplicateModel3(*it, tuple, sequenceParamsNoFunction);
-                removeAllCorrespondingCopiesModel3(*it, tuple, sequenceParamsNoFunction);
+                manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
             }
             
             if constexpr(isPotentialTask) {
                 currentSpecGroup = currentGroupNormalTask.get();
                 
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
-                    l1p = copyIfMaybeWriteAndDuplicateModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
+                    l1p = copyIfMaybeWriteAndDuplicate({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                 }else{
-                    l1p = copyIfMaybeWriteAndDuplicateModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
+                    l1p = copyIfMaybeWriteAndDuplicate({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                 }
 
                 currentSpecGroup = nullptr;
@@ -390,7 +390,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
             }
             
-            auto taskView = coreTaskCreationModel3({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
+            auto taskView = coreTaskCreation({{COPY_MAP_TO_LOOK_INTO,std::addressof(*it)}}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
             currentGroupNormalTask->setMainTask(taskView.getTaskPtr());
             
             if(taskAlsoSpeculateOnOther){
@@ -400,8 +400,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                     (*it)[cp.first].lastestSpecGroup = currentGroupNormalTask.get();
                 }
 
-                auto taskViewSpec = coreTaskCreationSpeculativeModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentGroupNormalTask.get()->getActivationStateForSpeculativeTask(), 
-                                                                        inPriority, tuple, sequenceParamsNoFunction);
+                auto taskViewSpec = coreTaskCreationSpeculative({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentGroupNormalTask.get()->getActivationStateForSpeculativeTask(), 
+                                                                inPriority, tuple, sequenceParamsNoFunction);
                 taskViewSpec.setOriginalTask(taskView.getTaskPtr());
 
                 currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
@@ -424,9 +424,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                                         });
                 }
 
-                std::vector<SpAbstractTask*> mergeTasks = mergeIfInListModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentGroupNormalTask.get(), inPriority, tuple, sequenceParamsNoFunction);
+                std::vector<SpAbstractTask*> mergeTasks = mergeIfInList({{COPY_MAP_TO_LOOK_INTO, std::addressof(l1l2)}, {FALLBACK_COPY_MAP_TO_LOOK_INTO, std::addressof(*it)}}, currentGroupNormalTask.get(), inPriority, tuple, sequenceParamsNoFunction);
                 currentGroupNormalTask->addSelectTasks(mergeTasks);
-                manageReadDuplicateModel3(*it, tuple, sequenceParamsNoFunction);
+                manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
             }else{
                 if constexpr(isPotentialTask) {
                     taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
@@ -466,22 +466,22 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class... ParamsAndTask>
-    inline auto preCoreTaskCreationSpecModel3(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params){
-        return preCoreTaskCreationAuxModel3<true>(inPriority, inProbability, params...);
+    inline auto preCoreTaskCreationSpec(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params){
+        return preCoreTaskCreationAux<true>(inPriority, inProbability, params...);
     }
     
     template <class... ParamsAndTask>
-    inline auto preCoreTaskCreationModel3(const SpPriority& inPriority, ParamsAndTask&&... params){
-        return preCoreTaskCreationAuxModel3<false>(inPriority, SpProbability(1.0), params...);
+    inline auto preCoreTaskCreation(const SpPriority& inPriority, ParamsAndTask&&... params){
+        return preCoreTaskCreationAux<false>(inPriority, SpProbability(1.0), params...);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <class Tuple, std::size_t IdxData>
-    std::vector<SpAbstractTask*> coreMergeIfInListModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                         SpGeneralSpecGroup *sg,
-                                                         const SpPriority& inPriority,
-                                                         Tuple& args){
+    std::vector<SpAbstractTask*> coreMergeIfInList(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                   SpGeneralSpecGroup *sg,
+                                                   const SpPriority& inPriority,
+                                                   Tuple& args){
         using ScalarOrContainerType = typename std::remove_reference<typename std::tuple_element<IdxData, Tuple>::type>::type;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -517,7 +517,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
                         
-                        auto taskView = this->taskInternalSpSelectModel3(
+                        auto taskView = this->taskInternalSpSelect(
                                            copyMapsToLookInto,
                                            isCarryingSurelyWrittenValuesOver,
                                            sg->getActivationStateForSelectTask(isCarryingSurelyWrittenValuesOver),
@@ -533,7 +533,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         mergeList.emplace_back(taskView.getTaskPtr());
                         
                         // delete copied data carried over by select task
-                        taskInternalModel3(copyMapsToLookInto, SpTaskActivation::ENABLE, SpPriority(0),
+                        taskInternal(copyMapsToLookInto, SpTaskActivation::ENABLE, SpPriority(0),
                                      SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
                                      [](TargetParamType& output){
                                          delete &output;
@@ -558,11 +558,11 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <class Tuple, std::size_t... Is>
-    std::vector<SpAbstractTask*> mergeIfInListModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                     SpGeneralSpecGroup *sg,
-                                                     const SpPriority& inPriority,
-                                                     Tuple& args,
-                                                     std::index_sequence<Is...>){
+    std::vector<SpAbstractTask*> mergeIfInList(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                               SpGeneralSpecGroup *sg,
+                                               const SpPriority& inPriority,
+                                               Tuple& args,
+                                               std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         // Add the handles
         std::vector<SpAbstractTask*> fullList;
@@ -570,7 +570,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         if constexpr(sizeof...(Is) > 0) {
             ([](std::vector<SpAbstractTask*> &l, std::vector<SpAbstractTask*>&& l2) {
                 l.insert(l.end(), l2.begin(), l2.end());
-            }(fullList, coreMergeIfInListModel3<Tuple, Is>(copyMapsToLookInto, sg, inPriority, args)), ...);
+            }(fullList, coreMergeIfInList<Tuple, Is>(copyMapsToLookInto, sg, inPriority, args)), ...);
         }
         
         return fullList;
@@ -580,10 +580,10 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     //! Copy an object and return this related info (the task is created and submited)
     template <class ObjectType>
-    SpCurrentCopy coreCopyCreationCoreModel3(CopyMapTy &copyMapToLookInto,
-                                             const SpTaskActivation initialActivationState,
-                                             const SpPriority& inPriority,
-                                             ObjectType& objectToCopy) {
+    SpCurrentCopy coreCopyCreationCore(CopyMapTy &copyMapToLookInto,
+                                       const SpTaskActivation initialActivationState,
+                                       const SpPriority& inPriority,
+                                       ObjectType& objectToCopy) {
         using TargetParamType = typename std::remove_reference<ObjectType>::type;
 
         static_assert(std::is_default_constructible<TargetParamType>::value && std::is_copy_assignable<TargetParamType>::value,
@@ -600,12 +600,12 @@ class SpRuntime : public SpAbstractToKnowReady {
         }
 
         SpDebugPrint() << "SpRuntime -- coreCopyCreationCore -- setup copy from " << sourcePtr << " to " << &ptr;
-        SpAbstractTaskWithReturn<void>::SpTaskViewer taskView = taskInternalModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMapToLookInto)}},
-                                                                                   initialActivationState,
-                                                                                   inPriority,
-                                                                                   SpWrite(*ptr),
-                                                                                   SpRead(*sourcePtr),
-                                                                                   [](TargetParamType& output, const TargetParamType& input){
+        SpAbstractTaskWithReturn<void>::SpTaskViewer taskView = taskInternal({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMapToLookInto)}},
+                                                                            initialActivationState,
+                                                                            inPriority,
+                                                                            SpWrite(*ptr),
+                                                                            SpRead(*sourcePtr),
+                                                                            [](TargetParamType& output, const TargetParamType& input){
                 SpDebugPrint() << "SpRuntime -- coreCopyCreationCore -- execute copy from " << &input << " to " << &output;
                 output = input;
         });
@@ -623,11 +623,11 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Copy all the data of a mode if the access mode matches or if copyIfAlreadyDuplicate is true
     template <class Tuple, std::size_t IdxData, SpDataAccessMode targetMode>
-    std::vector<SpCurrentCopy> coreCopyIfAccessModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                      const SpTaskActivation initialActivationState,
-                                                      const SpPriority& inPriority,
-                                                      const bool copyIfAlreadyDuplicate,
-                                                      const bool copyIfUsedInRead, Tuple& args){
+    std::vector<SpCurrentCopy> coreCopyIfAccess(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                const SpTaskActivation initialActivationState,
+                                                const SpPriority& inPriority,
+                                                const bool copyIfAlreadyDuplicate,
+                                                const bool copyIfUsedInRead, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
 
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
@@ -691,7 +691,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
                 
                 if(doCopy) {
-                    SpCurrentCopy cp = coreCopyCreationCoreModel3(*mPtr, initialActivationState, inPriority, *h1->castPtr<TargetParamType>());
+                    SpCurrentCopy cp = coreCopyCreationCore(*mPtr, initialActivationState, inPriority, *h1->castPtr<TargetParamType>());
                     allCopies.push_back(cp);
                 }
 
@@ -710,10 +710,10 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool copyIfAlreadyDuplicate, const bool copyIfUsedInRead, SpDataAccessMode targetMode, class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> copyAuxModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                                 const SpTaskActivation initialActivationState,
-                                                                 const SpPriority& inPriority,
-                                                                 Tuple& args){
+    std::unordered_map<const void*, SpCurrentCopy> copyAux(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                           const SpTaskActivation initialActivationState,
+                                                           const SpPriority& inPriority,
+                                                           Tuple& args){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
         std::unordered_map<const void*, SpCurrentCopy> copyMap;
@@ -723,40 +723,42 @@ class SpRuntime : public SpAbstractToKnowReady {
                 for(const SpCurrentCopy &c : copies) {
                    cm[c.originAdress] = c; 
                 }
-            }(copyMap, coreCopyIfAccessModel3<Tuple, Is, targetMode>(copyMapsToLookInto, initialActivationState, inPriority, copyIfAlreadyDuplicate, copyIfUsedInRead, args)), ...);
+            }(copyMap, coreCopyIfAccess<Tuple, Is, targetMode>(copyMapsToLookInto, initialActivationState, inPriority, copyIfAlreadyDuplicate, copyIfUsedInRead, args)), ...);
         }
         
         return copyMap;
     }
 
     template <class Tuple, std::size_t... Is>
-    inline CopyMapTy copyIfMaybeWriteAndNotDuplicateOrUsedInReadModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                                       const SpTaskActivation initialActivationState,
-                                                                       const SpPriority& inPriority,
-                                                                       Tuple& args, std::index_sequence<Is...>){
-        return copyAuxModel3<false, true, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
+    inline CopyMapTy copyIfMaybeWriteAndNotDuplicateOrUsedInRead(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                                 const SpTaskActivation initialActivationState,
+                                                                 const SpPriority& inPriority,
+                                                                 Tuple& args,
+                                                                 std::index_sequence<Is...>){
+        return copyAux<false, true, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t... Is>
-    inline CopyMapTy copyIfMaybeWriteAndDuplicateModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                        const SpTaskActivation initialActivationState,
-                                                        const SpPriority& inPriority,
-                                                        Tuple& args, std::index_sequence<Is...>){
-        return copyAuxModel3<true, false, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
+    inline CopyMapTy copyIfMaybeWriteAndDuplicate(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                  const SpTaskActivation initialActivationState,
+                                                  const SpPriority& inPriority,
+                                                  Tuple& args, std::index_sequence<Is...>){
+        return copyAux<true, false, SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t... Is>
-    inline CopyMapTy copyIfWriteAndNotDuplicateOrUsedInReadModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                                                  const SpTaskActivation initialActivationState,
-                                                                  const SpPriority& inPriority,
-                                                                  Tuple& args, std::index_sequence<Is...>){
-        return copyAuxModel3<false, true, SpDataAccessMode::WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
+    inline CopyMapTy copyIfWriteAndNotDuplicateOrUsedInRead(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                                                            const SpTaskActivation initialActivationState,
+                                                            const SpPriority& inPriority,
+                                                            Tuple& args,
+                                                            std::index_sequence<Is...>){
+        return copyAux<false, true, SpDataAccessMode::WRITE, Tuple, Is...>(copyMapsToLookInto, initialActivationState, inPriority, args);
     }
     
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <class Tuple, std::size_t IdxData>
-    void coreManageReadDuplicateModel3(CopyMapTy &copyMap, Tuple& args){
+    void coreManageReadDuplicate(CopyMapTy &copyMap, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -779,9 +781,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                     SpCurrentCopy& cp = found->second;
                     assert(cp.latestAdress != ptr);
                     assert(cp.latestAdress);
-                    this->taskInternalModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMap)}}, SpTaskActivation::ENABLE, SpPriority(0),
-                                       SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                       [](TargetParamType& output){
+                    this->taskInternal({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMap)}}, SpTaskActivation::ENABLE, SpPriority(0),
+                                      SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                      [](TargetParamType& output){
 
                         delete &output;
                     }).setTaskName("delete");
@@ -795,15 +797,15 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <class Tuple, std::size_t... Is>
-    void manageReadDuplicateModel3(CopyMapTy &copyMap, Tuple& args, std::index_sequence<Is...>){
+    void manageReadDuplicate(CopyMapTy &copyMap, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        ((void) coreManageReadDuplicateModel3<Tuple, Is>(copyMap, args), ...);
+        ((void) coreManageReadDuplicate<Tuple, Is>(copyMap, args), ...);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <class Tuple, std::size_t IdxData, class RetType>
-    auto coreGetCorrespondingCopyAuxModel3(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
+    auto coreGetCorrespondingCopyAux(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -834,12 +836,12 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t IdxData>
-    inline auto coreGetCorrespondingCopyGroupsModel3(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
-        return coreGetCorrespondingCopyAuxModel3<Tuple, IdxData, std::vector<SpGeneralSpecGroup*>>(copyMap, args);
+    inline auto coreGetCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
+        return coreGetCorrespondingCopyAux<Tuple, IdxData, std::vector<SpGeneralSpecGroup*>>(copyMap, args);
     }
     
     template <class Tuple, std::size_t... Is>
-    std::vector<SpGeneralSpecGroup*> getCorrespondingCopyGroupsModel3(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args, std::index_sequence<Is...>){
+    std::vector<SpGeneralSpecGroup*> getCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
         std::vector<SpGeneralSpecGroup*> result;
@@ -848,7 +850,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         if constexpr(sizeof...(Is) > 0) {
             ([](std::vector<SpGeneralSpecGroup*> &res, std::vector<SpGeneralSpecGroup*>&& cg) {
                 res.insert(res.end(), cg.begin(), cg.end());
-            }(result, coreGetCorrespondingCopyGroupsModel3<Tuple, Is>(copyMap, args)), ...);
+            }(result, coreGetCorrespondingCopyGroups<Tuple, Is>(copyMap, args)), ...);
         }
         
         std::sort(result.begin(), result.end());
@@ -860,13 +862,13 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <class Tuple, std::size_t IdxData>
-    inline auto coreGetCorrespondingCopyListModel3(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
-        return coreGetCorrespondingCopyAuxModel3<Tuple, IdxData, std::unordered_map<const void*, SpCurrentCopy> >(copyMap, args);
+    inline auto coreGetCorrespondingCopyList(std::unordered_map<const void*, SpCurrentCopy> &copyMap, Tuple& args){
+        return coreGetCorrespondingCopyAux<Tuple, IdxData, std::unordered_map<const void*, SpCurrentCopy> >(copyMap, args);
     }
 
     template <class Tuple, std::size_t... Is>
-    std::unordered_map<const void*, SpCurrentCopy> getCorrespondingCopyListModel3(std::unordered_map<const void*, SpCurrentCopy> &copyMap, 
-                                                                                  Tuple& args, std::index_sequence<Is...>){
+    std::unordered_map<const void*, SpCurrentCopy> getCorrespondingCopyList(std::unordered_map<const void*, SpCurrentCopy> &copyMap, 
+                                                                            Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         std::unordered_map<const void*, SpCurrentCopy> result;
         
@@ -874,7 +876,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         if constexpr(sizeof...(Is) > 0) {
             ([](std::unordered_map<const void*, SpCurrentCopy> &res, std::unordered_map<const void*, SpCurrentCopy>&& group) {
                 res.insert(group.begin(), group.end());
-            }(result, coreGetCorrespondingCopyListModel3<Tuple, Is>(copyMap, args)), ...);
+            }(result, coreGetCorrespondingCopyList<Tuple, Is>(copyMap, args)), ...);
         }
 
         return result;
@@ -883,7 +885,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <class Tuple, std::size_t IdxData>
-    void coreRemoveAllCorrespondingCopiesModel3(CopyMapTy &copyMapToLookInto, Tuple& args){
+    void coreRemoveAllCorrespondingCopies(CopyMapTy &copyMapToLookInto, Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -904,12 +906,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                         assert(std::is_copy_assignable<TargetParamType>::value);
                         SpCurrentCopy& cp = found->second;
                         assert(cp.latestAdress);
-                        this->taskInternalModel3({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMapToLookInto)}}, SpTaskActivation::ENABLE, SpPriority(0),
-                                           SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                           [ptr = cp.latestAdress](TargetParamType& output){
-                            assert(ptr ==  &output);
-                            delete &output;
-                        }).setTaskName("delete");
+                        this->taskInternal({{COPY_MAP_TO_LOOK_INTO, std::addressof(copyMapToLookInto)}}, SpTaskActivation::ENABLE, SpPriority(0),
+                                          SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                          [ptr = cp.latestAdress](TargetParamType& output){
+                                                assert(ptr ==  &output);
+                                                delete &output;
+                                          }).setTaskName("delete");
                         copyMapToLookInto.erase(found);
                      }
                 }
@@ -920,9 +922,9 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <class Tuple, std::size_t... Is>
-    void removeAllCorrespondingCopiesModel3(CopyMapTy& copyMapToLookInto, Tuple& args, std::index_sequence<Is...>){
+    void removeAllCorrespondingCopies(CopyMapTy& copyMapToLookInto, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
-        ((void) coreRemoveAllCorrespondingCopiesModel3<Tuple, Is>(copyMapToLookInto, args), ...);
+        ((void) coreRemoveAllCorrespondingCopies<Tuple, Is>(copyMapToLookInto, args), ...);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -951,7 +953,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <const bool isSpeculative, class Tuple, std::size_t IdxData, class TaskCorePtr>
-    void coreHandleCreationAuxModel3(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy& copyMapsToLookInto){
+    void coreHandleCreationAux(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy& copyMapsToLookInto){
         using ScalarOrContainerType = typename std::remove_reference<typename std::tuple_element<IdxData, Tuple>::type>::type;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
@@ -1014,38 +1016,38 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t IdxData, class TaskCorePtr>
-    inline void coreHandleCreationSpecModel3(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy& copyMapsToLookInto){
-       coreHandleCreationAuxModel3<true, Tuple, IdxData, TaskCorePtr>(args, aTask, copyMapsToLookInto);
+    inline void coreHandleCreationSpec(Tuple& args, TaskCorePtr& aTask, const CollectionOfCopyMapsTy& copyMapsToLookInto){
+       coreHandleCreationAux<true, Tuple, IdxData, TaskCorePtr>(args, aTask, copyMapsToLookInto);
     }
     ////////////////////////////////////////////////////////////////////////////////////////////////
     
     template <template<typename...> typename TaskType, class... ParamsAndTask>
-    auto taskInternalModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+    auto taskInternal(const CollectionOfCopyMapsTy &copyMapsToLookInto,
                             const SpTaskActivation inActivation,
                             const SpPriority &inPriority,
                             ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreationAuxModel3<TaskType, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, copyMapsToLookInto);
+        return coreTaskCreationAux<TaskType, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, copyMapsToLookInto);
     }
     
     
     template <class... ParamsAndTask>
-    inline auto taskInternalModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                   const SpTaskActivation inActivation,
-                                   const SpPriority &inPriority,
-                                   ParamsAndTask&&... inParamsAndTask){
-        return taskInternalModel3<SpTask>(copyMapsToLookInto, inActivation, inPriority, inParamsAndTask...);
+    inline auto taskInternal(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                             const SpTaskActivation inActivation,
+                             const SpPriority &inPriority,
+                             ParamsAndTask&&... inParamsAndTask){
+        return taskInternal<SpTask>(copyMapsToLookInto, inActivation, inPriority, inParamsAndTask...);
     }
     
     template <class... ParamsAndTask>
-    auto taskInternalSpSelectModel3(const CollectionOfCopyMapsTy &copyMapsToLookInto,
-                                    bool isCarryingSurelyWrittenValuesOver,
-                                    const SpTaskActivation inActivation,
-                                    const SpPriority &inPriority,
-                                    ParamsAndTask&&... inParamsAndTask){
+    auto taskInternalSpSelect(const CollectionOfCopyMapsTy &copyMapsToLookInto,
+                              bool isCarryingSurelyWrittenValuesOver,
+                              const SpTaskActivation inActivation,
+                              const SpPriority &inPriority,
+                              ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        return coreTaskCreationAuxModel3<SpSelectTask, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
-                                                              copyMapsToLookInto, isCarryingSurelyWrittenValuesOver);
+        return coreTaskCreationAux<SpSelectTask, false>(inActivation, inPriority, std::forward_as_tuple(inParamsAndTask...), sequenceParamsNoFunction, 
+                                                        copyMapsToLookInto, isCarryingSurelyWrittenValuesOver);
     }
 
 
@@ -1166,35 +1168,35 @@ public:
     auto task(SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationModel3<ParamsAndTask...>(inPriority, std::forward<ParamsAndTask>(inParamsAndTask)...);
+        return preCoreTaskCreation<ParamsAndTask...>(inPriority, std::forward<ParamsAndTask>(inParamsAndTask)...);
     }
 
     template <class... ParamsAndTask>
     auto task(ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationModel3<ParamsAndTask...>(SpPriority(0), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        return preCoreTaskCreation<ParamsAndTask...>(SpPriority(0), std::forward<ParamsAndTask>(inParamsAndTask)...);
     }
 
     template <class... ParamsAndTask>
     auto potentialTask(SpPriority inPriority, SpProbability inProbability, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpecModel3<ParamsAndTask...>(inPriority, inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
+        return preCoreTaskCreationSpec<ParamsAndTask...>(inPriority, inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
     }
 
     template <class... ParamsAndTask>
     auto potentialTask(SpProbability inProbability, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpecModel3<ParamsAndTask...>(SpPriority(0), inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
+        return preCoreTaskCreationSpec<ParamsAndTask...>(SpPriority(0), inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
     }
 
     template <class... ParamsAndTask>
     auto potentialTask(ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpecModel3<ParamsAndTask...>(SpPriority(0), SpProbability(), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        return preCoreTaskCreationSpec<ParamsAndTask...>(SpPriority(0), SpProbability(), std::forward<ParamsAndTask>(inParamsAndTask)...);
     }
 
     ///////////////////////////////////////////////////////////////////////////
