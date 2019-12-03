@@ -399,7 +399,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     }
                     
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                        if(groups.size() == 0 || (nextIt == copyMaps.end() && taskAlsoSpeculateOnOther)) {
+                        if(groups.size() == 0 || nextIt == copyMaps.end()) {
                             l1pModel3 = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                         }
                     }
@@ -483,8 +483,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
                 
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                    if(groups.size() == 0 || (nextIt == copyMaps.end() && taskAlsoSpeculateOnOther)) {
-                        if(groups.size() != 0) {
+                    if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                        if(taskAlsoSpeculateOnOther) {
                             it = copyMaps.emplace(copyMaps.end());
                         }
                         for(auto& cp : l1pModel3){
