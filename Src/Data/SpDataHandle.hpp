@@ -165,7 +165,7 @@ public:
     void fillCurrentTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(currentDependenceCursor != static_cast<long int>(dependencesOnData.size())) {
-            dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+            dependencesOnData[currentDependenceCursor].fillWithListOfPotentiallyReadyTasks(potentialReady);
         }
     }
 

@@ -51,6 +51,9 @@ class TestInsertionModel3 : public UTester< TestInsertionModel3 > {
             if(param_c == 0) {
                 param_d = 1;
             }
+        });
+        
+        runtime.task(SpRead(d), [this](const int& param_d) {
             UASSERTEEQUAL(param_d, 1);
         });
         
