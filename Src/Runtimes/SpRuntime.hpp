@@ -328,19 +328,15 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             const bool taskAlsoSpeculateOnOther = (groups.size() != 0 && !oneGroupDisableOrFailed);
             
+            typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator nextIt = std::next(it);
+            
             if constexpr(!isPotentialTask){
-                if(!taskAlsoSpeculateOnOther){
-                    for(; it != copyMaps.end(); it++){
-                        manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
-                        removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                    }
-                    //specGroupMutex.unlock();
-                    //scheduler.unlockListenersReadyMutex();
+                if(nextIt == copyMaps.end() && !taskAlsoSpeculateOnOther){
+                    manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                    removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
                     return coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
                 }
             }
-            
-            typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator nextIt = std::next(it);
             
             if(nextIt != copyMaps.end() && !taskAlsoSpeculateOnOther) {
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
@@ -568,7 +564,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                                      SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
                                      [](TargetParamType& output){
                                          delete &output;
-                                     }).setTaskName("delete");
+                                     }).setTaskName("sp-delete");
                         
                         // delete copy from copy map
                         me->erase(found);
@@ -812,7 +808,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                                       [](TargetParamType& output){
 
                         delete &output;
-                    }).setTaskName("delete");
+                    }).setTaskName("sp-delete");
 
                     copyMap.erase(found);
                 }
@@ -937,7 +933,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                                           [ptr = cp.latestAdress](TargetParamType& output){
                                                 assert(ptr ==  &output);
                                                 delete &output;
-                                          }).setTaskName("delete");
+                                          }).setTaskName("sp-delete");
                         copyMapToLookInto.erase(found);
                      }
                 }
