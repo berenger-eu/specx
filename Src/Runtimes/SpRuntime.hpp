@@ -58,7 +58,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                       "Impossible to invoc le last argument passing all the previous ones");
     }
 
-    static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1 || SpecModel == SpSpeculativeModel::SP_MODEL_2 , "Oups should not happen");
+     static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
+                      || SpecModel == SpSpeculativeModel::SP_MODEL_2
+                      || SpecModel == SpSpeculativeModel::SP_MODEL_3, "Should not happen");
 
     //! Threads
     std::vector<std::thread> threads;
@@ -277,7 +279,12 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     template <const bool isPotentialTask, class... ParamsAndTask>
     inline auto preCoreTaskCreationAux(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
-        return preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), inPriority, inProbability, params...);
+        scheduler.lockListenersReadyMutex();
+        specGroupMutex.lock();
+        auto res = preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), inPriority, inProbability, params...);
+        specGroupMutex.unlock();
+        scheduler.unlockListenersReadyMutex();
+        return res;
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
@@ -294,7 +301,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 		auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         
         if(it == copyMaps.end()) {
-            it = copyMaps.emplace(it);
+            it = copyMaps.emplace(copyMaps.end());
         }
         
         if constexpr (!isPotentialTask && allAreCopiableAndDeleteable<decltype (tuple)>(sequenceParamsNoFunction) == false){
@@ -306,8 +313,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                                     SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }else{
             static_assert(allAreCopiableAndDeleteable<decltype(tuple)>(sequenceParamsNoFunction) == true, "Add data passed to a potential task must be copiable");
-            scheduler.lockListenersReadyMutex();
-            specGroupMutex.lock();
+            //scheduler.lockListenersReadyMutex();
+            //specGroupMutex.lock();
 
             auto groups = getCorrespondingCopyGroups(*it, tuple, sequenceParamsNoFunction);
             bool oneGroupDisableOrFailed = false;
@@ -327,8 +334,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                         manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                         removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
                     }
-                    specGroupMutex.unlock();
-                    scheduler.unlockListenersReadyMutex();
+                    //specGroupMutex.unlock();
+                    //scheduler.unlockListenersReadyMutex();
                     return coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
                 }
             }
@@ -338,8 +345,8 @@ class SpRuntime : public SpAbstractToKnowReady {
             if(nextIt != copyMaps.end() && !taskAlsoSpeculateOnOther) {
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                 removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                specGroupMutex.unlock();
-                scheduler.unlockListenersReadyMutex();
+                //specGroupMutex.unlock();
+                //scheduler.unlockListenersReadyMutex();
                 return preCoreTaskCreationAuxRec<isPotentialTask>(++it, inPriority, inProbability, params...);
             }else{
 
@@ -401,11 +408,13 @@ class SpRuntime : public SpAbstractToKnowReady {
                 if(nextIt == copyMaps.end()) {
                     taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
                 }else {
-                    specGroupMutex.unlock();
-                    scheduler.unlockListenersReadyMutex();
+                    //specGroupMutex.unlock();
+                    //scheduler.unlockListenersReadyMutex();
+                    size_t index = std::distance(copyMaps.begin(), it);
                     taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, inPriority, inProbability, params...);
-                    scheduler.lockListenersReadyMutex();
-                    specGroupMutex.lock();
+                    it = copyMaps.begin() + index;
+                    //scheduler.lockListenersReadyMutex();
+                    //specGroupMutex.lock();
                 }
                 
                 currentGroupNormalTask->setMainTask(taskView.getTaskPtr());
@@ -469,7 +478,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
                     if(nextIt == copyMaps.end() && taskAlsoSpeculateOnOther) {
-                        it = copyMaps.emplace(it);
+                        it = copyMaps.emplace(copyMaps.end());
                         for(auto& cp : l1pModel3){
                             assert(it->find(cp.first) == it->end());
                             (*it)[cp.first] = cp.second;
@@ -480,8 +489,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
                 specGroups.emplace_back(std::move(currentGroupNormalTask));
 
-                specGroupMutex.unlock();
-                scheduler.unlockListenersReadyMutex();
+                //specGroupMutex.unlock();
+                //scheduler.unlockListenersReadyMutex();
 
                 return taskView;
             }
