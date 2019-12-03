@@ -815,6 +815,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
                 indexHh += 1;
             }
+            (void) hh;
         }
     }
 
@@ -940,6 +941,8 @@ class SpRuntime : public SpAbstractToKnowReady {
 
                 indexHh += 1;
             }
+            
+            (void) hh;
         }
     }
 
@@ -1031,7 +1034,8 @@ class SpRuntime : public SpAbstractToKnowReady {
             }
             
             (void) cpLatestAddress;
-
+            (void) ptr;
+            
             indexHh += 1;
         }
     }
