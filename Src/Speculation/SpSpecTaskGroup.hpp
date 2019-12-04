@@ -39,6 +39,9 @@ protected:
     SpAbstractTask* mainTask;
     SpAbstractTask* specTask;
     std::vector<SpAbstractTask*> selectTasks;
+    
+    SpGeneralSpecGroup* previousSibling;
+    SpGeneralSpecGroup* nextSibling;
 
     SpProbability selfPropability;
 
@@ -79,6 +82,8 @@ public:
         selfSpeculationResults(SpecResult::UNDEFINED),
         state(States::UNDEFINED),
         mainTask(nullptr), specTask(nullptr),
+        previousSibling(nullptr),
+        nextSibling(nullptr),
         isSpeculatif(inIsSpeculatif){
     }
 
@@ -209,6 +214,15 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////
+    
+    void setPreviousSibling(SpGeneralSpecGroup* inGroup) {
+        previousSibling = inGroup;
+        *(inGroup->getNextSiblingPointer()) = this;
+    }
+    
+    SpGeneralSpecGroup** getNextSiblingPointer() {
+        return &nextSibling;
+    }
 
     void addSubGroup(SpGeneralSpecGroup* inGroup){
         assert(std::find(subGroups.begin(), subGroups.end(), inGroup) ==  subGroups.end());
