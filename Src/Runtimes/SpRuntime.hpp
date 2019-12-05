@@ -284,7 +284,8 @@ class SpRuntime : public SpAbstractToKnowReady {
         }
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
-        auto res = preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), nullptr, inPriority, inProbability, params...);
+        std::shared_ptr<std::atomic<size_t>> numberOfSiblingSpeculativeTasksCounter = std::make_shared<std::atomic<size_t>>(0);
+        auto res = preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), numberOfSiblingSpeculativeTasksCounter, inPriority, inProbability, params...);
         specGroupMutex.unlock();
         scheduler.unlockListenersReadyMutex();
         return res;
@@ -292,7 +293,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     template <const bool isPotentialTask, class... ParamsAndTask>
     auto preCoreTaskCreationAuxRec(typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator it,
-                                   SpGeneralSpecGroup* previousSiblingSpecGroup,
+                                   std::shared_ptr<std::atomic<size_t>>& numberOfSiblingSpecGroupsCounter,
                                    const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params)
                                    -> decltype(coreTaskCreation(std::declval<std::array<CopyMapPtrTy, 1>>(),std::declval<SpTaskActivation>(),
                                    std::declval<const SpPriority&>(), std::forward_as_tuple(params...), std::make_index_sequence<sizeof...(ParamsAndTask)-1>{})){
@@ -313,8 +314,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                                     SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
         }else{
             static_assert(allAreCopiableAndDeleteable<decltype(tuple)>(sequenceParamsNoFunction) == true, "Add data passed to a potential task must be copiable");
-            //scheduler.lockListenersReadyMutex();
-            //specGroupMutex.lock();
 
             auto groups = getCorrespondingCopyGroups(*it, tuple, sequenceParamsNoFunction);
             bool oneGroupDisableOrFailed = false;
@@ -344,18 +343,15 @@ class SpRuntime : public SpAbstractToKnowReady {
             if(nextIt != copyMaps.end() && groups.size() != 0 && oneGroupDisableOrFailed) {
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                 removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                //specGroupMutex.unlock();
-                //scheduler.unlockListenersReadyMutex();
-                return preCoreTaskCreationAuxRec<isPotentialTask>(++it, nullptr, inPriority, inProbability, params...);
+                return preCoreTaskCreationAuxRec<isPotentialTask>(++it, numberOfSiblingSpecGroupsCounter, inPriority, inProbability, params...);
             }else{
-
-                std::unique_ptr<SpGeneralSpecGroup> currentGroupNormalTask(new SpGeneralSpecGroup(taskAlsoSpeculateOnOther));
+                if(taskAlsoSpeculateOnOther){
+                    (*numberOfSiblingSpecGroupsCounter)++;
+                }
+                std::unique_ptr<SpGeneralSpecGroup> currentGroupNormalTask = std::make_unique<SpGeneralSpecGroup>(taskAlsoSpeculateOnOther, numberOfSiblingSpecGroupsCounter);
+                
                 if constexpr(isPotentialTask) {
                     currentGroupNormalTask->setProbability(inProbability);
-                }
-                
-                if(previousSiblingSpecGroup != nullptr) {
-                    currentGroupNormalTask->setPreviousSibling(previousSiblingSpecGroup);
                 }
                 
                 std::unique_ptr<SpGeneralSpecGroup> finalSpecGroup(nullptr);
@@ -391,7 +387,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 if constexpr(isPotentialTask) {
                     
                     if(nextIt == copyMaps.end() && taskAlsoSpeculateOnOther){
-                        finalSpecGroup = std::make_unique<SpGeneralSpecGroup>(taskAlsoSpeculateOnOther);
+                        (*numberOfSiblingSpecGroupsCounter)++;
+                        finalSpecGroup = std::make_unique<SpGeneralSpecGroup>(taskAlsoSpeculateOnOther, numberOfSiblingSpecGroupsCounter);
                         currentSpecGroup = finalSpecGroup.get();
                     }else{
                         currentSpecGroup = currentGroupNormalTask.get();
@@ -423,22 +420,21 @@ class SpRuntime : public SpAbstractToKnowReady {
 
                 TaskViewTy taskView;
                 
-                if(nextIt == copyMaps.end()) {
+                if(groups.size() == 0 || nextIt == copyMaps.end()) {
                     taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
                 }else {
-                    //specGroupMutex.unlock();
-                    //scheduler.unlockListenersReadyMutex();
                     size_t index = std::distance(copyMaps.begin(), it);
-                    taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, currentGroupNormalTask.get(), inPriority, inProbability, params...);
+                    taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, numberOfSiblingSpecGroupsCounter, inPriority, inProbability, params...);
                     it = copyMaps.begin() + index;
-                    //scheduler.lockListenersReadyMutex();
-                    //specGroupMutex.lock();
                 }
                 
                 currentGroupNormalTask->setMainTask(taskView.getTaskPtr());
                 
                 if(finalSpecGroup != nullptr) {
+                    taskView.getTaskPtr()->setSpecGroup(finalSpecGroup.get());
                     finalSpecGroup->setMainTask(taskView.getTaskPtr());
+                }else if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                    taskView.getTaskPtr()->setSpecGroup(currentGroupNormalTask.get());
                 }
                 
                 if(taskAlsoSpeculateOnOther){
@@ -470,6 +466,29 @@ class SpRuntime : public SpAbstractToKnowReady {
                     std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentGroupNormalTask.get(), inPriority, tuple, sequenceParamsNoFunction);
                     currentGroupNormalTask->addSelectTasks(mergeTasks);
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                    
+                    if constexpr(isPotentialTask && SpecModel != SpSpeculativeModel::SP_MODEL_1) {
+                        SpGeneralSpecGroup* sg = currentGroupNormalTask.get();
+                        if(finalSpecGroup != nullptr){
+                            sg = finalSpecGroup.get();
+                        }
+                        taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = sg]
+                                            (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
+                                            const bool isEnabled){
+                                                if(isEnabled){
+                                                    if(!alreadyDone){
+                                                        assert(SpUtils::GetThreadId() != 0);
+                                                        specGroupMutex.lock();
+                                                    }
+                                                    specGroupPtr->setSpeculationCurrentResult(!taskRes);
+                                                    if(!alreadyDone){
+                                                        assert(SpUtils::GetThreadId() != 0);
+                                                        specGroupMutex.unlock();
+                                                    }
+                                                }
+                                            });
+                    }
+                    
                 }else{
                     if constexpr(isPotentialTask) {
                         taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
@@ -521,10 +540,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                     }
                 }
                 
-                if(finalSpecGroup != nullptr) {
-                    finalSpecGroup->setPreviousSibling(currentGroupNormalTask.get());
-                }
-                
                 specGroups.emplace_back(std::move(currentGroupNormalTask));
                 
                 if(finalSpecGroup != nullptr) {
@@ -533,13 +548,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
                 (void) sg;
 
-                //specGroupMutex.unlock();
-                //scheduler.unlockListenersReadyMutex();
-
                 return taskView;
             }
         }
-        (void) previousSiblingSpecGroup;
     }
     
     template <class... ParamsAndTask>

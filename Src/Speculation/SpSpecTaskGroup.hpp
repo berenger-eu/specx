@@ -39,13 +39,12 @@ protected:
     SpAbstractTask* mainTask;
     SpAbstractTask* specTask;
     std::vector<SpAbstractTask*> selectTasks;
-    
-    SpGeneralSpecGroup* previousSibling;
-    SpGeneralSpecGroup* nextSibling;
 
     SpProbability selfPropability;
 
     bool isSpeculatif;
+    
+    std::shared_ptr<std::atomic<size_t>> numberOfSiblingSpecGroupsCounter;
 
     //////////////////////////////////////////////////////////////////
 
@@ -76,19 +75,18 @@ protected:
     //////////////////////////////////////////////////////////////////
 
 public:
-    SpGeneralSpecGroup(const bool inIsSpeculatif) :
+    SpGeneralSpecGroup(const bool inIsSpeculatif, std::shared_ptr<std::atomic<size_t>>& inNumberOfSiblingSpecGroupsCounter) :
         counterParentResults(0),
         parentSpeculationResults(SpecResult::UNDEFINED),
         selfSpeculationResults(SpecResult::UNDEFINED),
         state(States::UNDEFINED),
         mainTask(nullptr), specTask(nullptr),
-        previousSibling(nullptr),
-        nextSibling(nullptr),
-        isSpeculatif(inIsSpeculatif){
+        isSpeculatif(inIsSpeculatif),
+        numberOfSiblingSpecGroupsCounter(inNumberOfSiblingSpecGroupsCounter){
     }
-
+    
     virtual ~SpGeneralSpecGroup(){
-        assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
+        //assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -214,15 +212,6 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////
-    
-    void setPreviousSibling(SpGeneralSpecGroup* inGroup) {
-        previousSibling = inGroup;
-        *(inGroup->getNextSiblingPointer()) = this;
-    }
-    
-    SpGeneralSpecGroup** getNextSiblingPointer() {
-        return &nextSibling;
-    }
 
     void addSubGroup(SpGeneralSpecGroup* inGroup){
         assert(std::find(subGroups.begin(), subGroups.end(), inGroup) ==  subGroups.end());
