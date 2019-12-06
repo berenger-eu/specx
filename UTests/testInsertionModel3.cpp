@@ -28,14 +28,12 @@ class TestInsertionModel3 : public UTester< TestInsertionModel3 > {
 
         std::promise<bool> promise1;
 
-        runtime.task(SpWrite(a), [](int& param_a){
+        runtime.task(SpWrite(a), [&promise1](int& param_a){
             param_a = 1;
+            promise1.get_future().get();
         });
 
-        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), [&promise1](const int& a_param, int&) -> bool{
-            if(a_param==1) {
-                promise1.get_future().get();
-            }
+        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), [](const int& a_param, int&) -> bool{
             return false;
         });
 

@@ -329,17 +329,6 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator nextIt = std::next(it);
             
-            if constexpr(!isPotentialTask){
-                if(groups.size() == 0 || (nextIt == copyMaps.end() && !taskAlsoSpeculateOnOther)){
-                    if(groups.size() != 0) {
-                        manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
-                        removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                    }
-                    return coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, SpTaskActivation::ENABLE, inPriority, std::move(tuple), sequenceParamsNoFunction);
-                
-                }
-            }
-            
             if(nextIt != copyMaps.end() && groups.size() != 0 && oneGroupDisableOrFailed) {
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                 removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
@@ -385,14 +374,15 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
                 
                 if constexpr(isPotentialTask) {
-                    
                     if(nextIt == copyMaps.end() && taskAlsoSpeculateOnOther){
-                        (*numberOfSiblingSpecGroupsCounter)++;
                         finalSpecGroup = std::make_unique<SpGeneralSpecGroup>(taskAlsoSpeculateOnOther, numberOfSiblingSpecGroupsCounter);
-                        currentSpecGroup = finalSpecGroup.get();
+                        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                            currentSpecGroup = finalSpecGroup.get();
+                        }
                     }else{
                         currentSpecGroup = currentGroupNormalTask.get();
                     }
+                    
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
                         if(taskAlsoSpeculateOnOther){
                             l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
@@ -402,26 +392,31 @@ class SpRuntime : public SpAbstractToKnowReady {
                     }else if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2){
                         l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                     }else if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                        currentSpecGroup = currentGroupNormalTask.get();
                         if(taskAlsoSpeculateOnOther){
                             l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                         }
-                    }
-                    
-                    if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
                         if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                            if(finalSpecGroup != nullptr) {
+                                currentSpecGroup = finalSpecGroup.get();
+                            }
                             l1pModel3 = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                         }
                     }
-                    
-                    currentSpecGroup = nullptr;
                 }
+                
+                currentSpecGroup = nullptr;
                 
                 using TaskViewTy = decltype(coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction));
 
                 TaskViewTy taskView;
                 
                 if(groups.size() == 0 || nextIt == copyMaps.end()) {
-                    taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentGroupNormalTask.get()->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
+                    if(finalSpecGroup != nullptr){
+                        taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, finalSpecGroup->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
+                    }else{
+                        taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, currentGroupNormalTask->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
+                    }
                 }else {
                     size_t index = std::distance(copyMaps.begin(), it);
                     taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, numberOfSiblingSpecGroupsCounter, inPriority, inProbability, params...);
@@ -522,20 +517,20 @@ class SpRuntime : public SpAbstractToKnowReady {
                         (*it)[cp.first] = cp.second;
                         (*it)[cp.first].lastestSpecGroup = sg;
                     }
-                }
                 
-                if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                    if(finalSpecGroup != nullptr) {
-                        sg = finalSpecGroup.get();
-                    }
-                    if(groups.size() == 0 || nextIt == copyMaps.end()) {
-                        if(groups.size() != 0) {
-                            it = copyMaps.emplace(copyMaps.end());
+                    if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                        if(finalSpecGroup != nullptr) {
+                            sg = finalSpecGroup.get();
                         }
-                        for(auto& cp : l1pModel3){
-                            assert(it->find(cp.first) == it->end());
-                            (*it)[cp.first] = cp.second;
-                            (*it)[cp.first].lastestSpecGroup = sg;
+                        if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                            if(groups.size() != 0) {
+                                it = copyMaps.emplace(copyMaps.end());
+                            }
+                            for(auto& cp : l1pModel3){
+                                assert(it->find(cp.first) == it->end());
+                                (*it)[cp.first] = cp.second;
+                                (*it)[cp.first].lastestSpecGroup = sg;
+                            }
                         }
                     }
                 }

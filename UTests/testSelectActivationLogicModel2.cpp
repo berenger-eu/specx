@@ -35,6 +35,8 @@ class TestSelectActivationLogicModel2 : public UTester< TestSelectActivationLogi
         runtime.waitAllTasks();
         runtime.stopAllThreads();
         
+        runtime.generateDot("/tmp/test.dot");
+        
         UASSERTEEQUAL(b, 1);
     }
 
