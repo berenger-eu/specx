@@ -44,7 +44,7 @@ protected:
 
     bool isSpeculatif;
     
-    std::shared_ptr<std::atomic<size_t>> numberOfSiblingSpecGroupsCounter;
+    std::shared_ptr<std::atomic<size_t>> numberOfSpeculativeSiblingSpecGroupsCounter;
 
     //////////////////////////////////////////////////////////////////
 
@@ -75,14 +75,14 @@ protected:
     //////////////////////////////////////////////////////////////////
 
 public:
-    SpGeneralSpecGroup(const bool inIsSpeculatif, std::shared_ptr<std::atomic<size_t>>& inNumberOfSiblingSpecGroupsCounter) :
+    SpGeneralSpecGroup(const bool inIsSpeculatif, std::shared_ptr<std::atomic<size_t>>& inNumberOfSpeculativeSiblingSpecGroupsCounter) :
         counterParentResults(0),
         parentSpeculationResults(SpecResult::UNDEFINED),
         selfSpeculationResults(SpecResult::UNDEFINED),
         state(States::UNDEFINED),
         mainTask(nullptr), specTask(nullptr),
         isSpeculatif(inIsSpeculatif),
-        numberOfSiblingSpecGroupsCounter(inNumberOfSiblingSpecGroupsCounter){
+        numberOfSpeculativeSiblingSpecGroupsCounter(inNumberOfSpeculativeSiblingSpecGroupsCounter){
     }
     
     virtual ~SpGeneralSpecGroup(){
