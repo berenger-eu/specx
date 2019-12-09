@@ -291,6 +291,24 @@ class SpRuntime : public SpAbstractToKnowReady {
         return res;
     }
     
+    void addCallbackToTask(auto& inTaskView, SpGeneralSpecGroup *inSg) {
+         inTaskView.addCallback([this, aTaskPtr = inTaskView.getTaskPtr(), specGroupPtr = inSg]
+                                (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
+                                const bool isEnabled){
+                                    if(isEnabled){
+                                        if(!alreadyDone){
+                                            assert(SpUtils::GetThreadId() != 0);
+                                            specGroupMutex.lock();
+                                        }
+                                        specGroupPtr->setSpeculationCurrentResult(!taskRes);
+                                        if(!alreadyDone){
+                                            assert(SpUtils::GetThreadId() != 0);
+                                            specGroupMutex.unlock();
+                                        }
+                                    }
+                                });
+    }
+    
     template <const bool isPotentialTask, class... ParamsAndTask>
     auto preCoreTaskCreationAuxRec(typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator it,
                                    std::shared_ptr<std::atomic<size_t>>& numberOfSiblingSpecGroupsCounter,
@@ -441,21 +459,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
                     
                     if constexpr(isPotentialTask) {
-                        taskViewSpec.addCallback([this, aTaskPtr = taskViewSpec.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
-                                            (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-                                            const bool isEnabled){
-                                                if(isEnabled){
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.lock();
-                                                    }
-                                                    specGroupPtr->setSpeculationCurrentResult(!taskRes);
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.unlock();
-                                                    }
-                                                }
-                                            });
+                        addCallbackToTask(taskViewSpec, currentGroupNormalTask.get());
                     }
 
                     std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentGroupNormalTask.get(), inPriority, tuple, sequenceParamsNoFunction);
@@ -467,40 +471,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                         if(finalSpecGroup != nullptr){
                             sg = finalSpecGroup.get();
                         }
-                        taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = sg]
-                                            (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-                                            const bool isEnabled){
-                                                if(isEnabled){
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.lock();
-                                                    }
-                                                    specGroupPtr->setSpeculationCurrentResult(!taskRes);
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.unlock();
-                                                    }
-                                                }
-                                            });
+                        addCallbackToTask(taskView, sg);
                     }
                     
                 }else{
                     if constexpr(isPotentialTask) {
-                        taskView.addCallback([this, aTaskPtr = taskView.getTaskPtr(), specGroupPtr = currentGroupNormalTask.get()]
-                                            (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
-                                            const bool isEnabled){
-                                                if(isEnabled){
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.lock();
-                                                    }
-                                                    specGroupPtr->setSpeculationCurrentResult(!taskRes);
-                                                    if(!alreadyDone){
-                                                        assert(SpUtils::GetThreadId() != 0);
-                                                        specGroupMutex.unlock();
-                                                    }
-                                                }
-                                            });
+                        addCallbackToTask(taskView, currentGroupNormalTask.get());
                     }
                 }
                 
