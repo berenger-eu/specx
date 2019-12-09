@@ -16,10 +16,17 @@ class TestModel2SpecTaskRequestAccessToNonCopiedData : public UTester<TestModel2
 
     void Test(){
         int a=0, b=0;
-        SpRuntime<SpSpeculativeModel::SP_MODEL_2> runtime(SpUtils::DefaultNumThreads());
+        std::promise<bool> promise1;
+        
+        SpRuntime<SpSpeculativeModel::SP_MODEL_2> runtime;
+        
+        runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
+            return true;
+        });
 
-        runtime.potentialTask(SpMaybeWrite(a), [](int &param_a) -> bool{
+        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
             (void) param_a;
+            promise1.get_future().get();
             return false;
         });
         
@@ -28,6 +35,8 @@ class TestModel2SpecTaskRequestAccessToNonCopiedData : public UTester<TestModel2
             (void) param_b;
             return false;
         });
+        
+        promise1.set_value(true);
         
         runtime.waitAllTasks();
         runtime.stopAllThreads();

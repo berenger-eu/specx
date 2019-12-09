@@ -16,11 +16,18 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
 
     void Test(){
         int a=0, b=0, c=0;
-        SpRuntime<SpSpeculativeModel::SP_MODEL_1> runtime(SpUtils::DefaultNumThreads());
+        
+        std::promise<bool> promise1;
+        
+        SpRuntime<SpSpeculativeModel::SP_MODEL_1> runtime;
+        
+        runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
+            return true;
+        });
 
-        runtime.potentialTask(SpMaybeWrite(a), [](int &param_a) -> bool{
+        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
             (void) param_a;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            promise1.get_future().get();
             return false;
         });
         
@@ -39,6 +46,8 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
                 UASSERTEDIFF(param_c, 0);
             }
         });
+        
+        promise1.set_value(true);
         
         runtime.waitAllTasks();
         runtime.stopAllThreads();
