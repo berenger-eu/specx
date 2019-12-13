@@ -14,11 +14,12 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-class TestInsertionModel3 : public UTester< TestInsertionModel3 > {
-    using Parent = UTester< TestInsertionModel3 >;
-
+class TestInsertionModel123 : public UTester< TestInsertionModel123 > {
+    using Parent = UTester< TestInsertionModel123 >;
+    
+    template <SpSpeculativeModel Spm>
     void Test(){
-        SpRuntime<SpSpeculativeModel::SP_MODEL_3> runtime;
+        SpRuntime<Spm> runtime;
 
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
             return true;
@@ -60,15 +61,29 @@ class TestInsertionModel3 : public UTester< TestInsertionModel3 > {
         runtime.waitAllTasks();
         runtime.stopAllThreads();
 
-        runtime.generateDot("/tmp/test.dot");
+        runtime.generateDot("/tmp/testIns" + std::to_string(static_cast<int>(Spm)) + ".dot");
+    }
+    
+    void Test1() {
+        return Test<SpSpeculativeModel::SP_MODEL_1>();
+    }
+    
+    void Test2() {
+        return Test<SpSpeculativeModel::SP_MODEL_2>();
+    }
+    
+    void Test3() {
+        return Test<SpSpeculativeModel::SP_MODEL_3>();
     }
 
     void SetTests() {
-        Parent::AddTest(&TestInsertionModel3::Test, "Basic insertion test for model 3");
+        Parent::AddTest(&TestInsertionModel123::Test1, "Basic insertion test for model 1");
+        Parent::AddTest(&TestInsertionModel123::Test2, "Basic insertion test for model 2");
+        Parent::AddTest(&TestInsertionModel123::Test3, "Basic insertion test for model 3");
     }
 };
 
 // You must do this
-TestClass(TestInsertionModel3)
+TestClass(TestInsertionModel123)
 
 
