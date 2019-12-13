@@ -378,13 +378,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                     l2 = copyIfWriteAndNotDuplicateOrUsedInRead(std::array<CopyMapPtrTy, 1>{std::addressof(*it)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                     currentSpecGroup = nullptr;
                     
-                    for(auto& cp : l1){
-                        l1l2[cp.first] = cp.second;
-                    }
-                    
-                    for(auto& cp : l2){
-                        l1l2[cp.first] = cp.second;
-                    }
+                    l1l2.merge(l1);
+                    l1l2.merge(l2);
                 
                 }else{
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
@@ -486,30 +481,15 @@ class SpRuntime : public SpAbstractToKnowReady {
                 SpGeneralSpecGroup *sg = currentGroupNormalTask.get();
                 
                 if constexpr(isPotentialTask) {
-                    if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
-                        if(finalSpecGroup != nullptr) {
-                            sg = finalSpecGroup.get();
-                        }
-                    }
-                    for(auto& cp : l1p){
-                        assert(it->find(cp.first) == it->end());
-                        (*it)[cp.first] = cp.second;
-                        (*it)[cp.first].lastestSpecGroup = sg;
-                    }
+                    
+                    it->merge(l1p);
                 
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                        if(finalSpecGroup != nullptr) {
-                            sg = finalSpecGroup.get();
-                        }
                         if(groups.size() == 0 || nextIt == copyMaps.end()) {
                             if(groups.size() != 0) {
                                 it = copyMaps.emplace(copyMaps.end());
                             }
-                            for(auto& cp : l1pModel3){
-                                assert(it->find(cp.first) == it->end());
-                                (*it)[cp.first] = cp.second;
-                                (*it)[cp.first].lastestSpecGroup = sg;
-                            }
+                            it->merge(l1pModel3);
                         }
                     }
                 }
@@ -675,6 +655,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         SpCurrentCopy cp;
         cp.latestAdress = ptr;
         cp.latestCopyTask = taskView.getTaskPtr();
+        cp.lastestSpecGroup = currentSpecGroup;
         cp.originAdress = const_cast<TargetParamType*>(originPtr);
         cp.sourceAdress = const_cast<TargetParamType*>(sourcePtr);
         cp.deleter.reset(new SpDeleter<TargetParamType>());
@@ -723,21 +704,21 @@ class SpRuntime : public SpAbstractToKnowReady {
                             break;
                         }
                     }
-                }else if(copyIfUsedInRead){ // if data has already been previously copied then only copy if the previous copy is used in read 
+                }else if(copyIfUsedInRead){ // if data has already been previously copied then only copy if the previous copy is used in read
+                    bool hasBeenFound = false;
                     for(auto me : copyMapsToLookInto) {
                         mPtr = me;
                         
                         if(auto found = me->find(h1->castPtr<TargetParamType>()); found != me->end()) {
+                            hasBeenFound = true;
                             doCopy = found->second.usedInRead;
-                        }
-                        
-                        if(doCopy){
                             break;
                         }
                     }
-                }
-                
-                if(!doCopy){ // if none of the above has been triggered, copy the data only if it has not already been duplicated
+                    if(!hasBeenFound) {
+                        doCopy = true;
+                    }
+                }else{ // if none of the above has been triggered, copy the data only if it has not already been duplicated
                     doCopy = true;
                     for(auto me : copyMapsToLookInto) {
                         doCopy &= (me->find(h1->castPtr<TargetParamType>()) == me->end());
