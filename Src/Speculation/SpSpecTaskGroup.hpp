@@ -86,7 +86,7 @@ public:
     }
     
     virtual ~SpGeneralSpecGroup(){
-        //assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
+        assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -296,7 +296,7 @@ public:
             }
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
-            mainTask->setEnabled(SpTaskActivation::ENABLE);
+            tryToEnableMainTask();
             specTask->setDisabledIfNotOver();
             DisableAllTasks(selectTasks);
         }
@@ -305,6 +305,9 @@ public:
             parentSpeculationResults = SpecResult::SPECULATION_SUCCED;
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
+            if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(false);
+            }
             if(didSpeculationSucceed()){
                 DisableTasksDelegate(selectTasks);
 
@@ -473,6 +476,13 @@ public:
     void addSelectTasks(const std::vector<SpAbstractTask*>& inselectTasks){
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
+    }
+    
+    void tryToEnableMainTask() {
+        (*numberOfSpeculativeSiblingSpecGroupsCounter)--;
+        if(*numberOfSpeculativeSiblingSpecGroupsCounter == 0){
+            mainTask->setEnabled(SpTaskActivation::ENABLE);
+        }
     }
 };
 

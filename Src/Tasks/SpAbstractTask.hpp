@@ -134,6 +134,7 @@ public:
             hasBeenExecuted = true;
             conditionExecuted.notify_all();
         }
+        
         executeCallback();
     }
 
