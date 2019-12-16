@@ -16,9 +16,10 @@
 
 class TestPotiential : public UTester< TestPotiential > {
     using Parent = UTester< TestPotiential >;
-
+    
+    template <SpSpeculativeModel Spm>
     void TestBasic(){
-        SpRuntime runtime;
+        SpRuntime<Spm> runtime;
 
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
             return true;
@@ -93,11 +94,11 @@ class TestPotiential : public UTester< TestPotiential > {
         UASSERTEEQUAL(val, 6);
     }
 
-
+    template <SpSpeculativeModel Spm>
     void TestBasicLoop(){
         std::array<unsigned int,2> SleepTimes{0, 500000};
         for(auto SleepTime : SleepTimes){
-            SpRuntime runtime;
+            SpRuntime<Spm> runtime;
 
             runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
                 return true;
@@ -164,10 +165,21 @@ class TestPotiential : public UTester< TestPotiential > {
             runtime.generateTrace("/tmp/test" + std::to_string(SleepTime) + ".svg");
         }
     }
+    
+    void TestBasic1() { return TestBasic<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasicLoop1() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasic2() { return TestBasic<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasicLoop2() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasic3() { return TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
+    void TestBasicLoop3() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestPotiential::TestBasic, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasicLoop, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasic1, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasicLoop1, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasic2, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasicLoop2, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasic3, "Basic test for vec type");
+        Parent::AddTest(&TestPotiential::TestBasicLoop3, "Basic test for vec type");
     }
 };
 

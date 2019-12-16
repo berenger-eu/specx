@@ -382,6 +382,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     l1l2.merge(l2);
                 
                 }else{
+                    currentGroupNormalTask->setSpeculationActivation(true);
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                     removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
                 }

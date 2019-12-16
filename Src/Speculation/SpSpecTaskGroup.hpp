@@ -328,43 +328,44 @@ public:
         assert(isSpeculationEnable());
         assert((specTask != nullptr &&  parentGroups.size())
                || (specTask == nullptr &&  parentGroups.empty()));
-        assert(isSpeculationResultUndefined());
-
-        if(inSpeculationSucceed){
-            selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
-        }
-        else{
-            selfSpeculationResults = SpecResult::SPECULATION_FAILED;
-        }
-
-        if(parentGroups.empty()){
-            assert(specTask == nullptr);
-            assert(selectTasks.size() == 0);
-
-            for(auto* child : subGroups){
-                child->setParentSpecResult(inSpeculationSucceed);
+        
+        if(isSpeculationResultUndefined()) {
+            if(inSpeculationSucceed){
+                selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
             }
-        }
-        else{
-            assert(isSpeculatif);
-            assert(specTask != nullptr);
+            else{
+                selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+            }
 
-            if(didParentSpeculationSucceed()){
+            if(parentGroups.empty()){
+                assert(specTask == nullptr);
+                assert(selectTasks.size() == 0);
+
                 for(auto* child : subGroups){
                     child->setParentSpecResult(inSpeculationSucceed);
                 }
-                assert(mainTask->isEnable() == false);
-                if(inSpeculationSucceed){
-                    DisableTasksDelegate(selectTasks);
-                }
             }
-            else if(didParentSpeculationFailed()){
-                // Check
-                for(auto* child : subGroups){
-                    assert(child->didParentSpeculationFailed());
+            else{
+                assert(isSpeculatif);
+                assert(specTask != nullptr);
+
+                if(didParentSpeculationSucceed()){
+                    for(auto* child : subGroups){
+                        child->setParentSpecResult(inSpeculationSucceed);
+                    }
+                    assert(mainTask->isEnable() == false);
+                    if(inSpeculationSucceed){
+                        DisableTasksDelegate(selectTasks);
+                    }
                 }
+                else if(didParentSpeculationFailed()){
+                    // Check
+                    for(auto* child : subGroups){
+                        assert(child->didParentSpeculationFailed());
+                    }
+                }
+                // If parent is undefined, we have to wait
             }
-            // If parent is undefined, we have to wait
         }
     }
 

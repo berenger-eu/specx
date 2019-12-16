@@ -64,17 +64,9 @@ class TestInsertionModel123 : public UTester< TestInsertionModel123 > {
         runtime.generateDot("/tmp/testIns" + std::to_string(static_cast<int>(Spm)) + ".dot");
     }
     
-    void Test1() {
-        return Test<SpSpeculativeModel::SP_MODEL_1>();
-    }
-    
-    void Test2() {
-        return Test<SpSpeculativeModel::SP_MODEL_2>();
-    }
-    
-    void Test3() {
-        return Test<SpSpeculativeModel::SP_MODEL_3>();
-    }
+    void Test1() { return Test<SpSpeculativeModel::SP_MODEL_1>(); }
+    void Test2() { return Test<SpSpeculativeModel::SP_MODEL_2>(); }
+    void Test3() { return Test<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
         Parent::AddTest(&TestInsertionModel123::Test1, "Basic insertion test for model 1");
