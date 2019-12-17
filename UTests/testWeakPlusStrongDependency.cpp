@@ -13,13 +13,14 @@
 
 class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
     using Parent = UTester< WeakPlusStrongDependency >;
-
+    
+    template <SpSpeculativeModel Spm>
     void Test(){
         int a=0, b=0, c=0;
         
         std::promise<bool> promise1;
         
-        SpRuntime<SpSpeculativeModel::SP_MODEL_1> runtime;
+        SpRuntime<Spm> runtime;
         
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
             return true;
@@ -52,10 +53,15 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
         runtime.waitAllTasks();
         runtime.stopAllThreads();
     }
+    
+    void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }
+    void Test2() { Test<SpSpeculativeModel::SP_MODEL_2>(); }
+    void Test3() { Test<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&WeakPlusStrongDependency::Test, 
-                        "Test behavior when there are weak as well strong dependencies between speculative tasks");
+        Parent::AddTest(&WeakPlusStrongDependency::Test1, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 1)");
+        Parent::AddTest(&WeakPlusStrongDependency::Test2, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 2)");
+        Parent::AddTest(&WeakPlusStrongDependency::Test3, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 3)");
     }
 };
 

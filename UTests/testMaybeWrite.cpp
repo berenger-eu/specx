@@ -17,8 +17,9 @@
 class TestMaybeWrite : public UTester< TestMaybeWrite > {
     using Parent = UTester< TestMaybeWrite >;
 
+    template <SpSpeculativeModel Spm>
     void TestBasic(){
-        SpRuntime runtime;
+        SpRuntime<Spm> runtime;
 
 
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
@@ -109,9 +110,15 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
         runtime.generateDot("/tmp/test.dot");
         runtime.generateTrace("/tmp/test.svg");
     }
+    
+    void TestBasic1() { TestBasic<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasic2() { TestBasic<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasic3() { TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestMaybeWrite::TestBasic, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic1, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic2, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic3, "Basic test for vec type");
     }
 };
 

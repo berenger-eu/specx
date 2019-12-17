@@ -8,7 +8,9 @@
 #include <cassert>
 
 #include "Tasks/SpAbstractTask.hpp"
+#include "Speculation/SpSpeculativeModel.hpp"
 
+template <SpSpeculativeModel SpecModel>
 class SpGeneralSpecGroup{
 protected:
     enum class States{
@@ -131,29 +133,29 @@ public:
 
     void setSpeculationActivationCore(const bool inIsSpeculationEnable){
         assert(isSpeculationEnableOrDisable() == false);
-        assert(isSpeculationResultUndefined() == true);
-
+        
         if(inIsSpeculationEnable){
             state = States::DO_SPEC;
-
-            if(mainTask){
-                assert(mainTask->isOver() == false);
-                if(isSpeculatif){
-                    mainTask->setEnabled(SpTaskActivation::DISABLE);
+            if(isSpeculationResultUndefined()) {
+                if(mainTask){
+                    assert(mainTask->isOver() == false);
+                    if(isSpeculatif){
+                        mainTask->setEnabled(SpTaskActivation::DISABLE);
+                    }
+                    else{
+                        mainTask->setEnabled(SpTaskActivation::ENABLE);
+                    }
                 }
-                else{
-                    mainTask->setEnabled(SpTaskActivation::ENABLE);
+
+                if(specTask){
+                    assert(isSpeculatif);
+                    assert(specTask->isOver() == false);
+                    specTask->setEnabled(SpTaskActivation::ENABLE);
                 }
-            }
 
-            if(specTask){
-                assert(isSpeculatif);
-                assert(specTask->isOver() == false);
-                specTask->setEnabled(SpTaskActivation::ENABLE);
+                EnableAllTasks(copyTasks);
+                EnableAllTasks(selectTasks);
             }
-
-            EnableAllTasks(copyTasks);
-            EnableAllTasks(selectTasks);
         } else {
             state = States::DO_NOT_SPEC;
         }
@@ -305,8 +307,10 @@ public:
             parentSpeculationResults = SpecResult::SPECULATION_SUCCED;
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
-            if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
-                mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(false);
+            if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                    mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(false);
+                }
             }
             if(didSpeculationSucceed()){
                 DisableTasksDelegate(selectTasks);
@@ -314,11 +318,21 @@ public:
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
                 }
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(true);
+                    }
+                }
             }
             else if(didSpeculationFailed()){
                 // Already done EnableAllTasks(selectTasks);
                 for(auto* child : subGroups){
                     child->setParentSpecResult(false);
+                }
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(false);
+                    }
                 }
             }
         }
@@ -350,6 +364,13 @@ public:
                 assert(specTask != nullptr);
 
                 if(didParentSpeculationSucceed()){
+                    
+                    if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                        if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                            mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(inSpeculationSucceed);
+                        }
+                    }
+                    
                     for(auto* child : subGroups){
                         child->setParentSpecResult(inSpeculationSucceed);
                     }

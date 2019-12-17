@@ -166,12 +166,12 @@ class TestPotiential : public UTester< TestPotiential > {
         }
     }
     
-    void TestBasic1() { return TestBasic<SpSpeculativeModel::SP_MODEL_1>(); }
-    void TestBasicLoop1() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_1>(); }
-    void TestBasic2() { return TestBasic<SpSpeculativeModel::SP_MODEL_2>(); }
-    void TestBasicLoop2() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_2>(); }
-    void TestBasic3() { return TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
-    void TestBasicLoop3() { return TestBasicLoop<SpSpeculativeModel::SP_MODEL_3>(); }
+    void TestBasic1() { TestBasic<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasicLoop1() { TestBasicLoop<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasic2() { TestBasic<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasicLoop2() { TestBasicLoop<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasic3() { TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
+    void TestBasicLoop3() { TestBasicLoop<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
         Parent::AddTest(&TestPotiential::TestBasic1, "Basic test for vec type");

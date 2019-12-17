@@ -11,14 +11,15 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-class TestSelectActivationLogicModel1 : public UTester< TestSelectActivationLogicModel1> {
-    using Parent = UTester< TestSelectActivationLogicModel1 >;
+class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
+    using Parent = UTester< TestSelectActivationLogic >;
 
+    template <SpSpeculativeModel Spm>
     void Test(){
         int a=0, b=0;
         std::promise<bool> promise1;
         
-        SpRuntime<SpSpeculativeModel::SP_MODEL_1> runtime;
+        SpRuntime<Spm> runtime;
         
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
             return true;
@@ -46,12 +47,17 @@ class TestSelectActivationLogicModel1 : public UTester< TestSelectActivationLogi
         
         UASSERTEEQUAL(b, 1);
     }
+    
+    void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }
+    void Test2() { Test<SpSpeculativeModel::SP_MODEL_2>(); }
+    void Test3() { Test<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestSelectActivationLogicModel1::Test, 
-                        "Test behavior of select activation logic in model 1");
+        Parent::AddTest(&TestSelectActivationLogic::Test1, "Test behavior of select activation logic in model 1");
+        Parent::AddTest(&TestSelectActivationLogic::Test2, "Test behavior of select activation logic in model 2");
+        Parent::AddTest(&TestSelectActivationLogic::Test3, "Test behavior of select activation logic in model 3");
     }
 };
 
 // You must do this
-TestClass(TestSelectActivationLogicModel1)
+TestClass(TestSelectActivationLogic)
