@@ -279,7 +279,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         std::shared_ptr<std::atomic<size_t>> numberOfSiblingSpeculativeTasksCounter = std::make_shared<std::atomic<size_t>>(0);
-        auto res = preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), numberOfSiblingSpeculativeTasksCounter, false, inPriority, inProbability, params...);
+        auto res = preCoreTaskCreationAuxRec<isPotentialTask>(copyMaps.begin(), copyMaps.end(), numberOfSiblingSpeculativeTasksCounter, false, inPriority, inProbability, params...);
         specGroupMutex.unlock();
         scheduler.unlockListenersReadyMutex();
         return res;
@@ -305,6 +305,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     template <const bool isPotentialTask, class... ParamsAndTask>
     auto preCoreTaskCreationAuxRec(typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator it,
+                                   typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator firstCopyMapWithNoCorrespondingHandlesIt,
                                    std::shared_ptr<std::atomic<size_t>>& numberOfSpeculativeSiblingSpecGroupsCounter,
                                    bool parentIsSpeculatif,
                                    const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params)
@@ -342,10 +343,13 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             typename std::vector<std::unordered_map<const void*, SpCurrentCopy>>::iterator nextIt = std::next(it);
             
-            if(nextIt != copyMaps.end() && groups.size() != 0 && oneGroupDisableOrFailed) {
+            if(nextIt != copyMaps.end() && !taskAlsoSpeculateOnOther) {
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                 removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                return preCoreTaskCreationAuxRec<isPotentialTask>(++it, numberOfSpeculativeSiblingSpecGroupsCounter, taskAlsoSpeculateOnOther, inPriority, inProbability, params...);
+                if(firstCopyMapWithNoCorrespondingHandlesIt == copyMaps.end()) {
+                    firstCopyMapWithNoCorrespondingHandlesIt = it;
+                }
+                return preCoreTaskCreationAuxRec<isPotentialTask>(++it, firstCopyMapWithNoCorrespondingHandlesIt, numberOfSpeculativeSiblingSpecGroupsCounter, taskAlsoSpeculateOnOther || parentIsSpeculatif, inPriority, inProbability, params...);
             }else{
                 if(taskAlsoSpeculateOnOther){
                     (*numberOfSpeculativeSiblingSpecGroupsCounter)++;
@@ -429,7 +433,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     }
                 }else {
                     size_t index = std::distance(copyMaps.begin(), it);
-                    taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, numberOfSpeculativeSiblingSpecGroupsCounter, taskAlsoSpeculateOnOther, inPriority, inProbability, params...);
+                    taskView = preCoreTaskCreationAuxRec<isPotentialTask>(++it, firstCopyMapWithNoCorrespondingHandlesIt, numberOfSpeculativeSiblingSpecGroupsCounter, taskAlsoSpeculateOnOther || parentIsSpeculatif, inPriority, inProbability, params...);
                     it = copyMaps.begin() + index;
                 }
                 
@@ -480,7 +484,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
                         if(groups.size() == 0 || nextIt == copyMaps.end()) {
-                            if(groups.size() != 0) {
+                            if(groups.size() != 0 && firstCopyMapWithNoCorrespondingHandlesIt == copyMaps.end()) {
                                 it = copyMaps.emplace(copyMaps.end());
                             }
                             it->merge(l1pModel3);
