@@ -320,6 +320,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 		auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         
         if constexpr (!isPotentialTask && allAreCopiableAndDeleteable<decltype (tuple)>(sequenceParamsNoFunction) == false){
+            (void) firstCopyMapWithNoCorrespondingHandlesIt;
             for(; it != copyMaps.end(); it++){
                 manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                 removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
@@ -480,12 +481,20 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
                 if constexpr(isPotentialTask) {
                     
-                    it->merge(l1p);
+                    if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                        if(taskAlsoSpeculateOnOther) {
+                            it->merge(l1p);
+                        }
+                    }else{
+                         it->merge(l1p);
+                    }
                 
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                        if(groups.size() == 0 || nextIt == copyMaps.end()) {
-                            if(groups.size() != 0 && firstCopyMapWithNoCorrespondingHandlesIt == copyMaps.end()) {
+                        if(nextIt == copyMaps.end()) {
+                            if(firstCopyMapWithNoCorrespondingHandlesIt == copyMaps.end() && (taskAlsoSpeculateOnOther || parentIsSpeculatif)) {
                                 it = copyMaps.emplace(copyMaps.end());
+                            }else if(firstCopyMapWithNoCorrespondingHandlesIt != copyMaps.end()){
+                                it = firstCopyMapWithNoCorrespondingHandlesIt;
                             }
                             it->merge(l1pModel3);
                         }
