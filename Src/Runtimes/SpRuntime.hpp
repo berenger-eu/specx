@@ -411,7 +411,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         if(taskAlsoSpeculateOnOther){
                             l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentSpecGroup->getActivationStateForCopyTasks(), inPriority, tuple, sequenceParamsNoFunction);
                         }
-                        if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                        if(nextIt == copyMaps.end()) {
                             if(finalSpecGroup != nullptr) {
                                 currentSpecGroup = finalSpecGroup.get();
                             }
@@ -426,18 +426,12 @@ class SpRuntime : public SpAbstractToKnowReady {
                 TaskViewTy taskView, taskViewSpec;
                 
                 if(taskAlsoSpeculateOnOther){
-
                     taskViewSpec = coreTaskCreationSpeculative(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentGroupNormalTask->getActivationStateForSpeculativeTask(), 
                                                                     inPriority, tuple, sequenceParamsNoFunction);
-
                     currentGroupNormalTask->setSpecTask(taskViewSpec.getTaskPtr());
-                    
-                    if constexpr(isPotentialTask) {
-                        addCallbackToTask(taskViewSpec, currentGroupNormalTask.get());
-                    }
                 }
                 
-                if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                if(nextIt == copyMaps.end()) {
                     if(finalSpecGroup != nullptr){
                         taskView = coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, finalSpecGroup->getActivationStateForMainTask(), inPriority, tuple, sequenceParamsNoFunction);
                     }else{
@@ -454,33 +448,39 @@ class SpRuntime : public SpAbstractToKnowReady {
                 if(finalSpecGroup != nullptr) {
                     taskView.getTaskPtr()->setSpecGroup(finalSpecGroup.get());
                     finalSpecGroup->setMainTask(taskView.getTaskPtr());
-                }else if(groups.size() == 0 || nextIt == copyMaps.end()) {
+                }else if(nextIt == copyMaps.end()) {
                     taskView.getTaskPtr()->setSpecGroup(currentGroupNormalTask.get());
                 }
                 
-                
                 if(!taskAlsoSpeculateOnOther) {
                     if constexpr(isPotentialTask) {
-                        addCallbackToTask(taskView, currentGroupNormalTask.get());
+                        if(nextIt == copyMaps.end()) {
+                            addCallbackToTask(taskView, currentGroupNormalTask.get());
+                        }
                     }
                 } else {
                     taskViewSpec.setOriginalTask(taskView.getTaskPtr());
-                    if constexpr(isPotentialTask && SpecModel != SpSpeculativeModel::SP_MODEL_1) {
-                        SpGeneralSpecGroup<SpecModel>* sg = currentGroupNormalTask.get();
-                        if(finalSpecGroup != nullptr){
-                            sg = finalSpecGroup.get();
-                        }
-                        addCallbackToTask(taskView, sg);
-                    }
+                    
                     std::vector<SpAbstractTask*> mergeTasks = mergeIfInList(std::array<CopyMapPtrTy, 2>{std::addressof(l1l2), std::addressof(*it)}, currentGroupNormalTask.get(), inPriority, tuple, sequenceParamsNoFunction);
                     currentGroupNormalTask->addSelectTasks(mergeTasks);
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                    
+                    if constexpr(isPotentialTask) {
+                        addCallbackToTask(taskViewSpec, currentGroupNormalTask.get());
+                    }
+                    
+                    if constexpr(isPotentialTask && SpecModel != SpSpeculativeModel::SP_MODEL_1) {
+                        if(nextIt == copyMaps.end()) {
+                            SpGeneralSpecGroup<SpecModel>* sg = currentGroupNormalTask.get();
+                            if(finalSpecGroup != nullptr){
+                                sg = finalSpecGroup.get();
+                            }
+                            addCallbackToTask(taskView, sg);
+                        }
+                    }
                 }
                 
-                SpGeneralSpecGroup<SpecModel> *sg = currentGroupNormalTask.get();
-                
                 if constexpr(isPotentialTask) {
-                    
                     if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
                         if(taskAlsoSpeculateOnOther) {
                             it->merge(l1p);
@@ -506,8 +506,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                 if(finalSpecGroup != nullptr) {
                     specGroups.emplace_back(std::move(finalSpecGroup));
                 }
-                
-                (void) sg;
 
                 return taskView;
             }
