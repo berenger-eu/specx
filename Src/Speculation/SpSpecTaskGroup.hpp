@@ -88,7 +88,8 @@ public:
     }
     
     virtual ~SpGeneralSpecGroup(){
-        assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
+        assert(isSpeculationDisable() || (didParentSpeculationSucceed() && counterParentResults == int(parentGroups.size())) 
+                || !didParentSpeculationSucceed());
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -283,7 +284,8 @@ public:
 
     void setParentSpecResult(const bool inSpeculationSucceed){
         assert(isSpeculatif);
-        assert(counterParentResults < int(parentGroups.size()));
+        assert((isParentSpeculationResultUndefined() && counterParentResults < int(parentGroups.size()))
+                || didParentSpeculationFailed());
         counterParentResults += 1;
 
         if(didParentSpeculationFailed()){
@@ -343,50 +345,52 @@ public:
         assert((specTask != nullptr &&  parentGroups.size())
                || (specTask == nullptr &&  parentGroups.empty()));
         
-        if(isSpeculationResultUndefined()) {
-            if(inSpeculationSucceed){
-                selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
-            }
-            else{
-                selfSpeculationResults = SpecResult::SPECULATION_FAILED;
-            }
+        if(inSpeculationSucceed){
+            selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
+        }
+        else{
+            selfSpeculationResults = SpecResult::SPECULATION_FAILED;
+        }
 
-            if(parentGroups.empty()){
-                assert(specTask == nullptr);
-                assert(selectTasks.size() == 0);
+        if(parentGroups.empty()){
+            assert(specTask == nullptr);
+            assert(selectTasks.size() == 0);
 
+            for(auto* child : subGroups){
+                child->setParentSpecResult(inSpeculationSucceed);
+            }
+        }
+        else{
+            assert(isSpeculatif);
+            assert(specTask != nullptr);
+
+            if(didParentSpeculationSucceed()){
+                
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(inSpeculationSucceed);
+                    }
+                }
+                
                 for(auto* child : subGroups){
                     child->setParentSpecResult(inSpeculationSucceed);
                 }
-            }
-            else{
-                assert(isSpeculatif);
-                assert(specTask != nullptr);
-
-                if(didParentSpeculationSucceed()){
-                    
-                    if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
-                        if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
-                            mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(inSpeculationSucceed);
-                        }
-                    }
-                    
-                    for(auto* child : subGroups){
-                        child->setParentSpecResult(inSpeculationSucceed);
-                    }
-                    assert(mainTask->isEnable() == false);
-                    if(inSpeculationSucceed){
-                        DisableTasksDelegate(selectTasks);
-                    }
+                assert(mainTask->isEnable() == false);
+                if(inSpeculationSucceed){
+                    DisableTasksDelegate(selectTasks);
                 }
-                else if(didParentSpeculationFailed()){
-                    // Check
-                    for(auto* child : subGroups){
-                        assert(child->didParentSpeculationFailed());
-                    }
-                }
-                // If parent is undefined, we have to wait
             }
+            else if(didParentSpeculationFailed()){
+                // Check
+                for(auto* child : subGroups){
+                    assert(child->didParentSpeculationFailed());
+                }
+            }else if(!inSpeculationSucceed) { // if current spec group failed,
+                for(auto* child : subGroups){ // make all children fail right away 
+                    child->setParentSpecResult(false);
+                }
+            }
+            // If parentResult is undefined and current spec group succeeded, we have to wait
         }
     }
 
