@@ -504,6 +504,10 @@ public:
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
     }
     
+    void addSelectTask(SpAbstractTask* inSelectTask) {
+        selectTasks.push_back(inSelectTask);
+    }
+    
     void tryToEnableMainTask() {
         (*numberOfSpeculativeSiblingSpecGroupsCounter)--;
         if(*numberOfSpeculativeSiblingSpecGroupsCounter == 0){
