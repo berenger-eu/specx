@@ -368,7 +368,7 @@ public:
                 
                 if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
                     if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
-                        mainTask->getSpecGroup<SpGeneralSpecGroup>()->setSpeculationCurrentResult(inSpeculationSucceed);
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(inSpeculationSucceed);
                     }
                 }
                 
