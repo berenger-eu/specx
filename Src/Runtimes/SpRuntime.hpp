@@ -137,7 +137,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     struct SpCurrentCopy{
         SpCurrentCopy()
-            :originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
+            : isUnique(true), originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
               latestCopyTask(nullptr), usedInRead(false){
         }
 
@@ -145,6 +145,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             return originAdress != nullptr;
         }
 
+        bool isUnique;
         void* originAdress;
         void* sourceAdress;
         void* latestAdress;
@@ -158,13 +159,15 @@ class SpRuntime : public SpAbstractToKnowReady {
     using CopyMapTy = std::unordered_map<const void*, SpCurrentCopy>;
     using CopyMapPtrTy = CopyMapTy*;
     
-    std::vector<CopyMapTy> copyMaps;
     CopyMapTy emptyCopyMap;
     SpGeneralSpecGroup<SpecModel>* currentSpecGroup;
     std::list<std::unique_ptr<SpGeneralSpecGroup<SpecModel>>> specGroups;
     std::mutex specGroupMutex;
+    
+    std::unordered_map<const void*, std::shared_ptr<std::vector<CopyMapTy>>> hashMap;
+    using ExecutionPathTy = std::shared_ptr<std::vector<CopyMapTy>>;
 
-    void releaseCopies(){
+    void releaseCopies(std::vector<CopyMapTy> &copyMaps){
         for(auto& copyMapIt : copyMaps){
             for(auto &iter : copyMapIt) {
                 assert(iter.second.latestAdress);
@@ -271,6 +274,118 @@ class SpRuntime : public SpAbstractToKnowReady {
         return list;
     }
     
+    template <class Tuple, std::size_t IdxData>
+    auto coreGetCorrespondingExecutionPaths(Tuple& args){
+        using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
+        auto& scalarOrContainerData = std::get<IdxData>(args);
+
+        std::vector<ExecutionPathTy> res;
+
+        auto hh = getDataHandle(scalarOrContainerData);
+        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+        long int indexHh = 0;
+        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+
+            if(auto found = hashMap.find(ptr); found != hashMap.end()){
+                res.push_back(found->second);
+            }
+
+            indexHh += 1;
+        }
+        
+        (void) hh;
+
+        return res;
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    std::vector<ExecutionPathTy> getCorrespondingExecutionPaths(Tuple& args, std::index_sequence<Is...>){
+        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
+        
+        std::vector<ExecutionPathTy> result;
+        
+        if(hashMap.empty()) {
+            return result;
+        }
+        
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::vector<ExecutionPathTy> &res, std::vector<ExecutionPathTy>&& e) {
+                res.insert(res.end(), e.begin(), e.end());
+            }(result, coreGetCorrespondingExecutionPaths<Tuple, Is>(args)), ...);
+        }
+        
+        std::sort(result.begin(), result.end());
+        result.erase(std::unique(result.begin(), result.end()), result.end());
+
+        return result;
+    }
+    
+    template <class Tuple, std::size_t IdxData, SpDataAccessMode targetMode>
+    std::vector<const void*> getOriginalAddressesOfHandlesInAccessMode(Tuple& args) {
+        using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
+        auto& scalarOrContainerData = std::get<IdxData>(args);
+        
+        const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+        
+        std::vector<const void*> res;
+        
+        if constexpr(accessMode == targetMode) {
+        
+            auto hh = getDataHandle(scalarOrContainerData);
+            assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+            long int indexHh = 0;
+            for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+                
+                res.push_back(ptr);
+                
+                indexHh += 1;
+            }
+        }
+
+        return res;
+    }
+    
+    template <SpDataAccessMode targetMode, class Tuple, std::size_t... Is>
+    std::vector<const void*> getOriginalAddressesOfHandlesWrapper(Tuple& args, std::index_sequence<Is...>) {
+        static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
+        
+        std::vector<const void*> result;
+        
+        if constexpr(sizeof...(Is) > 0) {
+            ([](std::vector<const void*> &res, std::vector<const void*>&& handles) {
+                res.insert(res.end(), handles.begin(), handles.end());
+            }(result, getOriginalAddressesOfHandlesInAccessMode<Tuple, Is, targetMode>(args)), ...);
+        }
+
+        return result;
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    std::vector<const void*> getOriginalAddressesOfHandlesInMaybeWriteAccessMode(Tuple& args, std::index_sequence<Is...> is){
+        return getOriginalAddressesOfHandlesWrapper<SpDataAccessMode::MAYBE_WRITE, Tuple, Is...>(args, is);
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    std::vector<const void*> getOriginalAddressesOfHandlesInWriteAccessMode(Tuple& args, std::index_sequence<Is...> is){
+        return getOriginalAddressesOfHandlesWrapper<SpDataAccessMode::WRITE, Tuple, Is...>(args, is);
+    }
+    
+    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathTy &ep, std::vector<const void*> &originalAddresses){
+        for(auto oa : originalAddresses) {
+            hashMap[oa] = ep;
+        }
+    }
+    
+    void removeOriginalAddressesFromHashMap(std::vector<const void*> &originalAddresses){
+        for(auto oa : originalAddresses) {
+            hashMap.erase(oa);
+        }
+    }
+    
     template <typename T>
     void addCallbackToTask(T& inTaskView, SpGeneralSpecGroup<SpecModel> *inSg) {
         inTaskView.addCallback([this, aTaskPtr = inTaskView.getTaskPtr(), specGroupPtr = inSg]
@@ -290,12 +405,97 @@ class SpRuntime : public SpAbstractToKnowReady {
                                 });
     }
     
+    template <typename T>
+    struct DescriptorIterators{
+        T beginIt;
+        T endIt;
+        T currentIt;
+        DescriptorIterators(T inBeginIt, T inEndIt, T inCurrentIt) : beginIt(inBeginIt), endIt(inEndIt), currentIt(inCurrentIt) {}
+    };
+    
     template <const bool isPotentialTask, class... ParamsAndTask>
     inline auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
-        auto res = preCoreTaskCreationAux<isPotentialTask>(inPriority, inProbability, params...);
+        auto tuple = std::forward_as_tuple(params...);
+		auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+        
+        auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
+        
+        ExecutionPathTy e;
+        
+        auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
+        auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
+        
+        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+            if(executionPaths.empty()) {
+                e = std::make_shared<std::vector<CopyMapTy>>();
+            }else{
+                e = executionPaths[0];
+            }
+        }else {
+            if(executionPaths.empty()) {
+                e = std::make_shared<std::vector<CopyMapTy>>();
+            }else if(executionPaths.size() == 1){
+                e = executionPaths[0];
+            }else{ // merge case
+                e = std::make_shared<std::vector<CopyMapTy>>();
+                
+                using ExecutionPathIteratorVectorTy = std::vector<DescriptorIterators<typename std::vector<CopyMapTy>::iterator>>;
+                
+                ExecutionPathIteratorVectorTy vectorExecutionPaths;
+                
+                for(auto &ep : executionPaths) {
+                    vectorExecutionPaths.push_back({ep->begin(), ep->end(), ep->begin()});
+                }
+                
+                std::vector<const void *> originalAddresses;
+                
+                auto it = vectorExecutionPaths.begin();
+                
+                while(true) {
+                    
+                    auto speculationBranchIt = e->emplace(e->end());
+                
+                    for(auto &ep : vectorExecutionPaths) {
+                        if(ep.currentIt != ep.endIt) {
+                            for(auto &cc : *ep.currentIt) {
+                                cc.second.isUnique = false;
+                                (*speculationBranchIt)[cc.first] = cc.second;
+                                originalAddresses.push_back(cc.first);
+                            }
+                        }
+                    }
+                    
+                    if(speculationBranchIt->empty()) {
+                        e->pop_back();
+                    }
+                    
+                    while(it != vectorExecutionPaths.end() && it->currentIt == it->endIt) {
+                        it->currentIt = it->beginIt;
+                        it++;
+                    }
+                    
+                    if(it != vectorExecutionPaths.end()) {
+                        it->currentIt++;
+                        it = vectorExecutionPaths.begin();
+                    }else {
+                        break;
+                    }
+                    
+                }
+                
+                std::sort(originalAddresses.begin(), originalAddresses.end());
+                originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
+                setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
+            }
+        }
+        
+        auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
+        
+        setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
+        removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
         
         specGroupMutex.unlock();
         scheduler.unlockListenersReadyMutex();
@@ -304,7 +504,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
-    inline auto preCoreTaskCreationAux(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
+    inline auto preCoreTaskCreationAux(std::vector<CopyMapTy> &copyMaps, const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         
         static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
                       || SpecModel == SpSpeculativeModel::SP_MODEL_2
@@ -669,7 +869,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         if(auto found = me->find(h1->castPtr<TargetParamType>()); found != me->end()) {
                             hasBeenFound = true;
-                            doCopy = found->second.usedInRead;
+                            doCopy = found->second.usedInRead || !found->second.isUnique;
                             break;
                         }
                     }
@@ -679,7 +879,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }else{ // if none of the above has been triggered, copy the data only if it has not already been duplicated
                     doCopy = true;
                     for(auto me : copyMapsToLookInto) {
-                        doCopy &= (me->find(h1->castPtr<TargetParamType>()) == me->end());
+                        auto f = me->find(h1->castPtr<TargetParamType>());
+                        doCopy &= (f == me->end() || !f->second.isUnique);
                     }
                     
                     mPtr = copyMapsToLookInto.back();
@@ -776,13 +977,14 @@ class SpRuntime : public SpAbstractToKnowReady {
                     SpCurrentCopy& cp = found->second;
                     assert(cp.latestAdress != ptr);
                     assert(cp.latestAdress);
-                    this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
-                                      SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                      [](TargetParamType& output){
+                    if(found->second.isUnique) {
+                        this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                          SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                          [](TargetParamType& output){
 
-                        delete &output;
-                    }).setTaskName("sp-delete");
-
+                            delete &output;
+                        }).setTaskName("sp-delete");
+                    }
                     copyMap.erase(found);
                 }
 
@@ -901,13 +1103,15 @@ class SpRuntime : public SpAbstractToKnowReady {
                     if(accessMode != SpDataAccessMode::READ){
                         assert(std::is_copy_assignable<TargetParamType>::value);
                         SpCurrentCopy& cp = found->second;
-                        assert(cp.latestAdress);
-                        this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
-                                          SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-                                          [ptr = cp.latestAdress](TargetParamType& output){
-                                                assert(ptr ==  &output);
-                                                delete &output;
-                                          }).setTaskName("sp-delete");
+                        if(found->second.isUnique) {
+                            assert(cp.latestAdress);
+                            this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                              SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                              [ptr = cp.latestAdress](TargetParamType& output){
+                                                    assert(ptr ==  &output);
+                                                    delete &output;
+                                              }).setTaskName("sp-delete");
+                        }
                         copyMapToLookInto.erase(found);
                      }
                 }
@@ -1131,7 +1335,9 @@ public:
         waitAllTasks();
         stopAllThreads();
         // free copies
-        releaseCopies();
+        for(auto &e : hashMap) {
+            releaseCopies(*(e.second));
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////
