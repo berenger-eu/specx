@@ -23,7 +23,7 @@ inline void GenerateDot(const std::string& outputFilename, const std::list<SpAbs
     }
 
     outputWriter << "digraph G {\n";
-
+    
     std::vector<SpAbstractTask*> deps;
 
     for(const auto& atask : tasksFinished){

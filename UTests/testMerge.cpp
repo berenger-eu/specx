@@ -28,13 +28,15 @@ class TestMerge : public UTester< TestMerge > {
         int a=0, b=0;
 
         std::promise<bool> promise1;
+        std::promise<bool> promise2;
 
         runtime.potentialTask(SpMaybeWrite(a), [&promise1](int& param_a){
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpMaybeWrite(b), [](int& param_b){
+        runtime.potentialTask(SpMaybeWrite(b), [&promise2](int& param_b){
+            promise2.get_future().get();
             return false;
         });
         
@@ -43,6 +45,7 @@ class TestMerge : public UTester< TestMerge > {
         });
         
         promise1.set_value(true);
+        promise2.set_value(true);
 
         runtime.waitAllTasks();
         runtime.stopAllThreads();

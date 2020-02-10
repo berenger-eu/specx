@@ -160,6 +160,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     using CopyMapPtrTy = CopyMapTy*;
     
     CopyMapTy emptyCopyMap;
+    std::vector<CopyMapTy> cpMaps;
     SpGeneralSpecGroup<SpecModel>* currentSpecGroup;
     std::list<std::unique_ptr<SpGeneralSpecGroup<SpecModel>>> specGroups;
     std::mutex specGroupMutex;
@@ -418,23 +419,17 @@ class SpRuntime : public SpAbstractToKnowReady {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
-        auto tuple = std::forward_as_tuple(params...);
-		auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+            auto tuple = std::forward_as_tuple(params...);
+            auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+            
+            auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
         
-        auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
-        
-        ExecutionPathTy e;
-        
-        auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
-        auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
-        
-        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
-            if(executionPaths.empty()) {
-                e = std::make_shared<std::vector<CopyMapTy>>();
-            }else{
-                e = executionPaths[0];
-            }
-        }else {
+            ExecutionPathTy e;
+            
+            auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
+            auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
+            
             if(executionPaths.empty()) {
                 e = std::make_shared<std::vector<CopyMapTy>>();
             }else if(executionPaths.size() == 1){
@@ -490,17 +485,27 @@ class SpRuntime : public SpAbstractToKnowReady {
                 originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
                 setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
             }
+            
+            auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
+        
+            setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
+            removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
+            
+            specGroupMutex.unlock();
+            scheduler.unlockListenersReadyMutex();
+        
+            return res;
+        }else {
+            if(cpMaps.empty()) {
+                cpMaps.emplace_back();
+            }
+            auto res = preCoreTaskCreationAux<isPotentialTask>(cpMaps, inPriority, inProbability, params...);
+            
+            specGroupMutex.unlock();
+            scheduler.unlockListenersReadyMutex();
+        
+            return res;
         }
-        
-        auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
-        
-        setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
-        removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
-        
-        specGroupMutex.unlock();
-        scheduler.unlockListenersReadyMutex();
-        
-        return res;
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
@@ -792,9 +797,12 @@ class SpRuntime : public SpAbstractToKnowReady {
         const TargetParamType* originPtr = &objectToCopy;
         const TargetParamType* sourcePtr = originPtr;
         
+        bool cpIsUnique = true;
+        
         // Use the latest version of the data
         if(auto found = copyMapToLookInto.find(originPtr) ; found != copyMapToLookInto.end()){
             assert(found->second.latestAdress);
+            cpIsUnique = found->second.isUnique;
             sourcePtr = reinterpret_cast<TargetParamType*>(found->second.latestAdress);
         }
 
@@ -808,9 +816,11 @@ class SpRuntime : public SpAbstractToKnowReady {
                 SpDebugPrint() << "SpRuntime -- coreCopyCreationCore -- execute copy from " << &input << " to " << &output;
                 output = input;
         });
+        
         taskView.setTaskName("sp-copy");
 
         SpCurrentCopy cp;
+        cp.isUnique = cpIsUnique;
         cp.latestAdress = ptr;
         cp.latestCopyTask = taskView.getTaskPtr();
         cp.lastestSpecGroup = currentSpecGroup;
@@ -879,8 +889,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }else{ // if none of the above has been triggered, copy the data only if it has not already been duplicated
                     doCopy = true;
                     for(auto me : copyMapsToLookInto) {
-                        auto f = me->find(h1->castPtr<TargetParamType>());
-                        doCopy &= (f == me->end() || !f->second.isUnique);
+                        doCopy &= me->find(h1->castPtr<TargetParamType>()) == me->end();
                     }
                     
                     mPtr = copyMapsToLookInto.back();
