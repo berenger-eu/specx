@@ -50,7 +50,7 @@ class TestMerge : public UTester< TestMerge > {
         runtime.waitAllTasks();
         runtime.stopAllThreads();
 
-        runtime.generateDot("/tmp/testMerge" + std::to_string(static_cast<int>(Spm)) + ".dot");
+        runtime.generateDot("/tmp/testMerge" + std::to_string(static_cast<int>(Spm)) + ".dot", true);
     }
     
     void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }

@@ -331,6 +331,20 @@ public:
         
         return true;
     }
+    
+    std::string getTaskBodyString() override {
+        
+        std::ostringstream os;
+        
+        for(size_t i=0; i < NbParams; i++) {
+            os << SpModeToStr(dataHandles[i]->getModeByTask(dataHandlesKeys[i])) << " " << dataHandles[i]->getRawPtr() << std::endl;
+        }
+        
+        for(size_t i=0; i < dataHandlesExtra.size(); i++) {
+            os << SpModeToStr(dataHandlesExtra[i]->getModeByTask(dataHandlesKeysExtra[i])) << " " << dataHandlesExtra[i]->getRawPtr() << std::endl;
+        }
+        return os.str();
+    }
 };
 
 template <class TaskFuncType, class RetType, class ... Params>

@@ -116,6 +116,7 @@ public:
     virtual bool hasMode(const SpDataAccessMode inMode) const = 0;
     virtual std::vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const = 0;
     virtual void executeCallback() = 0;
+    virtual std::string getTaskBodyString() = 0;
 
     void useDependences() {
         useDependences(nullptr);

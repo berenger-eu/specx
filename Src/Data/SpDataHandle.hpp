@@ -44,6 +44,10 @@ public:
     SpDataHandle(SpDataHandle&&) = delete;
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
+    
+    void *getRawPtr() {
+        return ptrToData;
+    }
 
     //! Convert to pointer to Datatype
     template <class Datatype>
@@ -185,7 +189,12 @@ public:
                 }
             }
             else{
-                dependencesOnData[afterIdx+1].fillWithTaskList(dependences);
+                long int skipConcatDeps = afterIdx+1;
+                do{
+                    dependencesOnData[skipConcatDeps].fillWithTaskList(dependences);
+                    skipConcatDeps += 1;
+                } while(skipConcatDeps != static_cast<long int>(dependencesOnData.size())
+                      && dependencesOnData[skipConcatDeps-1].getMode() == dependencesOnData[skipConcatDeps].getMode());
             }
         }
     }

@@ -14,7 +14,7 @@
 
 namespace SpDotDag {
 
-inline void GenerateDot(const std::string& outputFilename, const std::list<SpAbstractTask*>& tasksFinished) {
+inline void GenerateDot(const std::string& outputFilename, const std::list<SpAbstractTask*>& tasksFinished, bool printAccesses) {
     // dot -Tpdf /tmp/graph.dot -o /tmp/fichier.pdf
     std::ofstream outputWriter(outputFilename);
 
@@ -38,7 +38,14 @@ inline void GenerateDot(const std::string& outputFilename, const std::list<SpAbs
             }
         }
 
-        outputWriter << "\t" << atask->getId() << " [label=\"" << atask->getTaskName() << (atask->isTaskEnabled()?"":" (Disabled)") << "\"];\n";
+        outputWriter << "\t" << atask->getId() << " [label=\"" << atask->getTaskName() << (atask->isTaskEnabled()?"":" (Disabled)");
+        
+        if(printAccesses) {
+            outputWriter << std::endl << atask->getTaskBodyString() << "\"];\n";
+        } else {
+            outputWriter << "\"];\n";
+        }
+        
         deps.clear();
     }
 

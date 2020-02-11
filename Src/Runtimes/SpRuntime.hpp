@@ -1416,8 +1416,8 @@ public:
     /// Output
     ///////////////////////////////////////////////////////////////////////////
 
-    void generateDot(const std::string& outputFilename) const {
-        SpDotDag::GenerateDot(outputFilename, scheduler.getFinishedTaskList());
+    void generateDot(const std::string& outputFilename, bool printAccesses=false) const {
+        SpDotDag::GenerateDot(outputFilename, scheduler.getFinishedTaskList(), printAccesses);
     }
 
 
