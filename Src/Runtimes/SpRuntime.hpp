@@ -137,22 +137,21 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     struct SpCurrentCopy{
         SpCurrentCopy()
-            : isUnique(true), originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
-              latestCopyTask(nullptr), usedInRead(false){
+            : originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
+              latestCopyTask(nullptr), usedInRead(false), numberOfCopies(std::make_shared<size_t>(0)) {
         }
 
         bool isDefined() const{
             return originAdress != nullptr;
         }
-
-        bool isUnique;
+        
         void* originAdress;
         void* sourceAdress;
         void* latestAdress;
         SpGeneralSpecGroup<SpecModel>* lastestSpecGroup;
         SpAbstractTask* latestCopyTask;
         bool usedInRead;
-
+        std::shared_ptr<size_t> numberOfCopies;
         std::shared_ptr<SpAbstractDeleter> deleter;
     };
     
@@ -173,7 +172,9 @@ class SpRuntime : public SpAbstractToKnowReady {
             for(auto &iter : copyMapIt) {
                 assert(iter.second.latestAdress);
                 assert(iter.second.deleter);
-                iter.second.deleter->deleteObject(iter.second.latestAdress);
+                if(*(iter.second.numberOfCopies) <= 1) {
+                    iter.second.deleter->deleteObject(iter.second.latestAdress);
+                }
             }
             copyMapIt.clear();
         }
@@ -456,7 +457,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     for(auto &ep : vectorExecutionPaths) {
                         if(ep.currentIt != ep.endIt) {
                             for(auto &cc : *ep.currentIt) {
-                                cc.second.isUnique = false;
+                                (*cc.second.numberOfCopies)++;
                                 (*speculationBranchIt)[cc.first] = cc.second;
                                 originalAddresses.push_back(cc.first);
                             }
@@ -591,6 +592,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                     selectTaskCreationFunctions.insert(selectTaskCreationFunctions.end(), functions.begin(), functions.end());
                     
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
+                    removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
+                    
+                    std::cout << "********" << std::endl;
                     
                     specGroups.emplace_back(std::move(specGroupSpecTask));
                     
@@ -797,12 +801,9 @@ class SpRuntime : public SpAbstractToKnowReady {
         const TargetParamType* originPtr = &objectToCopy;
         const TargetParamType* sourcePtr = originPtr;
         
-        bool cpIsUnique = true;
-        
         // Use the latest version of the data
         if(auto found = copyMapToLookInto.find(originPtr) ; found != copyMapToLookInto.end()){
             assert(found->second.latestAdress);
-            cpIsUnique = found->second.isUnique;
             sourcePtr = reinterpret_cast<TargetParamType*>(found->second.latestAdress);
         }
 
@@ -819,8 +820,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         taskView.setTaskName("sp-copy");
 
-        SpCurrentCopy cp;
-        cp.isUnique = cpIsUnique;
+        SpCurrentCopy cp{};
         cp.latestAdress = ptr;
         cp.latestCopyTask = taskView.getTaskPtr();
         cp.lastestSpecGroup = currentSpecGroup;
@@ -879,7 +879,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         if(auto found = me->find(h1->castPtr<TargetParamType>()); found != me->end()) {
                             hasBeenFound = true;
-                            doCopy = found->second.usedInRead || !found->second.isUnique;
+                            doCopy = found->second.usedInRead || *(found->second.numberOfCopies) >= 1;
                             break;
                         }
                     }
@@ -986,13 +986,16 @@ class SpRuntime : public SpAbstractToKnowReady {
                     SpCurrentCopy& cp = found->second;
                     assert(cp.latestAdress != ptr);
                     assert(cp.latestAdress);
-                    if(found->second.isUnique) {
+                    if(*(found->second.numberOfCopies) <= 1) {
+                        std::cout << "delete " << cp.latestAdress << std::endl;
                         this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
                                           SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
                                           [](TargetParamType& output){
 
                             delete &output;
                         }).setTaskName("sp-delete");
+                    }else {
+                        (*found->second.numberOfCopies)--;
                     }
                     copyMap.erase(found);
                 }
@@ -1112,7 +1115,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                     if(accessMode != SpDataAccessMode::READ){
                         assert(std::is_copy_assignable<TargetParamType>::value);
                         SpCurrentCopy& cp = found->second;
-                        if(found->second.isUnique) {
+                        if(*(found->second.numberOfCopies) <= 1) {
+                            std::cout << "delete " << cp.latestAdress << std::endl;
                             assert(cp.latestAdress);
                             this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
                                               SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
@@ -1120,6 +1124,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                                                     assert(ptr ==  &output);
                                                     delete &output;
                                               }).setTaskName("sp-delete");
+                        }else{
+                            (*found->second.numberOfCopies)--;
                         }
                         copyMapToLookInto.erase(found);
                      }

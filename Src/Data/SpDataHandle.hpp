@@ -190,10 +190,12 @@ public:
             }
             else{
                 long int skipConcatDeps = afterIdx+1;
-                do{
+                bool isCommutativeAccess = dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::WRITE
+                                            && dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::MAYBE_WRITE;
+                do {
                     dependencesOnData[skipConcatDeps].fillWithTaskList(dependences);
                     skipConcatDeps += 1;
-                } while(skipConcatDeps != static_cast<long int>(dependencesOnData.size())
+                }while(isCommutativeAccess && skipConcatDeps != static_cast<long int>(dependencesOnData.size())
                       && dependencesOnData[skipConcatDeps-1].getMode() == dependencesOnData[skipConcatDeps].getMode());
             }
         }
