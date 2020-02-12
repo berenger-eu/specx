@@ -138,7 +138,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     struct SpCurrentCopy{
         SpCurrentCopy()
             : originAdress(nullptr), sourceAdress(nullptr), latestAdress(nullptr), lastestSpecGroup(nullptr),
-              latestCopyTask(nullptr), usedInRead(false), numberOfCopies(std::make_shared<size_t>(0)) {
+              latestCopyTask(nullptr), usedInRead(false), isUniquePtr(std::make_shared<bool>(true)) {
         }
 
         bool isDefined() const{
@@ -151,7 +151,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         SpGeneralSpecGroup<SpecModel>* lastestSpecGroup;
         SpAbstractTask* latestCopyTask;
         bool usedInRead;
-        std::shared_ptr<size_t> numberOfCopies;
+        std::shared_ptr<bool> isUniquePtr;
         std::shared_ptr<SpAbstractDeleter> deleter;
     };
     
@@ -164,15 +164,16 @@ class SpRuntime : public SpAbstractToKnowReady {
     std::list<std::unique_ptr<SpGeneralSpecGroup<SpecModel>>> specGroups;
     std::mutex specGroupMutex;
     
-    std::unordered_map<const void*, std::shared_ptr<std::vector<CopyMapTy>>> hashMap;
-    using ExecutionPathTy = std::shared_ptr<std::vector<CopyMapTy>>;
+    using ExecutionPathWeakPtrTy = std::weak_ptr<std::vector<CopyMapTy>>;
+    using ExecutionPathSharedPtrTy = std::shared_ptr<std::vector<CopyMapTy>>;
+    std::unordered_map<const void*, ExecutionPathSharedPtrTy> hashMap;
 
     void releaseCopies(std::vector<CopyMapTy> &copyMaps){
         for(auto& copyMapIt : copyMaps){
             for(auto &iter : copyMapIt) {
                 assert(iter.second.latestAdress);
                 assert(iter.second.deleter);
-                if(*(iter.second.numberOfCopies) <= 1) {
+                if(iter.second.isUniquePtr.use_count() == 1) {
                     iter.second.deleter->deleteObject(iter.second.latestAdress);
                 }
             }
@@ -281,7 +282,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
-        std::vector<ExecutionPathTy> res;
+        std::vector<ExecutionPathWeakPtrTy> res;
 
         auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
@@ -303,23 +304,31 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t... Is>
-    std::vector<ExecutionPathTy> getCorrespondingExecutionPaths(Tuple& args, std::index_sequence<Is...>){
+    auto getCorrespondingExecutionPaths(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
-        std::vector<ExecutionPathTy> result;
+        std::vector<ExecutionPathWeakPtrTy> result;
         
         if(hashMap.empty()) {
             return result;
         }
         
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::vector<ExecutionPathTy> &res, std::vector<ExecutionPathTy>&& e) {
+            ([](std::vector<ExecutionPathWeakPtrTy> &res, std::vector<ExecutionPathWeakPtrTy>&& e) {
                 res.insert(res.end(), e.begin(), e.end());
             }(result, coreGetCorrespondingExecutionPaths<Tuple, Is>(args)), ...);
         }
         
-        std::sort(result.begin(), result.end());
-        result.erase(std::unique(result.begin(), result.end()), result.end());
+        auto sortLambda = [] (ExecutionPathWeakPtrTy &a, ExecutionPathWeakPtrTy &b) {
+                                    return a.lock() < b.lock();
+                             };
+        
+        auto uniqueLambda = [] (ExecutionPathWeakPtrTy &a, ExecutionPathWeakPtrTy &b) {
+                                    return a.lock() == b.lock();
+                             };
+        
+        std::sort(result.begin(), result.end(), sortLambda);
+        result.erase(std::unique(result.begin(), result.end(), uniqueLambda), result.end());
 
         return result;
     }
@@ -376,7 +385,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         return getOriginalAddressesOfHandlesWrapper<SpDataAccessMode::WRITE, Tuple, Is...>(args, is);
     }
     
-    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathTy &ep, std::vector<const void*> &originalAddresses){
+    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathSharedPtrTy &ep, std::vector<const void*> &originalAddresses){
         for(auto oa : originalAddresses) {
             hashMap[oa] = ep;
         }
@@ -426,7 +435,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
         
-            ExecutionPathTy e;
+            ExecutionPathSharedPtrTy e;
             
             auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
             auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
@@ -434,7 +443,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             if(executionPaths.empty()) {
                 e = std::make_shared<std::vector<CopyMapTy>>();
             }else if(executionPaths.size() == 1){
-                e = executionPaths[0];
+                e = executionPaths[0].lock();
             }else{ // merge case
                 e = std::make_shared<std::vector<CopyMapTy>>();
                 
@@ -443,7 +452,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                 ExecutionPathIteratorVectorTy vectorExecutionPaths;
                 
                 for(auto &ep : executionPaths) {
-                    vectorExecutionPaths.push_back({ep->begin(), ep->end(), ep->begin()});
+                    vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
                 }
                 
                 std::vector<const void *> originalAddresses;
@@ -457,7 +466,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                     for(auto &ep : vectorExecutionPaths) {
                         if(ep.currentIt != ep.endIt) {
                             for(auto &cc : *ep.currentIt) {
-                                (*cc.second.numberOfCopies)++;
                                 (*speculationBranchIt)[cc.first] = cc.second;
                                 originalAddresses.push_back(cc.first);
                             }
@@ -593,8 +601,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                     
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                     removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
-                    
-                    std::cout << "********" << std::endl;
                     
                     specGroups.emplace_back(std::move(specGroupSpecTask));
                     
@@ -879,7 +885,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                         
                         if(auto found = me->find(h1->castPtr<TargetParamType>()); found != me->end()) {
                             hasBeenFound = true;
-                            doCopy = found->second.usedInRead || *(found->second.numberOfCopies) >= 1;
+                            doCopy = found->second.usedInRead || found->second.isUniquePtr.use_count() > 1 || *(found->second.isUniquePtr) == false;
                             break;
                         }
                     }
@@ -986,8 +992,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     SpCurrentCopy& cp = found->second;
                     assert(cp.latestAdress != ptr);
                     assert(cp.latestAdress);
-                    if(*(found->second.numberOfCopies) <= 1) {
-                        std::cout << "delete " << cp.latestAdress << std::endl;
+                    if(found->second.isUniquePtr.use_count() == 1) {
                         this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
                                           SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
                                           [](TargetParamType& output){
@@ -995,7 +1000,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                             delete &output;
                         }).setTaskName("sp-delete");
                     }else {
-                        (*found->second.numberOfCopies)--;
+                        *(found->second.isUniquePtr) = false;
                     }
                     copyMap.erase(found);
                 }
@@ -1115,8 +1120,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     if(accessMode != SpDataAccessMode::READ){
                         assert(std::is_copy_assignable<TargetParamType>::value);
                         SpCurrentCopy& cp = found->second;
-                        if(*(found->second.numberOfCopies) <= 1) {
-                            std::cout << "delete " << cp.latestAdress << std::endl;
+                        if(found->second.isUniquePtr.use_count() == 1) {
                             assert(cp.latestAdress);
                             this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
                                               SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
@@ -1124,8 +1128,8 @@ class SpRuntime : public SpAbstractToKnowReady {
                                                     assert(ptr ==  &output);
                                                     delete &output;
                                               }).setTaskName("sp-delete");
-                        }else{
-                            (*found->second.numberOfCopies)--;
+                        }else {
+                            *(found->second.isUniquePtr) = false;
                         }
                         copyMapToLookInto.erase(found);
                      }
