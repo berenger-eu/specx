@@ -159,7 +159,6 @@ class SpRuntime : public SpAbstractToKnowReady {
     using CopyMapPtrTy = CopyMapTy*;
     
     CopyMapTy emptyCopyMap;
-    std::vector<CopyMapTy> cpMaps;
     SpGeneralSpecGroup<SpecModel>* currentSpecGroup;
     std::list<std::unique_ptr<SpGeneralSpecGroup<SpecModel>>> specGroups;
     std::mutex specGroupMutex;
@@ -429,92 +428,98 @@ class SpRuntime : public SpAbstractToKnowReady {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
-        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-            auto tuple = std::forward_as_tuple(params...);
-            auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-            
-            auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
+        auto tuple = std::forward_as_tuple(params...);
+        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         
-            ExecutionPathSharedPtrTy e;
+        auto executionPaths = getCorrespondingExecutionPaths(tuple, sequenceParamsNoFunction);
+    
+        ExecutionPathSharedPtrTy e;
+        
+        auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
+        auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
+        
+        if(executionPaths.empty()) {
+            e = std::make_shared<std::vector<CopyMapTy>>();
+        }else if(executionPaths.size() == 1){
+            e = executionPaths[0].lock();
+        }else{ // merge case
+            e = std::make_shared<std::vector<CopyMapTy>>();
             
-            auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
-            auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
+            using ExecutionPathIteratorVectorTy = std::vector<DescriptorIterators<typename std::vector<CopyMapTy>::iterator>>;
             
-            if(executionPaths.empty()) {
-                e = std::make_shared<std::vector<CopyMapTy>>();
-            }else if(executionPaths.size() == 1){
-                e = executionPaths[0].lock();
-            }else{ // merge case
-                e = std::make_shared<std::vector<CopyMapTy>>();
+            ExecutionPathIteratorVectorTy vectorExecutionPaths;
+            
+            for(auto &ep : executionPaths) {
+                vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
+            }
+            
+            std::vector<const void *> originalAddresses;
+            
+            auto it = vectorExecutionPaths.begin();
+            
+            while(true) {
                 
-                using ExecutionPathIteratorVectorTy = std::vector<DescriptorIterators<typename std::vector<CopyMapTy>::iterator>>;
-                
-                ExecutionPathIteratorVectorTy vectorExecutionPaths;
-                
-                for(auto &ep : executionPaths) {
-                    vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
-                }
-                
-                std::vector<const void *> originalAddresses;
-                
-                auto it = vectorExecutionPaths.begin();
-                
-                while(true) {
-                    
-                    auto speculationBranchIt = e->emplace(e->end());
-                
-                    for(auto &ep : vectorExecutionPaths) {
-                        if(ep.currentIt != ep.endIt) {
-                            for(auto &cc : *ep.currentIt) {
-                                (*speculationBranchIt)[cc.first] = cc.second;
-                                originalAddresses.push_back(cc.first);
-                            }
+                auto speculationBranchIt = e->emplace(e->end());
+            
+                for(auto &ep : vectorExecutionPaths) {
+                    if(ep.currentIt != ep.endIt) {
+                        for(auto &cc : *ep.currentIt) {
+                            (*speculationBranchIt)[cc.first] = cc.second;
+                            originalAddresses.push_back(cc.first);
                         }
                     }
-                    
-                    if(speculationBranchIt->empty()) {
-                        e->pop_back();
-                    }
-                    
-                    while(it != vectorExecutionPaths.end() && it->currentIt == it->endIt) {
-                        it->currentIt = it->beginIt;
-                        it++;
-                    }
-                    
-                    if(it != vectorExecutionPaths.end()) {
-                        it->currentIt++;
-                        it = vectorExecutionPaths.begin();
-                    }else {
-                        break;
-                    }
-                    
                 }
                 
-                std::sort(originalAddresses.begin(), originalAddresses.end());
-                originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
-                setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
+                if(speculationBranchIt->empty()) {
+                    e->pop_back();
+                }
+                
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    break;
+                }
+                
+                while(it != vectorExecutionPaths.end() && it->currentIt == it->endIt) {
+                    it->currentIt = it->beginIt;
+                    it++;
+                }
+                
+                if(it != vectorExecutionPaths.end()) {
+                    it->currentIt++;
+                    it = vectorExecutionPaths.begin();
+                }else {
+                    break;
+                }
             }
             
-            auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
-        
-            setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
-            removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
-            
-            specGroupMutex.unlock();
-            scheduler.unlockListenersReadyMutex();
-        
-            return res;
-        }else {
-            if(cpMaps.empty()) {
-                cpMaps.emplace_back();
-            }
-            auto res = preCoreTaskCreationAux<isPotentialTask>(cpMaps, inPriority, inProbability, params...);
-            
-            specGroupMutex.unlock();
-            scheduler.unlockListenersReadyMutex();
-        
-            return res;
+            std::sort(originalAddresses.begin(), originalAddresses.end());
+            originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
+            setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
         }
+        
+        auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
+        
+        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
+            // remove mappings for all previously created execution paths
+            for(auto &elt : hashMap) {
+                auto findLambda = [&elt](ExecutionPathWeakPtrTy &wp) {
+                    return wp.lock() == elt.second;
+                };
+                if(std::find_if(executionPaths.begin(), executionPaths.end(), findLambda) != executionPaths.end()) {
+                    hashMap.erase(elt.first);
+                }
+            }
+        }
+    
+        setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
+        
+        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+            removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
+        }
+        
+        specGroupMutex.unlock();
+        scheduler.unlockListenersReadyMutex();
+    
+        return res;
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
@@ -618,6 +623,11 @@ class SpRuntime : public SpAbstractToKnowReady {
                 }
             }else {
                 it = copyMaps.emplace(copyMaps.end());
+            }
+            
+            if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
+                // delete all prexisting copies
+                 
             }
             
             std::unique_ptr<SpGeneralSpecGroup<SpecModel>> specGroupNormalTask = std::make_unique<SpGeneralSpecGroup<SpecModel>>(!speculativeTasks.empty(), numberOfSpeculativeSiblingSpecGroupsCounter);
