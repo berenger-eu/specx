@@ -444,6 +444,8 @@ class SpRuntime : public SpAbstractToKnowReady {
     
         ExecutionPathSharedPtrTy e;
         
+        std::vector<const void *> originalAddresses;
+        
         auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesInMaybeWriteAccessMode(tuple, sequenceParamsNoFunction);
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesInWriteAccessMode(tuple, sequenceParamsNoFunction);
         
@@ -461,8 +463,6 @@ class SpRuntime : public SpAbstractToKnowReady {
             for(auto &ep : executionPaths) {
                 vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
             }
-            
-            std::vector<const void *> originalAddresses;
             
             auto it = vectorExecutionPaths.begin();
             
@@ -502,24 +502,17 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             std::sort(originalAddresses.begin(), originalAddresses.end());
             originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
-            setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
+            
+            if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+                setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
+            }
+        }
+        
+        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+            removeOriginalAddressesFromHashMap(originalAddresses);
         }
         
         auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
-        
-        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
-            // remove mappings for all previously created execution paths
-            for(auto it = hashMap.cbegin(); it != hashMap.cend();) {
-                auto findLambda = [&it](ExecutionPathWeakPtrTy &wp) {
-                    return wp.lock() == it->second;
-                };
-                if(std::find_if(executionPaths.begin(), executionPaths.end(), findLambda) != executionPaths.end()) {
-                    it = hashMap.erase(it);
-                }else {
-                    it++;
-                }
-            }
-        }
     
         setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
         
