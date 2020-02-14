@@ -123,6 +123,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     public:
         virtual ~SpAbstractDeleter(){}
         virtual void deleteObject(void* ptr) = 0;
+        virtual void createDeleteTaskForObject(SpRuntime &rt, void *ptr) = 0;
     };
 
     template <class ObjectType>
@@ -132,6 +133,14 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         void deleteObject(void* ptr) override final{
             delete reinterpret_cast<ObjectType*>(ptr);
+        }
+        
+        void createDeleteTaskForObject(SpRuntime<SpecModel> &rt, void *ptr) override final{
+            rt.taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(rt.emptyCopyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
+                            SpWrite(*reinterpret_cast<ObjectType*>(ptr)),
+                            [](ObjectType& output){
+                                delete &output;
+                            }).setTaskName("sp-delete");
         }
     };
 
@@ -500,12 +509,14 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
             // remove mappings for all previously created execution paths
-            for(auto &elt : hashMap) {
-                auto findLambda = [&elt](ExecutionPathWeakPtrTy &wp) {
-                    return wp.lock() == elt.second;
+            for(auto it = hashMap.cbegin(); it != hashMap.cend();) {
+                auto findLambda = [&it](ExecutionPathWeakPtrTy &wp) {
+                    return wp.lock() == it->second;
                 };
                 if(std::find_if(executionPaths.begin(), executionPaths.end(), findLambda) != executionPaths.end()) {
-                    hashMap.erase(elt.first);
+                    it = hashMap.erase(it);
+                }else {
+                    it++;
                 }
             }
         }
@@ -626,8 +637,10 @@ class SpRuntime : public SpAbstractToKnowReady {
             }
             
             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
-                // delete all prexisting copies
-                 
+                for(auto &e : *it) {
+                    e.second.deleter->createDeleteTaskForObject(*this, e.second.latestAdress);
+                }
+                it->clear();
             }
             
             std::unique_ptr<SpGeneralSpecGroup<SpecModel>> specGroupNormalTask = std::make_unique<SpGeneralSpecGroup<SpecModel>>(!speculativeTasks.empty(), numberOfSpeculativeSiblingSpecGroupsCounter);
