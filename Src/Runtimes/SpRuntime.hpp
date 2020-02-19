@@ -503,18 +503,22 @@ class SpRuntime : public SpAbstractToKnowReady {
             
                 for(auto &ep : vectorExecutionPaths) {
                     if(ep.currentIt != ep.endIt) {
-                        for(auto &cc : *ep.currentIt) {
+                        for(auto mIt = ep.currentIt->cbegin(); mIt != ep.currentIt->cend();) {
+                            
                             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
-                                if(isUsedByTask(cc.first, tuple, sequenceParamsNoFunction)) {
-                                    (*speculationBranchIt)[cc.first] = cc.second;
-                                    originalAddresses.push_back(cc.first);
-                                }else {
-                                    cc.second.deleter->createDeleteTaskForObject(*this, cc.second.latestAdress);
-                                    originalAddresses.push_back(cc.first);
+                                if(isUsedByTask(mIt->first, tuple, sequenceParamsNoFunction)) {
+                                    (*speculationBranchIt)[mIt->first] = mIt->second;
+                                    originalAddresses.push_back(mIt->first);
+                                    mIt++;
+                                }else{
+                                    originalAddresses.push_back(mIt->first);
+                                    mIt->second.deleter->createDeleteTaskForObject(*this, mIt->second.latestAdress);
+                                    mIt = ep.currentIt->erase(mIt);
                                 }
                             }else {
-                                (*speculationBranchIt)[cc.first] = cc.second;
-                                originalAddresses.push_back(cc.first);
+                                (*speculationBranchIt)[mIt->first] = mIt->second;
+                                originalAddresses.push_back(mIt->first);
+                                mIt++;
                             }
                         }
                     }

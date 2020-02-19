@@ -14,8 +14,8 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-class TestMerge : public UTester< TestMerge > {
-    using Parent = UTester< TestMerge >;
+class TestPartialMerge : public UTester< TestPartialMerge > {
+    using Parent = UTester< TestPartialMerge >;
     
     template <SpSpeculativeModel Spm>
     void Test(){
@@ -25,29 +25,29 @@ class TestMerge : public UTester< TestMerge > {
             return true;
         });
         
-        int a=0, b=0;
+        int a=0, b=0, c=0;
 
         std::promise<bool> promise1;
 
-        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int& param_a){
+        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(b), [&promise1](int& param_a, int& param_b){
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpMaybeWrite(b), [](int& param_b){
+        runtime.potentialTask(SpMaybeWrite(c), [](int& param_c){
             return false;
         });
         
-        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(b), [](int& param_a, int& param_b){
+        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(c), [](int& param_a, int& param_c){
             return false;
         });
         
         promise1.set_value(true);
-        
+
         runtime.waitAllTasks();
         runtime.stopAllThreads();
 
-        runtime.generateDot("/tmp/testMerge" + std::to_string(static_cast<int>(Spm)) + ".dot", true);
+        runtime.generateDot("/tmp/testPartialMerge" + std::to_string(static_cast<int>(Spm)) + ".dot", true);
     }
     
     void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }
@@ -55,13 +55,13 @@ class TestMerge : public UTester< TestMerge > {
     void Test3() { Test<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestMerge::Test1, "Basic merge test for model 1");
-        Parent::AddTest(&TestMerge::Test2, "Basic merge test for model 2");
-        Parent::AddTest(&TestMerge::Test3, "Basic merge test for model 3");
+        Parent::AddTest(&TestPartialMerge::Test1, "Partial merge test for model 1");
+        Parent::AddTest(&TestPartialMerge::Test2, "Partial merge test for model 2");
+        Parent::AddTest(&TestPartialMerge::Test3, "Partial merge test for model 3");
     }
 };
 
 // You must do this
-TestClass(TestMerge)
+TestClass(TestPartialMerge)
 
 
