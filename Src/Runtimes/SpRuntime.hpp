@@ -405,6 +405,37 @@ class SpRuntime : public SpAbstractToKnowReady {
         }
     }
     
+    template <class Tuple, std::size_t IdxData>
+    bool coreIsUsedByTask(const void *inPtr, Tuple& args) {
+        using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
+        auto& scalarOrContainerData = std::get<IdxData>(args);
+        
+        bool res = false;
+        
+        auto hh = getDataHandle(scalarOrContainerData);
+        assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+        long int indexHh = 0;
+        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+            assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+            assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
+            if(ptr == inPtr) {
+                res = true;
+                break;
+            }
+        }
+        
+        return res;
+    }
+    
+    template <class Tuple, std::size_t... Is>
+    bool isUsedByTask(const void * inPtr, Tuple& args, std::index_sequence<Is...>) {
+        if constexpr(sizeof...(Is) > 0) {
+            return (false || ... || coreIsUsedByTask<Tuple, Is>(inPtr, args));
+        }else {
+            return false;
+        }
+    }
+    
     template <typename T>
     void addCallbackToTask(T& inTaskView, SpGeneralSpecGroup<SpecModel> *inSg) {
         inTaskView.addCallback([this, aTaskPtr = inTaskView.getTaskPtr(), specGroupPtr = inSg]
@@ -473,8 +504,18 @@ class SpRuntime : public SpAbstractToKnowReady {
                 for(auto &ep : vectorExecutionPaths) {
                     if(ep.currentIt != ep.endIt) {
                         for(auto &cc : *ep.currentIt) {
-                            (*speculationBranchIt)[cc.first] = cc.second;
-                            originalAddresses.push_back(cc.first);
+                            if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                                if(isUsedByTask(cc.first, tuple, sequenceParamsNoFunction)) {
+                                    (*speculationBranchIt)[cc.first] = cc.second;
+                                    originalAddresses.push_back(cc.first);
+                                }else {
+                                    cc.second.deleter->createDeleteTaskForObject(*this, cc.second.latestAdress);
+                                    originalAddresses.push_back(cc.first);
+                                }
+                            }else {
+                                (*speculationBranchIt)[cc.first] = cc.second;
+                                originalAddresses.push_back(cc.first);
+                            }
                         }
                     }
                 }
@@ -503,21 +544,29 @@ class SpRuntime : public SpAbstractToKnowReady {
             std::sort(originalAddresses.begin(), originalAddresses.end());
             originalAddresses.erase(std::unique(originalAddresses.begin(), originalAddresses.end()), originalAddresses.end());
             
-            if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+            if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
                 setExecutionPathForOriginalAddressesInHashMap(e, originalAddresses);
+            }else if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                removeOriginalAddressesFromHashMap(originalAddresses);
             }
         }
         
-        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
             removeOriginalAddressesFromHashMap(originalAddresses);
         }
         
         auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
-    
-        setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
         
-        if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_2) {
+        if constexpr(isPotentialTask) {
+            setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
+        }
+        
+        if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
             removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
+        }else if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+            if(executionPaths.size() == 1) {
+                removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
+            }
         }
         
         specGroupMutex.unlock();
