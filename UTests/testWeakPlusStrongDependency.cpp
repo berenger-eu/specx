@@ -26,12 +26,12 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
             return true;
         });
 
-        runtime.potentialTask(SpMaybeWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
+        runtime.task(SpMaybeWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), SpWrite(c), [](const int &param_a, int &param_b, int &param_c) -> bool{
+        runtime.task(SpRead(a), SpMaybeWrite(b), SpWrite(c), [](const int &param_a, int &param_b, int &param_c) -> bool{
             bool res = false;
             if(param_a != 0) {
                param_b = 1;

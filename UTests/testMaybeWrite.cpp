@@ -40,7 +40,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             values2param = 3;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
+        runtime.task(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
                 [this](int& values0param, int& values1param, const int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -48,7 +48,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
                 [this](int& values0param, const int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -63,7 +63,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             UASSERTEEQUAL(values2param, 3);
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -71,7 +71,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -79,7 +79,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -87,7 +87,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return true;
         });
 
-        runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);

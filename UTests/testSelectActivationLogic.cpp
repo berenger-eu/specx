@@ -25,13 +25,13 @@ class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
             return true;
         });
 
-        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
+        runtime.task(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
             (void) param_a;
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
+        runtime.task(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
             bool res = false;
             if(param_a == 0) {
                param_b = 1;

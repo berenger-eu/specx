@@ -367,7 +367,7 @@ int main(){
                     // TODO int* acceptedMove = new int(0);
 
                     for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                        runtime.potentialTask(
+                        runtime.task(
                                     SpMaybeWrite(energyAll),
                                     SpMaybeWrite(domains[idxDomain]),
                                     SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
@@ -431,7 +431,7 @@ int main(){
                     std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
-                    runtime.potentialTask(
+                    runtime.task(
                                 SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
                                 SpMaybeWrite(energyAll0),
                                 SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
@@ -532,7 +532,7 @@ int main(){
                         // TODO int* acceptedMove = new int(0);
 
                         for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                            runtime.potentialTask(
+                            runtime.task(
                                         SpMaybeWrite(energyAll),
                                         SpMaybeWrite(domains[idxDomain]),
                                         SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
@@ -599,7 +599,7 @@ int main(){
                         std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
                         Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
-                        runtime.potentialTask(
+                        runtime.task(
                                     SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
                                     SpMaybeWrite(energyAll0),
                                     SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
@@ -709,7 +709,7 @@ int main(){
                             }
                         }
 
-                        runtime.potentialTask(
+                        runtime.task(
                                     SpMaybeWrite(energyAll),
                                     SpMaybeWrite(domains[idxDomain]),
                                     //SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
@@ -773,7 +773,7 @@ int main(){
                     std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
-                    runtime.potentialTask(
+                    runtime.task(
                                 SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
                                 SpMaybeWrite(energyAll0),
                                 SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),

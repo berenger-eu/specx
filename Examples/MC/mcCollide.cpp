@@ -255,7 +255,7 @@ int main(){
                 }).setTaskName("MoveDomain -- "+std::to_string(idxLoop)+"/"+std::to_string(idxDomain));
                 randGen.skip(3*NbParticlesPerDomain);
 
-                runtime.potentialTask(SpMaybeWrite(energyAll),
+                runtime.task(SpMaybeWrite(energyAll),
                              SpWrite(*movedDomain),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              SpMaybeWrite(domains[idxDomain]),

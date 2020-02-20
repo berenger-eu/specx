@@ -1441,40 +1441,49 @@ public:
     ///////////////////////////////////////////////////////////////////////////
     /// Tasks creation methods
     ///////////////////////////////////////////////////////////////////////////
+    
+    template <SpDataAccessMode dam1, SpDataAccessMode dam2>
+    struct access_modes_are_equal_internal : std::conditional_t<dam1==dam2, std::true_type, std::false_type> {};
+    
+    template<SpDataAccessMode dam1, typename T, typename = std::void_t<>>
+    struct access_modes_are_equal : std::false_type {};
+    
+    template <SpDataAccessMode dam1, typename T>
+    struct access_modes_are_equal<dam1, T, std::void_t<decltype(T::AccessMode)>> : access_modes_are_equal_internal<dam1, T::AccessMode> {};
+    
+    template <class... ParamsAndTask>
+    auto task(SpPriority inPriority, SpProbability inProbability, ParamsAndTask&&... inParamsAndTask){
+        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
+        CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
+        
+        static_assert(!std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsAndTask>...>::value 
+                      && "No probability should be indicated for normal tasks.");
+        
+        return preCoreTaskCreationSpec<ParamsAndTask...>(inPriority, inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
+    }
 
     template <class... ParamsAndTask>
     auto task(SpPriority inPriority, ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreation<ParamsAndTask...>(inPriority, std::forward<ParamsAndTask>(inParamsAndTask)...);
+        
+        if constexpr(!std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsAndTask>...>::value) {
+            return preCoreTaskCreation<ParamsAndTask...>(inPriority, std::forward<ParamsAndTask>(inParamsAndTask)...);
+        }else {
+            return preCoreTaskCreationSpec<ParamsAndTask...>(inPriority, SpProbability(), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        }
     }
 
     template <class... ParamsAndTask>
     auto task(ParamsAndTask&&... inParamsAndTask){
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreation<ParamsAndTask...>(SpPriority(0), std::forward<ParamsAndTask>(inParamsAndTask)...);
-    }
-
-    template <class... ParamsAndTask>
-    auto potentialTask(SpPriority inPriority, SpProbability inProbability, ParamsAndTask&&... inParamsAndTask){
-        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpec<ParamsAndTask...>(inPriority, inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
-    }
-
-    template <class... ParamsAndTask>
-    auto potentialTask(SpProbability inProbability, ParamsAndTask&&... inParamsAndTask){
-        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpec<ParamsAndTask...>(SpPriority(0), inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
-    }
-
-    template <class... ParamsAndTask>
-    auto potentialTask(ParamsAndTask&&... inParamsAndTask){
-        auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
-        CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
-        return preCoreTaskCreationSpec<ParamsAndTask...>(SpPriority(0), SpProbability(), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        
+        if constexpr(!std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsAndTask>...>::value) {
+            return preCoreTaskCreation<ParamsAndTask...>(SpPriority(0), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        }else {
+            return preCoreTaskCreationSpec<ParamsAndTask...>(SpPriority(0), SpProbability(), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////

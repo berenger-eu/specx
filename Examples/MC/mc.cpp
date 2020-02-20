@@ -232,7 +232,7 @@ int main(){
             // TODO int* acceptedMove = new int(0);
 
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                runtime.potentialTask(
+                runtime.task(
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
@@ -330,7 +330,7 @@ int main(){
                 // TODO int* acceptedMove = new int(0);
 
                 for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                    runtime.potentialTask(
+                    runtime.task(
                                  SpMaybeWrite(energyAll),
                                  SpMaybeWrite(domains[idxDomain]),
                                  SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
@@ -429,7 +429,7 @@ int main(){
             // TODO int* acceptedMove = new int(0);
 
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                runtime.potentialTask(
+                runtime.task(
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),

@@ -24,13 +24,13 @@ class TestModel2SpecTaskRequestAccessToNonCopiedData : public UTester<TestModel2
             return true;
         });
 
-        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
+        runtime.task(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
             (void) param_a;
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
+        runtime.task(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
             (void) param_a;
             (void) param_b;
             return false;

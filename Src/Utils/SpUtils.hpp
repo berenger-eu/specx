@@ -93,10 +93,10 @@ namespace SpUtils{
         }
     }
     
-    template <template <typename...> class Template, typename T>
+    template <template <typename...> typename Template, typename T>
     struct is_instantiation_of : std::false_type {};
     
-    template <template <typename...> class Template, typename... Args>
+    template <template <typename...> typename Template, typename... Args>
     struct is_instantiation_of<Template, Template<Args...> > : std::true_type {};
 }
 
