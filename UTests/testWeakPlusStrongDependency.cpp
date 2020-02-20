@@ -26,8 +26,7 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
             return true;
         });
 
-        runtime.potentialTask(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
-            (void) param_a;
+        runtime.potentialTask(SpMaybeWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
             promise1.get_future().get();
             return false;
         });
@@ -42,7 +41,7 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
             return res;
         });
         
-        runtime.task(SpRead(b), SpRead(c), [this](const int &param_b, const int &param_c){
+        runtime.task(SpRead(b), SpRead(c), [this](const int &param_b, [[maybe_unused]] const int &param_c){
             if(param_b == 0) {
                 UASSERTEDIFF(param_c, 0);
             }

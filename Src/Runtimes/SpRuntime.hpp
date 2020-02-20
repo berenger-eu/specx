@@ -292,7 +292,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         std::vector<ExecutionPathWeakPtrTy> res;
 
-        auto hh = getDataHandle(scalarOrContainerData);
+        [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
         long int indexHh = 0;
         for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
@@ -305,8 +305,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             indexHh += 1;
         }
-        
-        (void) hh;
 
         return res;
     }
@@ -352,7 +350,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         if constexpr(accessMode == targetMode) {
         
-            auto hh = getDataHandle(scalarOrContainerData);
+            [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
             for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
@@ -412,9 +410,9 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         bool res = false;
         
-        auto hh = getDataHandle(scalarOrContainerData);
+        [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
-        long int indexHh = 0;
+        [[maybe_unused]] long int indexHh = 0;
         for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
             assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
@@ -504,7 +502,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                 for(auto &ep : vectorExecutionPaths) {
                     if(ep.currentIt != ep.endIt) {
                         for(auto mIt = ep.currentIt->cbegin(); mIt != ep.currentIt->cend();) {
-                            
                             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
                                 if(isUsedByTask(mIt->first, tuple, sequenceParamsNoFunction)) {
                                     (*speculationBranchIt)[mIt->first] = mIt->second;
@@ -909,10 +906,10 @@ class SpRuntime : public SpAbstractToKnowReady {
     //! Copy all the data of a mode if the access mode matches or if copyIfAlreadyDuplicate is true
     template <class Tuple, std::size_t IdxData, SpDataAccessMode targetMode, std::size_t N>
     std::vector<SpCurrentCopy> coreCopyIfAccess(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
-                                                const SpTaskActivation initialActivationState,
-                                                const SpPriority& inPriority,
-                                                const bool copyIfAlreadyDuplicate,
-                                                const bool copyIfUsedInRead, Tuple& args){
+                                                [[maybe_unused]] const SpTaskActivation initialActivationState,
+                                                [[maybe_unused]] const SpPriority& inPriority,
+                                                [[maybe_unused]] const bool copyIfAlreadyDuplicate,
+                                                [[maybe_unused]] const bool copyIfUsedInRead, Tuple& args){
         static_assert(N > 0, "coreCopyIfAccess -- You must provide at least one copy map for inspection.");
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
 
@@ -931,13 +928,13 @@ class SpRuntime : public SpAbstractToKnowReady {
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
 
             long int indexHh = 0;
-            for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
                 assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                 assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
                 SpDataHandle* h1 = hh[indexHh];
                 
                 bool doCopy = false;
-                std::unordered_map<const void*, SpCurrentCopy>* mPtr;
+                std::unordered_map<const void*, SpCurrentCopy>* mPtr = nullptr;
                 
                 if(copyIfAlreadyDuplicate) { // always copy regardless of the fact that the data might have been previously copied
                     doCopy = true;
@@ -979,12 +976,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             }
 
             return allCopies;
-        }
-        else{
-            (void) copyIfAlreadyDuplicate;
-            (void) copyIfUsedInRead;
-            (void) initialActivationState;
-            (void) inPriority;
+        } else{
             return std::vector<SpCurrentCopy>();
         }
     }
@@ -1046,7 +1038,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
         if constexpr (std::is_destructible<TargetParamType>::value){
-            auto hh = getDataHandle(scalarOrContainerData);
+            [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
             for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
@@ -1076,7 +1068,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
                 indexHh += 1;
             }
-            (void) hh;
         }
     }
 
@@ -1095,7 +1086,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         RetType res;
 
-        auto hh = getDataHandle(scalarOrContainerData);
+        [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
         long int indexHh = 0;
         for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
@@ -1113,8 +1104,6 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             indexHh += 1;
         }
-        
-        (void) hh;
 
         return res;
     }
@@ -1256,13 +1245,13 @@ class SpRuntime : public SpAbstractToKnowReady {
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
         long int indexHh = 0;
         
-        for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+        for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
             assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
             SpDataHandle* h = hh[indexHh];
             
             bool foundAddressInCopies = false;
-            void *cpLatestAddress = nullptr;
+            [[maybe_unused]] void *cpLatestAddress = nullptr;
             
             if constexpr(isSpeculative){
                 for(auto me : copyMapsToLookInto) {
@@ -1297,9 +1286,6 @@ class SpRuntime : public SpAbstractToKnowReady {
                     aTask->template updatePtr<IdxData>(indexHh, reinterpret_cast<TargetParamType*>(cpLatestAddress));
                 }
             }
-            
-            (void) cpLatestAddress;
-            (void) ptr;
             
             indexHh += 1;
         }

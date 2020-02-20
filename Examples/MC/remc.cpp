@@ -94,7 +94,7 @@ int main(){
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-            always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+            always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
             cptGenerated = randGen.getNbValuesGenerated();
 
             // Compute all
@@ -118,7 +118,7 @@ int main(){
                     for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                         // Move domain
                         Domain<double> movedDomain = MoveDomain<double>(domains[idxDomain], BoxWidth, displacement, randGen);
-                        always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
+                        always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * static_cast<size_t>(NbParticlesPerDomain));
                         cptGenerated = randGen.getNbValuesGenerated();
 
                         // Compute new energy
@@ -699,7 +699,7 @@ int main(){
                     // TODO int* acceptedMove = new int(0);
 
                     for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
-                        Domain<double>* tmpDomains[4];
+                        Domain<double>* tmpDomains[4] = {nullptr, nullptr, nullptr, nullptr};
                         for(int idxDomCp = 0 ; idxDomCp < 5 ; ++idxDomCp){
                             if(idxDomCp < idxDomain){
                                 tmpDomains[idxDomCp] = &domains[idxDomCp];

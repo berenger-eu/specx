@@ -271,7 +271,7 @@ public:
 
         // Simple check
         if(oneGroupSpecEnable){
-            for(SpGeneralSpecGroup* gp : parentGroups){
+            for([[maybe_unused]] SpGeneralSpecGroup* gp : parentGroups){
                 assert(gp->isSpeculationEnable());
             }
         }
@@ -382,7 +382,7 @@ public:
             }
             else if(didParentSpeculationFailed()){
                 // Check
-                for(auto* child : subGroups){
+                for([[maybe_unused]] auto* child : subGroups){
                     assert(child->didParentSpeculationFailed());
                 }
             }else if(!inSpeculationSucceed) { // if current spec group failed,

@@ -99,7 +99,7 @@ public:
     }
 
     //! Mark the dependence as used
-    void setUsedByTask(SpAbstractTask* useTaskId){
+    void setUsedByTask([[maybe_unused]] SpAbstractTask* useTaskId){
         assert(canBeUsedByTask(useTaskId) == true);
         nbTasksInUsed += 1;
     }
@@ -135,7 +135,7 @@ public:
 
     //! Marks the dependence as release by the given task
     //! Must be called after setUsedByTask
-    bool releaseByTask(SpAbstractTask* useTaskId){
+    bool releaseByTask([[maybe_unused]] SpAbstractTask* useTaskId){
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             assert(nbTasksReleased == 0);
             assert(nbTasksInUsed == 1);

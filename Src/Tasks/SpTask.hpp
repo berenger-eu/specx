@@ -82,7 +82,7 @@ public:
         : SpAbstractTaskWithReturn<RetType>(initialActivationState, inPriority),
         taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
         tupleParams(inTupleParams){
-        ((void)t, ...);
+        ((void) t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
 

@@ -21,11 +21,11 @@ int main(){
         SpBufferDataView<std::vector<int>> vectorBuffer;
 
         runtime.task(SpWrite(vectorBuffer.getDataDep()),
-                     [](SpDataBuffer<std::vector<int>> vector){
+                     []([[maybe_unused]] SpDataBuffer<std::vector<int>> vector){
         });
         for(int idxSub = 0 ; idxSub < 3 ; ++idxSub){
             runtime.task(SpRead(vectorBuffer.getDataDep()),
-                         [](const SpDataBuffer<std::vector<int>> vector){
+                         []([[maybe_unused]] const SpDataBuffer<std::vector<int>> vector){
             });
         }
     }

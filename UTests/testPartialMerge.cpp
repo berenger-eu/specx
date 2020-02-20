@@ -29,16 +29,16 @@ class TestPartialMerge : public UTester< TestPartialMerge > {
 
         std::promise<bool> promise1;
 
-        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(b), [&promise1](int& param_a, int& param_b){
+        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(b), [&promise1]([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_b){
             promise1.get_future().get();
             return false;
         });
         
-        runtime.potentialTask(SpMaybeWrite(c), [](int& param_c){
+        runtime.potentialTask(SpMaybeWrite(c), []([[maybe_unused]] int& param_c){
             return false;
         });
         
-        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(c), [](int& param_a, int& param_c){
+        runtime.potentialTask(SpMaybeWrite(a), SpMaybeWrite(c), []([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_c){
             return false;
         });
         

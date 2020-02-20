@@ -88,7 +88,7 @@ public:
         return *ptrToData;
     }
 
-    constexpr void updatePtr(const long int position, HandleTypePtr ptr){
+    constexpr void updatePtr([[maybe_unused]] const long int position, HandleTypePtr ptr){
         assert(position < 1);
         ptrToData = ptr;
     }

@@ -28,7 +28,6 @@ int main(){
         }).setTaskName("First-task");
         
         //standard task
-        const int standardTasks = 4;
         for(int idx = 0; idx < 2; idx++) {
           runtime.task(SpWrite(val), [](int& /*valParam*/)  {
           }).setTaskName("Certain task -- " + std::to_string(idx));
@@ -47,7 +46,7 @@ int main(){
           }).setTaskName("Certain task -- " + std::to_string(idx));
         }
         
-        runtime.task(SpWrite(val), [](int& valParam){
+        runtime.task(SpWrite(val), []([[maybe_unused]] int& valParam){
         }).setTaskName("Last-task");
 
         

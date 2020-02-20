@@ -34,11 +34,11 @@ class TestInsertion : public UTester< TestInsertion > {
             promise1.get_future().get();
         });
 
-        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), [](const int& a_param, int&) -> bool{
+        runtime.potentialTask(SpRead(a), SpMaybeWrite(b), []([[maybe_unused]] const int& a_param, [[maybe_unused]] int&) -> bool{
             return false;
         });
 
-        runtime.potentialTask(SpRead(b), SpMaybeWrite(c), [](const int& param_b, int&) -> bool {
+        runtime.potentialTask(SpRead(b), SpMaybeWrite(c), [](const int& param_b, [[maybe_unused]] int&) -> bool {
             bool res = false;
             if(param_b != 0) {
                 res = true;

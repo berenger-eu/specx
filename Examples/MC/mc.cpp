@@ -69,7 +69,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
         size_t cptGenerated = randGen.getNbValuesGenerated();
 
         timerSeq.start();
@@ -86,7 +86,7 @@ int main(){
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                 // Move domain
                 Domain<double> movedDomain = MoveDomain<double>(domains[idxDomain], BoxWidth, displacement, randGen);
-                always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * NbParticlesPerDomain);
+                always_assert(randGen.getNbValuesGenerated()-cptGenerated == 3 * static_cast<size_t>(NbParticlesPerDomain));
                 cptGenerated = randGen.getNbValuesGenerated();
 
                 // Compute new energy
@@ -135,7 +135,7 @@ int main(){
 
         timerTask.start();
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -217,7 +217,7 @@ int main(){
 
         timerSpec.start();
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
         Matrix<double> energyAll(0,0);
@@ -313,7 +313,7 @@ int main(){
 
             timerSpecNoCons[idxConsecutiveSpec].start();
             std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-            always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+            always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
             // Compute all
             Matrix<double> energyAll(0,0);
@@ -414,7 +414,7 @@ int main(){
         timerSpecAllReject.start();
 
         std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
-        always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
+        always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
         Matrix<double> energyAll(0,0);
