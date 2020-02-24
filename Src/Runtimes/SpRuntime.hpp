@@ -466,6 +466,8 @@ class SpRuntime : public SpAbstractToKnowReady {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
+        bool isPathResultingFromMerge = false;
+        
         auto tuple = std::forward_as_tuple(params...);
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         
@@ -483,6 +485,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         }else if(executionPaths.size() == 1){
             e = executionPaths[0].lock();
         }else{ // merge case
+			isPathResultingFromMerge = true;
             e = std::make_shared<std::vector<CopyMapTy>>();
             
             using ExecutionPathIteratorVectorTy = std::vector<DescriptorIterators<typename std::vector<CopyMapTy>::iterator>>;
@@ -556,7 +559,7 @@ class SpRuntime : public SpAbstractToKnowReady {
             removeOriginalAddressesFromHashMap(originalAddresses);
         }
         
-        auto res = preCoreTaskCreationAux<isPotentialTask>(*e, inPriority, inProbability, params...);
+        auto res = preCoreTaskCreationAux<isPotentialTask>(isPathResultingFromMerge, *e, inPriority, inProbability, params...);
         
         if constexpr(isPotentialTask) {
             setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
@@ -577,7 +580,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
-    inline auto preCoreTaskCreationAux(std::vector<CopyMapTy> &copyMaps, const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
+    inline auto preCoreTaskCreationAux([[maybe_unused]] bool isPathResultingFromMerge, std::vector<CopyMapTy> &copyMaps, const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         
         static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
                       || SpecModel == SpSpeculativeModel::SP_MODEL_2
@@ -660,6 +663,21 @@ class SpRuntime : public SpAbstractToKnowReady {
                     
                     manageReadDuplicate(*it, tuple, sequenceParamsNoFunction);
                     removeAllCorrespondingCopies(*it, tuple, sequenceParamsNoFunction);
+                    
+                    if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+						if(isPathResultingFromMerge) {
+							for(auto mIt = it->cbegin(); mIt != it->cend(); ) {
+								if(mIt->second.usedInRead) {
+									if(mIt->second.isUniquePtr.use_count() == 1) {
+										mIt->second.deleter->createDeleteTaskForObject(*this, mIt->second.latestAdress);
+									}
+									mIt = it->erase(mIt);
+								}else {
+									mIt++;
+								}
+							} 
+						}
+					}
                     
                     specGroups.emplace_back(std::move(specGroupSpecTask));
                     
