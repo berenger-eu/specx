@@ -18,7 +18,7 @@
 ////////////////////////////////////////////////////////
 
 enum class SpDataAccessMode{
-    READ,
+    READ=0,
     WRITE,
     ATOMIC_WRITE,
     COMMUTE_WRITE,
