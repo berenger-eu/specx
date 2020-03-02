@@ -25,8 +25,7 @@ class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
             return true;
         });
 
-        runtime.task(SpMaybeWrite(a), [&promise1](int &param_a) -> bool{
-            (void) param_a;
+        runtime.task(SpMaybeWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
             promise1.get_future().get();
             return false;
         });

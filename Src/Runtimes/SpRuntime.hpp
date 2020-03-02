@@ -1188,7 +1188,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         if constexpr (std::is_destructible<TargetParamType>::value && accessMode == SpDataAccessMode::READ){
 
-            auto hh = getDataHandle(scalarOrContainerData);
+            [[maybe_unused]]  auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
             for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
@@ -1231,7 +1231,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         if constexpr (std::is_destructible<TargetParamType>::value && accessMode != SpDataAccessMode::READ){
 
-            auto hh = getDataHandle(scalarOrContainerData);
+            [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
             for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
