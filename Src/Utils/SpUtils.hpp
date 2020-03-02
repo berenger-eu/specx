@@ -14,7 +14,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/syscall.h>
+
+#ifdef __APPLE__
+#include "MacOSX.hpp"
+#else    
 #include <sched.h>
+#endif
 
 #include <cassert>
 
@@ -33,10 +38,20 @@ namespace SpUtils{
         cpu_set_t set;
         CPU_ZERO(&set);
         CPU_SET(inCoreId, &set);
-
-        pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
-        int retValue = sched_setaffinity(tid, sizeof(set), &set);
-        assert(retValue == 0);
+        
+        #ifdef __APPLE__ 
+            /* 
+            * Mac OS specifics : 
+            * 1-syscall() is deprecated since 10.12 (nov 2016)
+            * 2-can't bind directly a thread to a core. Indicate instead
+            *   an affinity to the scheduler through thread_policy_set(). 
+            */
+            pthread_setaffinity_np(pthread_self(), sizeof(cpu_set), &set);
+        #else
+            pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
+            int retValue = sched_setaffinity(tid, sizeof(set), &set);
+            assert(retValue == 0);
+        #endif
 
         SpDebugPrint() << "Bind to " << inCoreId << " core";
     }
