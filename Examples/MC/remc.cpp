@@ -714,7 +714,7 @@ int main(){
                                     SpMaybeWrite(domains[idxDomain]),
                                     //SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                     SpRead(*tmpDomains[0]), SpRead(*tmpDomains[1]), SpRead(*tmpDomains[2]), SpRead(*tmpDomains[3]),
-                                [verbose, NbDomains, BoxWidth, displacement, Temperature, idxDomain, idxReplica, idxInnerLoop, randGen, &domains](
+                                [verbose, NbDomains, BoxWidth, displacement, idxDomain, idxReplica, idxInnerLoop, randGen, &domains](
                                 Matrix<double>& energyAllParam,
                                 Domain<double>& domains_idxDomain,
                                 const Domain<double>& /*d0*/, const Domain<double>& /*d1*/, const Domain<double>& /*d2*/, const Domain<double>& /*d3*/)mutable -> bool {
@@ -778,7 +778,7 @@ int main(){
                                 SpMaybeWrite(energyAll0),
                                 SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
                                 SpMaybeWrite(energyAll1),
-                                [verbose, randGen0, idxReplica, &betas, idxLoop](
+                                [randGen0, idxReplica, &betas](
                                 SpArrayAccessor<Domain<double>>& /*domains0Param*/,
                                 Matrix<double>& energyAll0Param,
                                 SpArrayAccessor<Domain<double>>& /*domains1Param*/,

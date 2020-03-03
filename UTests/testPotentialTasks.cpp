@@ -119,7 +119,7 @@ class TestPotiential : public UTester< TestPotiential > {
             for(int idx = 0 ; idx < arraySize ; ++idx){
                 runtime.task(SpMaybeWrite(val[idx]),
                                       SpReadArray(val,SpArrayView(arraySize).removeItem(idx)),
-                                      [SleepTime,idx,&counterAccess, &val]
+                                      [SleepTime,idx,&counterAccess]
                                       (int& valParam, const SpArrayAccessor<const int>& valArray) -> bool {
                     {
                         counterAccess.lock();
