@@ -1,13 +1,15 @@
 # Use an official Python runtime as a parent image
 FROM ubuntu:18.04
 
-RUN apt-get update
-RUN apt-get install -y apt-transport-https
-RUN apt-get install -y wget
-RUN apt-get install -y g++
-RUN apt-get install -y git
-RUN apt-get install make
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.15.6/cmake-3.15.6-Linux-x86_64.sh && chmod +x cmake-3.15.6-Linux-x86_64.sh && ./cmake-3.15.6-Linux-x86_64.sh --skip-license --prefix=/usr/
+RUN apt-get update \
+    && apt-get install -y apt-transport-https \
+    && apt-get install -y wget \
+    && apt-get install -y g++-7 \
+    && apt-get install -y git \
+    && apt-get install -y make \
+    && wget https://github.com/Kitware/CMake/releases/download/v3.15.6/cmake-3.15.6-Linux-x86_64.sh && chmod +x cmake-3.15.6-Linux-x86_64.sh \
+       && ./cmake-3.15.6-Linux-x86_64.sh --skip-license --prefix=/usr/ \
+    && apt-get install -y lcov
 
 # To rebuild and update the repo:
 # - Make sure there are not images: sudo docker images
