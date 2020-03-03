@@ -35,11 +35,13 @@ static int CPU_ISSET(int num, cpu_set_t *cs) {
 
 namespace macosspecific {
     
-inline int sched_getaffinity(pthread_t thread, size_t cpu_set_size, cpu_set_t *mask) {
+inline int sched_getaffinity_np(pthread_t thread, [[maybe_unused]] size_t cpu_set_size, cpu_set_t *mask) {
     thread_port_t mach_thread = pthread_mach_thread_np(thread);
-    thread_affinity_policy_data_t policy;
+    thread_affinity_policy_data_t affinity_policy;
+    mach_msg_type_number_t policy_info_count;
+    boolean_t b;
     
-    kern_return_t retValue = thread_policy_get(mach_thread, THREAD_AFFINITY_POLICY, static_cast<thread_policy_t>(&policy), 1);
+    kern_return_t retValue = thread_policy_get(mach_thread, THREAD_AFFINITY_POLICY, reinterpret_cast<thread_policy_t>(&affinity_policy), &policy_info_count, &b);
     
     if(retValue != KERN_SUCCESS) {
         perror("macosspecific::sched_getaffinity error thread_policy_get");
@@ -47,12 +49,12 @@ inline int sched_getaffinity(pthread_t thread, size_t cpu_set_size, cpu_set_t *m
     }
     
     CPU_ZERO(mask);
-    CPU_SET(policy.cpu_id, mask);
+    CPU_SET(affinity_policy.affinity_tag, mask);
     
     return 0;
 }
 
-inline int sched_setaffinity(pthread_t thread, size_t cpu_set_size, cpu_set_t *mask) {
+inline int sched_setaffinity_np(pthread_t thread, size_t cpu_set_size, cpu_set_t *mask) {
     int cpu_id = 0;
     
     /* find core number which is set in cpu_set */
@@ -63,10 +65,10 @@ inline int sched_setaffinity(pthread_t thread, size_t cpu_set_size, cpu_set_t *m
         }
     }
     
-    thread_affinity_policy_data_t policy = { cpu_id };
+    thread_affinity_policy_data_t affinity_policy = { cpu_id };
     thread_port_t mach_thread = pthread_mach_thread_np(thread);
     
-    kern_return_t retValue = thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, static_cast<thread_policy_t>(&policy), 1);
+    kern_return_t retValue = thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY, reinterpret_cast<thread_policy_t>(&affinity_policy), 1);
     
     if(retValue != KERN_SUCCESS) {
         perror("macosspecific::sched_setaffinity error thread_policy_set");

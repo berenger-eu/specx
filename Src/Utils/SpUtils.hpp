@@ -40,8 +40,8 @@ namespace SpUtils{
         CPU_SET(inCoreId, &mask);
         
         #ifdef __APPLE__
-          [[maybe_unused]] int retValue = macosspecific::sched_setaffinity(pthread_self(), sizeof(cpu_set), &mask);
-          assert(retValue == 0);
+            [[maybe_unused]] int retValue = macosspecific::sched_setaffinity_np(pthread_self(), sizeof(cpu_set), &mask);
+            assert(retValue == 0);
         #else
             pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
             [[maybe_unused]] int retValue = sched_setaffinity(tid, sizeof(mask), &mask);
@@ -59,7 +59,7 @@ namespace SpUtils{
         CPU_ZERO(&mask);
         
         #ifdef __APPLE__
-            [[maybe_unused]] int retValue = macosspecific::sched_getaffinity(pthread_self(), sizeof(cpu_set), &mask);
+            [[maybe_unused]] int retValue = macosspecific::sched_getaffinity_np(pthread_self(), sizeof(cpu_set), &mask);
             assert(retValue == 0);
         #else
             pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));

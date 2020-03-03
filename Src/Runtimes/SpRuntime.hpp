@@ -348,7 +348,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         std::vector<const void*> res;
         
-        if constexpr(flags & (1 << static_cast<unsigned char>(accessMode))) {
+        if constexpr((flags & (1 << static_cast<unsigned char>(accessMode))) != 0) {
             [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
@@ -468,8 +468,8 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         constexpr unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::MAYBE_WRITE);
         constexpr unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
-											|| 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
-											|| 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
+											| 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
+											| 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
         
         auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<maybeWriteFlags>(tuple, sequenceParamsNoFunction);
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(tuple, sequenceParamsNoFunction);
