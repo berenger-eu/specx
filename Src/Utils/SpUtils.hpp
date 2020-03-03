@@ -35,21 +35,16 @@ namespace SpUtils{
     }
 
     inline void BindToCore(const int inCoreId){
-        cpu_set_t set;
-        CPU_ZERO(&set);
-        CPU_SET(inCoreId, &set);
+        cpu_set_t mask;
+        CPU_ZERO(&mask);
+        CPU_SET(inCoreId, &mask);
         
         #ifdef __APPLE__
-        /* 
-           * Mac OS specifics : 
-           * 1-syscall() is deprecated since 10.12 (nov 2016)
-           * 2-can't bind directly a thread to a core. Indicate instead
-           *   an affinity to the scheduler through thread_policy_set(). 
-           */
-          pthread_setaffinity_np(pthread_self(), sizeof(cpu_set), &set);
+          [[maybe_unused]] int retValue = macosspecific::sched_setaffinity(pthread_self(), sizeof(cpu_set), &mask);
+          assert(retValue == 0);
         #else
             pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
-            [[maybe_unused]] int retValue = sched_setaffinity(tid, sizeof(set), &set);
+            [[maybe_unused]] int retValue = sched_setaffinity(tid, sizeof(mask), &mask);
             assert(retValue == 0);
         #endif
 
@@ -62,10 +57,17 @@ namespace SpUtils{
     inline long int GetBinding(){
         cpu_set_t mask;
         CPU_ZERO(&mask);
-        pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
-        // Get the affinity
-        [[maybe_unused]] int retValue = sched_getaffinity(tid, sizeof(mask), &mask);
-        assert(retValue == 0);
+        
+        #ifdef __APPLE__
+            [[maybe_unused]] int retValue = macosspecific::sched_getaffinity(pthread_self(), sizeof(cpu_set), &mask);
+            assert(retValue == 0);
+        #else
+            pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
+            // Get the affinity
+            [[maybe_unused]] int retValue = sched_getaffinity(tid, sizeof(mask), &mask);
+            assert(retValue == 0);
+        #endif
+        
         long int retMask = 0;
         for(size_t idx = 0 ; idx < sizeof(long int)*8-1 ; ++idx){
             if(CPU_ISSET(idx, &mask)){
