@@ -52,7 +52,7 @@ class TestInsertion : public UTester< TestInsertion > {
             }
         });
         
-        runtime.task(SpRead(d), [](const int& param_d) {
+        runtime.task(SpRead(d), [this](const int& param_d) {
             UASSERTEEQUAL(param_d, 1);
         });
         
