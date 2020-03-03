@@ -116,6 +116,7 @@ public:
     virtual bool hasMode(const SpDataAccessMode inMode) const = 0;
     virtual std::vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const = 0;
     virtual void executeCallback() = 0;
+    virtual std::string getTaskBodyString() = 0;
 
     void useDependences() {
         useDependences(nullptr);
@@ -134,6 +135,7 @@ public:
             hasBeenExecuted = true;
             conditionExecuted.notify_all();
         }
+        
         executeCallback();
     }
 
@@ -284,10 +286,10 @@ public:
 
     class SpTaskViewer{
         SpAbstractTaskWithReturn<RetType>* target;
-
-        SpTaskViewer(SpAbstractTaskWithReturn<RetType>* inTarget) : target(inTarget){
-        }
+        
+        SpTaskViewer(SpAbstractTaskWithReturn<RetType>* inTarget) : target(inTarget){}
     public:
+        SpTaskViewer() : target(nullptr) {}
         SpTaskViewer(const SpTaskViewer&) = default;
         SpTaskViewer(SpTaskViewer&&) = default;
         SpTaskViewer& operator=(const SpTaskViewer&) = default;
@@ -385,9 +387,9 @@ public:
     class SpTaskViewer{
         SpAbstractTaskWithReturn<void>* target;
 
-        SpTaskViewer(SpAbstractTaskWithReturn<void>* inTarget) : target(inTarget){
-        }
+        SpTaskViewer(SpAbstractTaskWithReturn<void>* inTarget) : target(inTarget){}
     public:
+        SpTaskViewer() : target(nullptr) {}
         SpTaskViewer(const SpTaskViewer&) = default;
         SpTaskViewer(SpTaskViewer&&) = default;
         SpTaskViewer& operator=(const SpTaskViewer&) = default;

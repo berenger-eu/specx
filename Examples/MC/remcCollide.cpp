@@ -384,7 +384,7 @@ int main(){
                         });
                         randGen.skip(3*NbParticlesPerDomain);
 
-                        runtime.potentialTask(SpMaybeWrite(energyAll),
+                        runtime.task(SpMaybeWrite(energyAll),
                                      SpWrite(*movedDomain),
                                      SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                      SpMaybeWrite(domains[idxDomain]),
@@ -469,7 +469,7 @@ int main(){
                     std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
-                    runtime.potentialTask(SpMaybeWrite(domains0), SpMaybeWrite(energyAll0),
+                    runtime.task(SpMaybeWrite(domains0), SpMaybeWrite(energyAll0),
                                  SpMaybeWrite(domains1), SpMaybeWrite(energyAll1),
                                  SpAtomicWrite(*nbExchanges),
                                  [randGen0, idxReplica, &betas, idxLoop](std::vector<Domain<double>>& domains0Param,

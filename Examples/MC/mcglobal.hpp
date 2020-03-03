@@ -195,7 +195,7 @@ bool DomainCollide(const Domain<RealType> domains[], const int nbDomains, const 
 
 
 template <class RealType>
-bool DomainCollide(const SpArrayAccessor<const Domain<RealType>>& domains, const int nbDomains, const int idxDomainToTest,
+bool DomainCollide(const SpArrayAccessor<const Domain<RealType>>& domains, const int nbDomains, [[maybe_unused]] const int idxDomainToTest,
                    const Domain<RealType>& domainToTest, const RealType collisionLimit){
     assert(domains.getSize() == nbDomains);
 

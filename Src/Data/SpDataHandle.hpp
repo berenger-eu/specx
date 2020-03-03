@@ -44,6 +44,10 @@ public:
     SpDataHandle(SpDataHandle&&) = delete;
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
+    
+    void *getRawPtr() {
+        return ptrToData;
+    }
 
     //! Convert to pointer to Datatype
     template <class Datatype>
@@ -165,7 +169,7 @@ public:
     void fillCurrentTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(currentDependenceCursor != static_cast<long int>(dependencesOnData.size())) {
-            dependencesOnData[currentDependenceCursor].fillWithTaskList(potentialReady);
+            dependencesOnData[currentDependenceCursor].fillWithListOfPotentiallyReadyTasks(potentialReady);
         }
     }
 
@@ -185,7 +189,14 @@ public:
                 }
             }
             else{
-                dependencesOnData[afterIdx+1].fillWithTaskList(dependences);
+                long int skipConcatDeps = afterIdx+1;
+                bool isCommutativeAccess = dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::WRITE
+                                            && dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::MAYBE_WRITE;
+                do {
+                    dependencesOnData[skipConcatDeps].fillWithTaskList(dependences);
+                    skipConcatDeps += 1;
+                }while(isCommutativeAccess && skipConcatDeps != static_cast<long int>(dependencesOnData.size())
+                      && dependencesOnData[skipConcatDeps-1].getMode() == dependencesOnData[skipConcatDeps].getMode());
             }
         }
     }

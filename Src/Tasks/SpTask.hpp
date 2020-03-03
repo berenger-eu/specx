@@ -82,7 +82,7 @@ public:
         : SpAbstractTaskWithReturn<RetType>(initialActivationState, inPriority),
         taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
         tupleParams(inTupleParams){
-        ((void)t, ...);
+        ((void) t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
 
@@ -330,6 +330,20 @@ public:
         }
         
         return true;
+    }
+    
+    std::string getTaskBodyString() override {
+        
+        std::ostringstream os;
+        
+        for(size_t i=0; i < NbParams; i++) {
+            os << SpModeToStr(dataHandles[i]->getModeByTask(dataHandlesKeys[i])) << " " << dataHandles[i]->getRawPtr() << std::endl;
+        }
+        
+        for(size_t i=0; i < dataHandlesExtra.size(); i++) {
+            os << SpModeToStr(dataHandlesExtra[i]->getModeByTask(dataHandlesKeysExtra[i])) << " " << dataHandlesExtra[i]->getRawPtr() << std::endl;
+        }
+        return os.str();
     }
 };
 

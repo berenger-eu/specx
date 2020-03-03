@@ -11,13 +11,12 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
-    using Parent = UTester< WeakPlusStrongDependency >;
-    
+class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
+    using Parent = UTester< TestSelectActivationLogic >;
+
     template <SpSpeculativeModel Spm>
     void Test(){
-        int a=0, b=0, c=0;
-        
+        int a=0, b=0;
         std::promise<bool> promise1;
         
         SpRuntime<Spm> runtime;
@@ -31,26 +30,21 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
             return false;
         });
         
-        runtime.task(SpRead(a), SpMaybeWrite(b), SpWrite(c), [](const int &param_a, int &param_b, int &param_c) -> bool{
+        runtime.task(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
             bool res = false;
-            if(param_a != 0) {
+            if(param_a == 0) {
                param_b = 1;
                res = true;
             }
-            param_c = 1;
             return res;
-        });
-        
-        runtime.task(SpRead(b), SpRead(c), [this](const int &param_b, [[maybe_unused]] const int &param_c){
-            if(param_b == 0) {
-                UASSERTEDIFF(param_c, 0);
-            }
         });
         
         promise1.set_value(true);
         
         runtime.waitAllTasks();
         runtime.stopAllThreads();
+        
+        UASSERTEEQUAL(b, 1);
     }
     
     void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }
@@ -58,11 +52,11 @@ class WeakPlusStrongDependency : public UTester< WeakPlusStrongDependency> {
     void Test3() { Test<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&WeakPlusStrongDependency::Test1, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 1)");
-        Parent::AddTest(&WeakPlusStrongDependency::Test2, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 2)");
-        Parent::AddTest(&WeakPlusStrongDependency::Test3, "Test behavior when there are weak as well strong dependencies between speculative tasks (model 3)");
+        Parent::AddTest(&TestSelectActivationLogic::Test1, "Test behavior of select activation logic in model 1");
+        Parent::AddTest(&TestSelectActivationLogic::Test2, "Test behavior of select activation logic in model 2");
+        Parent::AddTest(&TestSelectActivationLogic::Test3, "Test behavior of select activation logic in model 3");
     }
 };
 
 // You must do this
-TestClass(WeakPlusStrongDependency)
+TestClass(TestSelectActivationLogic)

@@ -8,7 +8,9 @@
 #include <cassert>
 
 #include "Tasks/SpAbstractTask.hpp"
+#include "Speculation/SpSpeculativeModel.hpp"
 
+template <SpSpeculativeModel SpecModel>
 class SpGeneralSpecGroup{
 protected:
     enum class States{
@@ -43,6 +45,8 @@ protected:
     SpProbability selfPropability;
 
     bool isSpeculatif;
+    
+    std::shared_ptr<std::atomic<size_t>> numberOfSpeculativeSiblingSpecGroupsCounter;
 
     //////////////////////////////////////////////////////////////////
 
@@ -73,17 +77,19 @@ protected:
     //////////////////////////////////////////////////////////////////
 
 public:
-    SpGeneralSpecGroup(const bool inIsSpeculatif) :
+    SpGeneralSpecGroup(const bool inIsSpeculatif, std::shared_ptr<std::atomic<size_t>>& inNumberOfSpeculativeSiblingSpecGroupsCounter) :
         counterParentResults(0),
         parentSpeculationResults(SpecResult::UNDEFINED),
         selfSpeculationResults(SpecResult::UNDEFINED),
         state(States::UNDEFINED),
         mainTask(nullptr), specTask(nullptr),
-        isSpeculatif(inIsSpeculatif){
+        isSpeculatif(inIsSpeculatif),
+        numberOfSpeculativeSiblingSpecGroupsCounter(inNumberOfSpeculativeSiblingSpecGroupsCounter){
     }
-
+    
     virtual ~SpGeneralSpecGroup(){
-        assert(isSpeculationDisable() || counterParentResults == int(parentGroups.size()));
+        assert(isSpeculationDisable() || (didParentSpeculationSucceed() && counterParentResults == int(parentGroups.size())) 
+                || !didParentSpeculationSucceed());
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -128,29 +134,29 @@ public:
 
     void setSpeculationActivationCore(const bool inIsSpeculationEnable){
         assert(isSpeculationEnableOrDisable() == false);
-        assert(isSpeculationResultUndefined() == true);
-
+        
         if(inIsSpeculationEnable){
             state = States::DO_SPEC;
-
-            if(mainTask){
-                assert(mainTask->isOver() == false);
-                if(isSpeculatif){
-                    mainTask->setEnabled(SpTaskActivation::DISABLE);
+            if(isSpeculationResultUndefined()) {
+                if(mainTask){
+                    assert(mainTask->isOver() == false);
+                    if(isSpeculatif){
+                        mainTask->setEnabled(SpTaskActivation::DISABLE);
+                    }
+                    else{
+                        mainTask->setEnabled(SpTaskActivation::ENABLE);
+                    }
                 }
-                else{
-                    mainTask->setEnabled(SpTaskActivation::ENABLE);
+
+                if(specTask){
+                    assert(isSpeculatif);
+                    assert(specTask->isOver() == false);
+                    specTask->setEnabled(SpTaskActivation::ENABLE);
                 }
-            }
 
-            if(specTask){
-                assert(isSpeculatif);
-                assert(specTask->isOver() == false);
-                specTask->setEnabled(SpTaskActivation::ENABLE);
+                EnableAllTasks(copyTasks);
+                EnableAllTasks(selectTasks);
             }
-
-            EnableAllTasks(copyTasks);
-            EnableAllTasks(selectTasks);
         } else {
             state = States::DO_NOT_SPEC;
         }
@@ -265,7 +271,7 @@ public:
 
         // Simple check
         if(oneGroupSpecEnable){
-            for(SpGeneralSpecGroup* gp : parentGroups){
+            for([[maybe_unused]] SpGeneralSpecGroup* gp : parentGroups){
                 assert(gp->isSpeculationEnable());
             }
         }
@@ -278,7 +284,8 @@ public:
 
     void setParentSpecResult(const bool inSpeculationSucceed){
         assert(isSpeculatif);
-        assert(counterParentResults < int(parentGroups.size()));
+        assert((isParentSpeculationResultUndefined() && counterParentResults < int(parentGroups.size()))
+                || didParentSpeculationFailed());
         counterParentResults += 1;
 
         if(didParentSpeculationFailed()){
@@ -293,7 +300,7 @@ public:
             }
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
-            mainTask->setEnabled(SpTaskActivation::ENABLE);
+            tryToEnableMainTask();
             specTask->setDisabledIfNotOver();
             DisableAllTasks(selectTasks);
         }
@@ -302,17 +309,32 @@ public:
             parentSpeculationResults = SpecResult::SPECULATION_SUCCED;
             assert(mainTask->isEnable() == false);
             assert(specTask->isEnable());
+            if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
+                if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                    mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(false);
+                }
+            }
             if(didSpeculationSucceed()){
                 DisableTasksDelegate(selectTasks);
 
                 for(auto* child : subGroups){
                     child->setParentSpecResult(true);
                 }
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(true);
+                    }
+                }
             }
             else if(didSpeculationFailed()){
                 // Already done EnableAllTasks(selectTasks);
                 for(auto* child : subGroups){
                     child->setParentSpecResult(false);
+                }
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(false);
+                    }
                 }
             }
         }
@@ -322,8 +344,7 @@ public:
         assert(isSpeculationEnable());
         assert((specTask != nullptr &&  parentGroups.size())
                || (specTask == nullptr &&  parentGroups.empty()));
-        assert(isSpeculationResultUndefined());
-
+        
         if(inSpeculationSucceed){
             selfSpeculationResults = SpecResult::SPECULATION_SUCCED;
         }
@@ -344,6 +365,13 @@ public:
             assert(specTask != nullptr);
 
             if(didParentSpeculationSucceed()){
+                
+                if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
+                    if(*numberOfSpeculativeSiblingSpecGroupsCounter == 1) {
+                        mainTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>()->setSpeculationCurrentResult(inSpeculationSucceed);
+                    }
+                }
+                
                 for(auto* child : subGroups){
                     child->setParentSpecResult(inSpeculationSucceed);
                 }
@@ -354,11 +382,15 @@ public:
             }
             else if(didParentSpeculationFailed()){
                 // Check
-                for(auto* child : subGroups){
+                for([[maybe_unused]] auto* child : subGroups){
                     assert(child->didParentSpeculationFailed());
                 }
+            }else if(!inSpeculationSucceed) { // if current spec group failed,
+                for(auto* child : subGroups){ // make all children fail right away 
+                    child->setParentSpecResult(false);
+                }
             }
-            // If parent is undefined, we have to wait
+            // If parentResult is undefined and current spec group succeeded, we have to wait
         }
     }
 
@@ -470,6 +502,17 @@ public:
     void addSelectTasks(const std::vector<SpAbstractTask*>& inselectTasks){
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
+    }
+    
+    void addSelectTask(SpAbstractTask* inSelectTask) {
+        selectTasks.push_back(inSelectTask);
+    }
+    
+    void tryToEnableMainTask() {
+        (*numberOfSpeculativeSiblingSpecGroupsCounter)--;
+        if(*numberOfSpeculativeSiblingSpecGroupsCounter == 0){
+            mainTask->setEnabled(SpTaskActivation::ENABLE);
+        }
     }
 };
 

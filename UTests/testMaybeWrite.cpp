@@ -17,8 +17,9 @@
 class TestMaybeWrite : public UTester< TestMaybeWrite > {
     using Parent = UTester< TestMaybeWrite >;
 
+    template <SpSpeculativeModel Spm>
     void TestBasic(){
-        SpRuntime runtime;
+        SpRuntime<Spm> runtime;
 
 
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
@@ -39,7 +40,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             values2param = 3;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
+        runtime.task(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
                 [this](int& values0param, int& values1param, const int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -47,7 +48,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
                 [this](int& values0param, const int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -62,7 +63,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             UASSERTEEQUAL(values2param, 3);
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -70,7 +71,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -78,7 +79,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.potentialTask(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -86,7 +87,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return true;
         });
 
-        runtime.potentialTask(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -109,9 +110,15 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
         runtime.generateDot("/tmp/test.dot");
         runtime.generateTrace("/tmp/test.svg");
     }
+    
+    void TestBasic1() { TestBasic<SpSpeculativeModel::SP_MODEL_1>(); }
+    void TestBasic2() { TestBasic<SpSpeculativeModel::SP_MODEL_2>(); }
+    void TestBasic3() { TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestMaybeWrite::TestBasic, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic1, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic2, "Basic test for vec type");
+        Parent::AddTest(&TestMaybeWrite::TestBasic3, "Basic test for vec type");
     }
 };
 

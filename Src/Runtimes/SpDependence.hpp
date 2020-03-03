@@ -99,13 +99,25 @@ public:
     }
 
     //! Mark the dependence as used
-    void setUsedByTask(SpAbstractTask* useTaskId){
+    void setUsedByTask([[maybe_unused]] SpAbstractTask* useTaskId){
         assert(canBeUsedByTask(useTaskId) == true);
         nbTasksInUsed += 1;
     }
+    
+    void fillWithTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+            potentialReady->push_back(idTaskWrite);
+        }
+        else{
+            potentialReady->reserve(potentialReady->size() + idTasksMultiple.size());
+            for(auto&& ptr : idTasksMultiple){
+                potentialReady->push_back(ptr);
+            }
+        }
+    }
 
     //! Copy all the tasks related to the dependence into the given vector
-    void fillWithTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
+    void fillWithListOfPotentiallyReadyTasks(std::vector<SpAbstractTask*>* potentialReady) const {
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             if(idTaskWrite->isState(SpTaskState::WAITING_TO_BE_READY)) {
                 potentialReady->push_back(idTaskWrite);
@@ -123,7 +135,7 @@ public:
 
     //! Marks the dependence as release by the given task
     //! Must be called after setUsedByTask
-    bool releaseByTask(SpAbstractTask* useTaskId){
+    bool releaseByTask([[maybe_unused]] SpAbstractTask* useTaskId){
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             assert(nbTasksReleased == 0);
             assert(nbTasksInUsed == 1);
