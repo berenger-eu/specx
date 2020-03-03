@@ -2,7 +2,8 @@
  * Stephane Genaud
  * adapted from https://yyshen.github.io/2015/01/18/binding_threads_to_cores_osx.html
  **/
-
+#ifndef MACOSX_HPP
+#define MACOSX_HPP
 
 /**
  *
@@ -87,3 +88,5 @@ inline int pthread_setaffinity_np(pthread_t thread, size_t cpu_size, cpu_set_t *
     
     return 0;
 }
+
+#endif
