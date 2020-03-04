@@ -38,7 +38,7 @@ namespace macosspecific {
 inline int sched_getaffinity_np(pthread_t thread, [[maybe_unused]] size_t cpu_set_size, cpu_set_t *mask) {
     thread_port_t mach_thread = pthread_mach_thread_np(thread);
     thread_affinity_policy_data_t affinity_policy;
-    mach_msg_type_number_t policy_info_count;
+    mach_msg_type_number_t policy_info_count = 1;
     boolean_t b;
     
     kern_return_t retValue = thread_policy_get(mach_thread, THREAD_AFFINITY_POLICY, reinterpret_cast<thread_policy_t>(&affinity_policy), &policy_info_count, &b);
