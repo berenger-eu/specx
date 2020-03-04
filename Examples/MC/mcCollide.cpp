@@ -126,7 +126,7 @@ int main(){
         Matrix<double> energyAll(0,0);
         runtime.task(SpWrite(energyAll),
                      SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                     [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                     [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
             energyAllParam = ComputeForAll(domainsParam, NbDomains);
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
@@ -150,7 +150,7 @@ int main(){
                              SpWrite(domains[idxDomain]),
                              SpAtomicWrite(*acceptedMove),
                              SpAtomicWrite(*failedMove),
-                             [&NbDomains, &Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
+                             [&Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& movedDomainParam,
                              const SpArrayAccessor<const Domain<double>>& domainsParam,
@@ -204,7 +204,7 @@ int main(){
             }
 
             runtime.task(SpRead(energyAll), SpWrite(*acceptedMove), SpWrite(*failedMove),
-                         [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam, int& failedMoveParam){
+                         [idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam, int& failedMoveParam){
                 std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                           << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
                 std::cout << "[" << idxLoop <<"] failed moves = " << static_cast<double>(failedMoveParam)/static_cast<double>(NbDomains) << std::endl;
@@ -237,7 +237,7 @@ int main(){
         Matrix<double> energyAll(0,0);
         runtime.task(SpPriority(0), SpWrite(energyAll),
                      SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                     [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                     [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
             energyAllParam = ComputeForAll(domainsParam, NbDomains);
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
@@ -261,7 +261,7 @@ int main(){
                              SpMaybeWrite(domains[idxDomain]),
                              SpAtomicWrite(*acceptedMove),
                              SpAtomicWrite(*failedMove),
-                             [&NbDomains, &Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
+                             [&Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& movedDomainParam,
                              const SpArrayAccessor<const Domain<double>>& domainsParam,
@@ -319,7 +319,7 @@ int main(){
             }
 
             runtime.task(SpRead(energyAll), SpWrite(*acceptedMove), SpWrite(*failedMove),
-                         [NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam, int& failedMoveParam){
+                         [idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam, int& failedMoveParam){
                 std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                           << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
                 std::cout << "[" << idxLoop <<"] failed moves = " << static_cast<double>(failedMoveParam)/static_cast<double>(NbDomains) << std::endl;

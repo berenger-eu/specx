@@ -22,7 +22,7 @@ class SimpleTest : public UTester< SimpleTest > {
         int writeVal = 0;
 
         runtime.task(SpRead(initVal),
-                     [this,&initVal](const int& initValParam){
+                     [this, &initVal](const int& initValParam){
             UASSERTETRUE(&initValParam == &initVal);
         });
 
@@ -32,7 +32,7 @@ class SimpleTest : public UTester< SimpleTest > {
         });
 
         runtime.task(SpRead(writeVal),
-                     [this,&initVal](const int& writeValParam){
+                     [this](const int& writeValParam){
             UASSERTETRUE(writeValParam == initVal);
         });
 

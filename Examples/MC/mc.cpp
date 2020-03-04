@@ -141,7 +141,7 @@ int main(){
         Matrix<double> energyAll(0,0);
         runtime.task(SpWrite(energyAll),
                      SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                     [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                     [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
             energyAllParam = ComputeForAll(domainsParam, NbDomains);
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
@@ -154,7 +154,7 @@ int main(){
                              SpWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              SpAtomicWrite(*acceptedMove),
-                             [verbose, BoxWidth, displacement, NbDomains, Temperature, idxDomain, idxLoop, randGen](
+                             [verbose, BoxWidth, displacement, Temperature, idxDomain, idxLoop, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam,
@@ -184,7 +184,7 @@ int main(){
             }
 
             runtime.task(SpRead(energyAll), SpWrite(*acceptedMove),
-                         [verbose, NbDomains, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
+                         [verbose, idxLoop](const Matrix<double>& energyAllParam, int& acceptedMoveParam){
                 if(verbose) std::cout << "[" << idxLoop <<"] energy = " << GetEnergy(energyAllParam)
                           << " acceptance " << static_cast<double>(acceptedMoveParam)/static_cast<double>(NbDomains) << std::endl;
                 delete &acceptedMoveParam;
@@ -223,7 +223,7 @@ int main(){
         Matrix<double> energyAll(0,0);
         runtime.task(SpPriority(0), SpWrite(energyAll),
                      SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                     [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                     [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
             energyAllParam = ComputeForAll(domainsParam, NbDomains);
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
@@ -236,7 +236,7 @@ int main(){
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
+                             [verbose, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam
@@ -319,7 +319,7 @@ int main(){
             Matrix<double> energyAll(0,0);
             runtime.task(SpPriority(0), SpWrite(energyAll),
                          SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                         [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                         [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
                 energyAllParam = ComputeForAll(domainsParam, NbDomains);
                 std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
             }).setTaskName("ComputeForAll");
@@ -334,7 +334,7 @@ int main(){
                                  SpMaybeWrite(energyAll),
                                  SpMaybeWrite(domains[idxDomain]),
                                  SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                                 [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
+                                 [verbose, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                                  Matrix<double>& energyAllParam,
                                  Domain<double>& domains_idxDomain,
                                  const SpArrayAccessor<const Domain<double>>& domainsParam) mutable {
@@ -420,7 +420,7 @@ int main(){
         Matrix<double> energyAll(0,0);
         runtime.task(SpPriority(0), SpWrite(energyAll),
                      SpReadArray(domains.data(),SpArrayView(NbDomains)),
-                     [NbDomains](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
+                     [](Matrix<double>& energyAllParam, const SpArrayAccessor<const Domain<double>>& domainsParam){
             energyAllParam = ComputeForAll(domainsParam, NbDomains);
             std::cout << "[START] energy = " << GetEnergy(energyAllParam) << std::endl;
         }).setTaskName("ComputeForAll");
@@ -433,7 +433,7 @@ int main(){
                              SpMaybeWrite(energyAll),
                              SpMaybeWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             [verbose, NbDomains, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
+                             [verbose, idxDomain, idxLoop, BoxWidth, displacement, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
                              const SpArrayAccessor<const Domain<double>>& domainsParam) mutable {
