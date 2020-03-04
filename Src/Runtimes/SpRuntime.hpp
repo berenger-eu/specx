@@ -348,7 +348,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         std::vector<const void*> res;
         
-        if constexpr(flags & (1 << static_cast<unsigned char>(accessMode))) {
+        if constexpr((flags & (1 << static_cast<unsigned char>(accessMode))) != 0) {
             [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
             assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
             long int indexHh = 0;
@@ -468,8 +468,8 @@ class SpRuntime : public SpAbstractToKnowReady {
         
         constexpr unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::MAYBE_WRITE);
         constexpr unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
-											|| 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
-											|| 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
+											| 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
+											| 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
         
         auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<maybeWriteFlags>(tuple, sequenceParamsNoFunction);
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(tuple, sequenceParamsNoFunction);
@@ -1199,12 +1199,20 @@ class SpRuntime : public SpAbstractToKnowReady {
 					SpCurrentCopy& cp = found->second;
 					if(found->second.isUniquePtr.use_count() == 1) {
 						assert(cp.latestAdress);
-						this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
-										  SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-										  [ptr = cp.latestAdress](TargetParamType& output){
-												assert(ptr ==  &output);
-												delete &output;
-										  }).setTaskName("sp-delete");
+                        #ifndef NDEBUG
+                            this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                              SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                              [ptr = cp.latestAdress](TargetParamType& output){
+                                                    assert(ptr ==  &output);
+                                                    delete &output;
+                                              }).setTaskName("sp-delete");
+                        #else
+                            this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                              SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                              [](TargetParamType& output){
+                                                    delete &output;
+                                              }).setTaskName("sp-delete");
+                        #endif
 					}
 					
 					copyMapToLookInto.erase(found);
@@ -1243,12 +1251,20 @@ class SpRuntime : public SpAbstractToKnowReady {
 					SpCurrentCopy& cp = found->second;
 					if(found->second.isUniquePtr.use_count() == 1) {
 						assert(cp.latestAdress);
-						this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
-										  SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
-										  [ptr = cp.latestAdress](TargetParamType& output){
-												assert(ptr ==  &output);
-												delete &output;
-										  }).setTaskName("sp-delete");
+                        #ifndef NDEBUG
+                            this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                              SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                              [ptr = cp.latestAdress](TargetParamType& output){
+                                                    assert(ptr ==  &output);
+                                                    delete &output;
+                                              }).setTaskName("sp-delete");
+                        #else
+                            this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)}, SpTaskActivation::ENABLE, SpPriority(0),
+                                              SpWrite(*reinterpret_cast<TargetParamType*>(cp.latestAdress)),
+                                              [](TargetParamType& output){
+                                                    delete &output;
+                                              }).setTaskName("sp-delete");
+                        #endif
 					}else {
 						*(found->second.isUniquePtr) = false;
 					}

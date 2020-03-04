@@ -68,7 +68,7 @@ int main(){
 
         std::atomic_int counterFirstSpec(0);
 
-        runtime.task(SpWrite(val), [&val,&counterFirstSpec](int& valParam){
+        runtime.task(SpWrite(val), [&counterFirstSpec](int& valParam){
             valParam += 1;
             counterFirstSpec += 1;
         }).setTaskName("D");
@@ -83,7 +83,7 @@ int main(){
 
         std::atomic_int counterSecondSpec(0);
 
-        runtime.task(SpWrite(val), [&val,&counterSecondSpec](int& valParam){
+        runtime.task(SpWrite(val), [&counterSecondSpec](int& valParam){
             valParam *= 2;
             counterSecondSpec += 1;
         }).setTaskName("F");
@@ -125,7 +125,7 @@ int main(){
 
         std::atomic_int counterFirstSpec(0);
 
-        runtime.task(SpWrite(val), [&val,&counterFirstSpec](int& valParam){
+        runtime.task(SpWrite(val), [&counterFirstSpec](int& valParam){
             valParam += 1;
             counterFirstSpec += 1;
         }).setTaskName("D");
@@ -140,7 +140,7 @@ int main(){
 
         std::atomic_int counterSecondSpec(0);
 
-        runtime.task(SpWrite(val), [&val,&counterSecondSpec](int& valParam){
+        runtime.task(SpWrite(val), [&counterSecondSpec](int& valParam){
             valParam *= 2;
             counterSecondSpec += 1;
         }).setTaskName("F");

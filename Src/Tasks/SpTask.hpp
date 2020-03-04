@@ -237,7 +237,7 @@ public:
     }
 
     //! Fill with the tasks that current task depend on
-    virtual void getPredecessors(std::vector<SpAbstractTask*>* allPredecessors) const {
+    virtual void getPredecessors(std::vector<SpAbstractTask*>* allPredecessors) const final {
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());

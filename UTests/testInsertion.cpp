@@ -46,7 +46,7 @@ class TestInsertion : public UTester< TestInsertion > {
             return res;
         });
         
-        runtime.task(SpRead(c), SpWrite(d), [this](const int& param_c, int&param_d){
+        runtime.task(SpRead(c), SpWrite(d), [](const int& param_c, int&param_d){
             if(param_c == 0) {
                 param_d = 1;
             }

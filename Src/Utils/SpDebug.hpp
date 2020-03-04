@@ -63,7 +63,7 @@ public:
         Printer(const Printer&) = delete;
         Printer(Printer&&) = default;
         Printer& operator=(const Printer&) = delete;
-        Printer& operator=(Printer&&) = default;
+        Printer& operator=(Printer&&) = delete;
 
         template <class Param>
         Printer& operator<<(Param&& toOutput){

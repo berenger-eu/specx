@@ -19,7 +19,7 @@ int main(){
     int writeVal = 0;
 
     runtime.task(SpRead(initVal),
-                 [&initVal](const int& /*initValParam*/){
+                 [](const int& /*initValParam*/){
     });
 
     runtime.task(SpRead(initVal), SpWrite(writeVal),
@@ -27,7 +27,7 @@ int main(){
     });
 
     runtime.task(SpRead(writeVal),
-                 [&initVal](const int& /*writeValParam*/){
+                 [](const int& /*writeValParam*/){
     });
 
     for(int idx = 0 ; idx < 5 ; ++idx){
@@ -35,7 +35,7 @@ int main(){
                      [](int& /*initValParam*/, int& /*writeValParam*/){
         });
         runtime.task(SpRead(writeVal),
-                     [&initVal](const int& /*writeValParam*/){
+                     [](const int& /*writeValParam*/){
         });
     }
 

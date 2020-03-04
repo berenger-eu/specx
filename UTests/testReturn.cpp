@@ -23,7 +23,7 @@ class ReturnTest : public UTester< ReturnTest > {
 
         {
             auto returnValue = runtime.task(SpRead(initVal),
-                         [this,&initVal](const int& initValParam){
+                         [this, &initVal](const int& initValParam){
                 UASSERTETRUE(&initValParam == &initVal);
             });
             returnValue.getValue();
@@ -41,7 +41,7 @@ class ReturnTest : public UTester< ReturnTest > {
 
         {
             auto returnValue = runtime.task(SpRead(writeVal),
-                         [this,&initVal](const int& writeValParam) -> int {
+                         [this](const int& writeValParam) -> int {
                 UASSERTETRUE(writeValParam == initVal);
                 return 99;
             });
