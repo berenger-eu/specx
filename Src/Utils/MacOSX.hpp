@@ -26,11 +26,11 @@ static void CPU_ZERO(cpu_set_t *cs) {
 }
 
 static void CPU_SET(int num, cpu_set_t *cs) {
-    cs->field |= (1 << num);
+    cs->field |= (static_cast<uint64_t>(1) << num);
 }
 
 static int CPU_ISSET(int num, cpu_set_t *cs) {
-    return (cs->field & (1 << num));
+    return (cs->field & (static_cast<uint64_t>(1) << num));
 }
 
 namespace macosspecific {
@@ -58,7 +58,7 @@ inline int sched_setaffinity_np(pthread_t thread, size_t cpu_set_size, cpu_set_t
     integer_t cpu_id = 0;
     
     /* find core number which is set in cpu_set */
-    for (size_t idx = 0; idx < cpu_set_size*CHAR_BIT-1; idx++) {
+    for (size_t idx = 0; idx < cpu_set_size*CHAR_BIT; idx++) {
         if (CPU_ISSET(idx, mask)) {
             cpu_id = idx;
             break;

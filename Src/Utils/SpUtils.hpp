@@ -54,21 +54,18 @@ namespace SpUtils{
     /** Return the current binding (bit a position n is set to 1 when bind
      * to core n)
      */
-    inline cpu_set_t GetBinding(){
-        cpu_set_t mask;
-        CPU_ZERO(&mask);
+    inline void GetBinding(cpu_set_t *mask){
+        CPU_ZERO(mask);
         
         #ifdef __APPLE__
-            [[maybe_unused]] int retValue = macosspecific::sched_getaffinity_np(pthread_self(), sizeof(mask), &mask);
+            [[maybe_unused]] int retValue = macosspecific::sched_getaffinity_np(pthread_self(), sizeof(*mask), mask);
             assert(retValue == 0);
         #else
             pid_t tid = static_cast<pid_t>(syscall(SYS_gettid));
             // Get the affinity
-            [[maybe_unused]] int retValue = sched_getaffinity(tid, sizeof(mask), &mask);
+            [[maybe_unused]] int retValue = sched_getaffinity(tid, sizeof(*mask), mask);
             assert(retValue == 0);
         #endif
-        
-        return mask;
     }
 
     /** Return the current thread id */
