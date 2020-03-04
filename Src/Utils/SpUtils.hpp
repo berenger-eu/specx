@@ -54,7 +54,7 @@ namespace SpUtils{
     /** Return the current binding (bit a position n is set to 1 when bind
      * to core n)
      */
-    inline long int GetBinding(){
+    inline uint32_t GetBinding(){
         cpu_set_t mask;
         CPU_ZERO(&mask);
         
@@ -68,7 +68,7 @@ namespace SpUtils{
             assert(retValue == 0);
         #endif
         
-        long int retMask = 0;
+        uint32_t retMask = 0;
         for(size_t idx = 0 ; idx < sizeof(long int)*8-1 ; ++idx){
             if(CPU_ISSET(idx, &mask)){
                 retMask |= (1<<idx);
