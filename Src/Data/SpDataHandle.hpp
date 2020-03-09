@@ -13,6 +13,7 @@
 #include "Runtimes/SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Data/SpDataDuplicator.hpp"
+#include "Utils/small_vector.hpp"
 
 //! This is a register data to apply the
 //! dependences on it.
@@ -23,7 +24,7 @@ class SpDataHandle {
     const std::string datatypeName;
 
     //! All the dependences on the current data
-    std::vector<SpDependence> dependencesOnData;
+    small_vector<SpDependence> dependencesOnData;
 
     //! To ensure safe access to the dependencesOnData vector
     mutable std::mutex mutexDependences;
@@ -166,7 +167,7 @@ public:
     }
 
     //! Get the potential ready tasks on the current cursor
-    void fillCurrentTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
+    void fillCurrentTaskList(small_vector_base<SpAbstractTask*>* potentialReady) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(currentDependenceCursor != static_cast<long int>(dependencesOnData.size())) {
             dependencesOnData[currentDependenceCursor].fillWithListOfPotentiallyReadyTasks(potentialReady);
@@ -174,7 +175,7 @@ public:
     }
 
     //! Get the list of tasks that depend on dependence at idx afterIdx
-    void getDependences(std::vector<SpAbstractTask*>* dependences, const long int afterIdx) const {
+    void getDependences(small_vector_base<SpAbstractTask*>* dependences, const long int afterIdx) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(afterIdx != static_cast<long int>(dependencesOnData.size()-1)){
             if(dependencesOnData[afterIdx].getMode() != SpDataAccessMode::WRITE
@@ -202,7 +203,7 @@ public:
     }
 
     //! Get the list of tasks that the given task depend on
-    void getPredecessors(std::vector<SpAbstractTask*>* dependences, const long int beforeIdx) const {
+    void getPredecessors(small_vector_base<SpAbstractTask*>* dependences, const long int beforeIdx) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(beforeIdx != 0){
             if(dependencesOnData[beforeIdx].getMode() != SpDataAccessMode::WRITE

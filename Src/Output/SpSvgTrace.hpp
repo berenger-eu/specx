@@ -10,6 +10,7 @@
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
+#include "Utils/small_vector.hpp"
 
 
 namespace SpSvgTrace {
@@ -134,7 +135,7 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
                    "</marker>\n"
                    "</defs>\n";
 
-        std::vector<SpAbstractTask*> deps;
+        small_vector<SpAbstractTask*> deps;
 
         for(const auto& atask : tasksFinished){
             atask->getDependences(&deps);
@@ -172,8 +173,8 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
                 << offsetStat + idxStat*(vsizeperthread+threadstrock+50) + vmargin + label.size()*30 - vsizeperthread/2 << ")\">" << label << "</text>\n";
     }
 
-    std::vector<int> nbReady(hdimtime, 0);
-    std::vector<int> nbSubmited(hdimtime, 0);
+    small_vector<int> nbReady(hdimtime, 0);
+    small_vector<int> nbSubmited(hdimtime, 0);
 
     for(const auto& atask : tasksFinished){
         const double taskSubmitedTime = startingTime.differenceWith(atask->getCreationTime());
@@ -203,7 +204,7 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
         }
     }
 
-    const std::reference_wrapper<const std::vector<int>> statVal[] = {nbSubmited, nbReady};
+    const std::reference_wrapper<const small_vector<int>> statVal[] = {nbSubmited, nbReady};
     const int maxStatVal[2] = {static_cast<int>(tasksFinished.size()), maxReady};
 
     for(int idxStat = 0 ; idxStat < 2 ; ++idxStat){

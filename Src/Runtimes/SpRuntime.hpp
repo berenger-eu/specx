@@ -30,6 +30,7 @@
 #include "Output/SpSvgTrace.hpp"
 #include "Speculation/SpSpecTaskGroup.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
+#include "Utils/small_vector.hpp"
 
 //! The runtime is the main component of spetabaru.
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
@@ -57,7 +58,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                       || SpecModel == SpSpeculativeModel::SP_MODEL_3, "Should not happen");
 
     //! Threads
-    std::vector<std::thread> threads;
+    small_vector<std::thread> threads;
     //! Number of threads
     const int nbThreads;
 
@@ -94,19 +95,19 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
 
     template <class ParamsType>
-    typename std::enable_if<ParamsType::IsScalar,std::array<SpDataHandle*,1>>::type
+    typename std::enable_if<ParamsType::IsScalar, small_vector<SpDataHandle*,1>>::type
     getDataHandle(ParamsType& scalarData){
         static_assert(std::tuple_size<decltype(scalarData.getAllData())>::value, "Size must be one for scalar");
         typename ParamsType::HandleTypePtr ptrToObject = scalarData.getAllData()[0];
         SpDebugPrint() << "SpRuntime -- Look for " << ptrToObject << " with mode provided " << SpModeToStr(ParamsType::AccessMode)
                        << " scalarData address " << &scalarData;
-        return std::array<SpDataHandle*,1>{getDataHandleCore(*ptrToObject)};
+        return small_vector<SpDataHandle*, 1>{getDataHandleCore(*ptrToObject)};
     }
 
     template <class ParamsType>
-    typename std::enable_if<!ParamsType::IsScalar,std::vector<SpDataHandle*>>::type
+    typename std::enable_if<!ParamsType::IsScalar,small_vector<SpDataHandle*>>::type
     getDataHandle(ParamsType& containerData){
-        std::vector<SpDataHandle*> handles;
+        small_vector<SpDataHandle*> handles;
         for(typename ParamsType::HandleTypePtr ptrToObject : containerData.getAllData()){
             SpDebugPrint() << "SpRuntime -- Look for " << ptrToObject << " with array view in getDataHandleExtra";
             SpDataHandle* handle = getDataHandleCore(*ptrToObject);
@@ -172,11 +173,11 @@ class SpRuntime : public SpAbstractToKnowReady {
     std::list<std::unique_ptr<SpGeneralSpecGroup<SpecModel>>> specGroups;
     std::mutex specGroupMutex;
     
-    using ExecutionPathWeakPtrTy = std::weak_ptr<std::vector<CopyMapTy>>;
-    using ExecutionPathSharedPtrTy = std::shared_ptr<std::vector<CopyMapTy>>;
+    using ExecutionPathWeakPtrTy = std::weak_ptr<small_vector<CopyMapTy>>;
+    using ExecutionPathSharedPtrTy = std::shared_ptr<small_vector<CopyMapTy>>;
     std::unordered_map<const void*, ExecutionPathSharedPtrTy> hashMap;
 
-    void releaseCopies(std::vector<CopyMapTy> &copyMaps){
+    void releaseCopies(small_vector_base<CopyMapTy> &copyMaps){
         for(auto& copyMapIt : copyMaps){
             for(auto &iter : copyMapIt) {
                 assert(iter.second.latestAdress);
@@ -275,22 +276,13 @@ class SpRuntime : public SpAbstractToKnowReady {
                                             std::index_sequence<Is...> is) {
         return coreTaskCreationAux<SpTask, true>(inActivation, inPriority, args, is, copyMapsToLookInto);
     }
-
-    static std::vector<SpAbstractTask*> copyMapToTaskVec(const std::unordered_map<const void*, SpCurrentCopy>& map){
-        std::vector<SpAbstractTask*> list;
-        list.reserve(map.size());
-        for( auto const& cp : map ) {
-            list.emplace_back(cp.second.latestCopyTask);
-        }
-        return list;
-    }
     
     template <class Tuple, std::size_t IdxData>
     auto coreGetCorrespondingExecutionPaths(Tuple& args){
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
 
-        std::vector<ExecutionPathWeakPtrTy> res;
+        small_vector<ExecutionPathWeakPtrTy> res;
 
         [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
@@ -313,14 +305,14 @@ class SpRuntime : public SpAbstractToKnowReady {
     auto getCorrespondingExecutionPaths(Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
-        std::vector<ExecutionPathWeakPtrTy> result;
+        small_vector<ExecutionPathWeakPtrTy> result;
         
         if(hashMap.empty()) {
             return result;
         }
         
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::vector<ExecutionPathWeakPtrTy> &res, std::vector<ExecutionPathWeakPtrTy>&& e) {
+            ([](small_vector_base<ExecutionPathWeakPtrTy> &res, small_vector_base<ExecutionPathWeakPtrTy>&& e) {
                 res.insert(res.end(), e.begin(), e.end());
             }(result, coreGetCorrespondingExecutionPaths<Tuple, Is>(args)), ...);
         }
@@ -340,13 +332,13 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template < unsigned char flags, class Tuple, std::size_t IdxData>
-    std::vector<const void*> coreGetOriginalAddressesOfHandlesInAccessModes(Tuple& args) {
+    auto coreGetOriginalAddressesOfHandlesInAccessModes(Tuple& args) {
         using ScalarOrContainerType = std::remove_reference_t<typename std::tuple_element<IdxData, Tuple>::type>;
         auto& scalarOrContainerData = std::get<IdxData>(args);
         
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         
-        std::vector<const void*> res;
+        small_vector<const void*> res;
         
         if constexpr((flags & (1 << static_cast<unsigned char>(accessMode))) != 0) {
             [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
@@ -366,13 +358,13 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <unsigned char flags, class Tuple, std::size_t... Is>
-    std::vector<const void*> getOriginalAddressesOfHandlesWithAccessModes(Tuple& args, std::index_sequence<Is...>) {
+    auto getOriginalAddressesOfHandlesWithAccessModes(Tuple& args, std::index_sequence<Is...>) {
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
-        std::vector<const void*> result;
+        small_vector<const void*> result;
         
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::vector<const void*> &res, std::vector<const void*>&& handles) {
+            ([](small_vector_base<const void*> &res, small_vector_base<const void*>&& handles) {
                 res.insert(res.end(), handles.begin(), handles.end());
             }(result, coreGetOriginalAddressesOfHandlesInAccessModes<flags, Tuple, Is>(args)), ...);
         }
@@ -380,13 +372,13 @@ class SpRuntime : public SpAbstractToKnowReady {
         return result;
     }
     
-    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathSharedPtrTy &ep, std::vector<const void*> &originalAddresses){
+    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathSharedPtrTy &ep, small_vector_base<const void*> &originalAddresses){
         for(auto oa : originalAddresses) {
             hashMap[oa] = ep;
         }
     }
     
-    void removeOriginalAddressesFromHashMap(std::vector<const void*> &originalAddresses){
+    void removeOriginalAddressesFromHashMap(small_vector_base<const void*> &originalAddresses){
         for(auto oa : originalAddresses) {
             hashMap.erase(oa);
         }
@@ -451,7 +443,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     };
     
     template <const bool isPotentialTask, class... ParamsAndTask>
-    inline auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
+    auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
@@ -464,7 +456,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     
         ExecutionPathSharedPtrTy e;
         
-        std::vector<const void *> originalAddresses;
+        small_vector<const void *> originalAddresses;
         
         constexpr unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::MAYBE_WRITE);
         constexpr unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
@@ -475,14 +467,14 @@ class SpRuntime : public SpAbstractToKnowReady {
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(tuple, sequenceParamsNoFunction);
         
         if(executionPaths.empty()) {
-            e = std::make_shared<std::vector<CopyMapTy>>();
+            e = std::make_shared<small_vector<CopyMapTy>>();
         }else if(executionPaths.size() == 1){
             e = executionPaths[0].lock();
         }else{ // merge case
 			isPathResultingFromMerge = true;
-            e = std::make_shared<std::vector<CopyMapTy>>();
+            e = std::make_shared<small_vector<CopyMapTy>>();
             
-            using ExecutionPathIteratorVectorTy = std::vector<SpRange<typename std::vector<CopyMapTy>::iterator>>;
+            using ExecutionPathIteratorVectorTy = small_vector<SpRange<typename small_vector_base<CopyMapTy>::iterator>>;
             
             ExecutionPathIteratorVectorTy vectorExecutionPaths;
             
@@ -494,7 +486,8 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             while(true) {
                 
-                auto speculationBranchIt = e->emplace(e->end());
+                e->emplace_back();
+                auto speculationBranchIt = e->end()-1;
             
                 for(auto &ep : vectorExecutionPaths) {
                     if(ep.currentIt != ep.endIt) {
@@ -574,7 +567,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <const bool isPotentialTask, class... ParamsAndTask>
-    inline auto preCoreTaskCreationAux([[maybe_unused]] bool pathResultsFromMerge, std::vector<CopyMapTy> &copyMaps, const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
+    auto preCoreTaskCreationAux([[maybe_unused]] bool pathResultsFromMerge, small_vector_base<CopyMapTy> &copyMaps, const SpPriority& inPriority, const SpProbability& inProbability, ParamsAndTask&&... params) {
         
         static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
                       || SpecModel == SpSpeculativeModel::SP_MODEL_2
@@ -611,8 +604,8 @@ class SpRuntime : public SpAbstractToKnowReady {
             
             using TaskViewTy = decltype(coreTaskCreation(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)}, std::declval<SpTaskActivation>(), inPriority, tuple, sequenceParamsNoFunction));
             
-            std::vector<TaskViewTy> speculativeTasks;
-            std::vector<std::function<void()>> selectTaskCreationFunctions;
+            small_vector<TaskViewTy> speculativeTasks;
+            small_vector<std::function<void()>> selectTaskCreationFunctions;
             
             std::shared_ptr<std::atomic<size_t>> numberOfSpeculativeSiblingSpecGroupsCounter = std::make_shared<std::atomic<size_t>>(0);
             
@@ -670,7 +663,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                     taskViewSpec.getTaskPtr()->setSpecGroup(specGroupSpecTask.get());
                     speculativeTasks.push_back(taskViewSpec);
                     
-                    std::vector<std::function<void()>> functions = createSelectTaskCreationFunctions(std::array<CopyMapPtrTy, 3>{std::addressof(l1), std::addressof(l2), std::addressof(*it)}, specGroupSpecTask.get(), inPriority, tuple, sequenceParamsNoFunction);
+                    auto functions = createSelectTaskCreationFunctions(std::array<CopyMapPtrTy, 3>{std::addressof(l1), std::addressof(l2), std::addressof(*it)}, specGroupSpecTask.get(), inPriority, tuple, sequenceParamsNoFunction);
                     
                     selectTaskCreationFunctions.reserve(selectTaskCreationFunctions.size() + functions.size());
                     selectTaskCreationFunctions.insert(selectTaskCreationFunctions.end(), functions.begin(), functions.end());
@@ -694,12 +687,14 @@ class SpRuntime : public SpAbstractToKnowReady {
                 
             if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
                 if(copyMaps.empty()) {
-                    it = copyMaps.emplace(copyMaps.end());
+                    copyMaps.emplace_back();
+                    it = copyMaps.end()-1;
                 } else {
                     it = copyMaps.begin();
                 }
             }else {
-                it = copyMaps.emplace(copyMaps.end());
+                copyMaps.emplace_back();
+                it = copyMaps.end()-1;
             }
             
             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
@@ -761,7 +756,7 @@ class SpRuntime : public SpAbstractToKnowReady {
     }
     
     template <class Tuple, std::size_t IdxData, std::size_t N>
-    std::vector<std::function<void()>> coreCreateSelectTaskCreationFunctions(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
+    auto coreCreateSelectTaskCreationFunctions(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                                    [[maybe_unused]] SpGeneralSpecGroup<SpecModel> *sg,
                                                    const SpPriority& inPriority,
                                                    Tuple& args){
@@ -774,7 +769,7 @@ class SpRuntime : public SpAbstractToKnowReady {
                       
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
-        std::vector<std::function<void()>> res;
+        small_vector<std::function<void()>> res;
 
         auto hh = getDataHandle(scalarOrContainerData);
         assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
@@ -849,17 +844,17 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     
     template <class Tuple, std::size_t... Is, std::size_t N>
-    std::vector<std::function<void()>> createSelectTaskCreationFunctions(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
+    auto createSelectTaskCreationFunctions(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                                SpGeneralSpecGroup<SpecModel> *sg,
                                                const SpPriority& inPriority,
                                                Tuple& args,
                                                std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
-        std::vector<std::function<void()>> res;
+        small_vector<std::function<void()>> res;
         
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::vector<std::function<void()>> &l, std::vector<std::function<void()>>&& l2) {
+            ([](small_vector_base<std::function<void()>> &l, small_vector_base<std::function<void()>>&& l2) {
                 l.reserve(l.size() + l2.size());
                 l.insert(l.end(), l2.begin(), l2.end());
             }(res, coreCreateSelectTaskCreationFunctions<Tuple, Is>(copyMapsToLookInto, sg, inPriority, args)), ...);
@@ -927,7 +922,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
     //! Copy all the data of a mode if the access mode matches or if copyIfAlreadyDuplicate is true
     template <class Tuple, std::size_t IdxData, SpDataAccessMode targetMode, std::size_t N>
-    std::vector<SpCurrentCopy> coreCopyIfAccess(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
+    auto coreCopyIfAccess(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                                 [[maybe_unused]] const SpTaskActivation initialActivationState,
                                                 [[maybe_unused]] const SpPriority& inPriority,
                                                 [[maybe_unused]] const bool copyIfAlreadyDuplicate,
@@ -937,13 +932,13 @@ class SpRuntime : public SpAbstractToKnowReady {
 
         const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
         using TargetParamType = typename ScalarOrContainerType::RawHandleType;
+        
+        small_vector<SpCurrentCopy> allCopies;
 
         if constexpr (accessMode == targetMode){
             static_assert(std::is_default_constructible<TargetParamType>::value
                           && std::is_copy_assignable<TargetParamType>::value,
                           "Data must be copiable");
-
-            std::vector<SpCurrentCopy> allCopies;
 
             auto& scalarOrContainerData = std::get<IdxData>(args);
             auto hh = getDataHandle(scalarOrContainerData);
@@ -997,10 +992,9 @@ class SpRuntime : public SpAbstractToKnowReady {
                 indexHh += 1;
             }
 
-            return allCopies;
-        } else{
-            return std::vector<SpCurrentCopy>();
         }
+        
+        return allCopies;
     }
     
     template <const bool copyIfAlreadyDuplicate, const bool copyIfUsedInRead, SpDataAccessMode targetMode, class Tuple, std::size_t... Is, std::size_t N>
@@ -1013,7 +1007,7 @@ class SpRuntime : public SpAbstractToKnowReady {
         std::unordered_map<const void*, SpCurrentCopy> copyMap;
         
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::unordered_map<const void*, SpCurrentCopy> &cm, std::vector<SpCurrentCopy>&& copies) {
+            ([](std::unordered_map<const void*, SpCurrentCopy> &cm, small_vector_base<SpCurrentCopy>&& copies) {
                 for(const SpCurrentCopy &c : copies) {
                    cm[c.originAdress] = c; 
                 }
@@ -1116,7 +1110,7 @@ class SpRuntime : public SpAbstractToKnowReady {
 
             if(auto found = copyMap.find(ptr); found != copyMap.end()){
                 assert(found->second.lastestSpecGroup);
-                if constexpr(SpUtils::is_instantiation_of<std::vector, RetType>::value) {
+                if constexpr(is_instantiation_of_small_vector<RetType>::value) {
                     res.emplace_back(found->second.lastestSpecGroup);
                 } else if constexpr(SpUtils::is_instantiation_of<std::unordered_map, RetType>::value){
                     res[ptr] = (found->second);
@@ -1131,18 +1125,18 @@ class SpRuntime : public SpAbstractToKnowReady {
     
     template <class Tuple, std::size_t IdxData>
     inline auto coreGetCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args){
-        return coreGetCorrespondingCopyAux<Tuple, IdxData, std::vector<SpGeneralSpecGroup<SpecModel>*>>(copyMap, args);
+        return coreGetCorrespondingCopyAux<Tuple, IdxData, small_vector<SpGeneralSpecGroup<SpecModel>*>>(copyMap, args);
     }
     
     template <class Tuple, std::size_t... Is>
-    std::vector<SpGeneralSpecGroup<SpecModel>*> getCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args, std::index_sequence<Is...>){
+    auto getCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args, std::index_sequence<Is...>){
         static_assert(std::tuple_size<Tuple>::value-1 == sizeof...(Is), "Is must be the parameters without the function");
         
-        std::vector<SpGeneralSpecGroup<SpecModel>*> result;
+        small_vector<SpGeneralSpecGroup<SpecModel>*> result;
         
         // Add the handles
         if constexpr(sizeof...(Is) > 0) {
-            ([](std::vector<SpGeneralSpecGroup<SpecModel>*> &res, std::vector<SpGeneralSpecGroup<SpecModel>*>&& cg) {
+            ([](small_vector_base<SpGeneralSpecGroup<SpecModel>*> &res, small_vector_base<SpGeneralSpecGroup<SpecModel>*>&& cg) {
                 res.insert(res.end(), cg.begin(), cg.end());
             }(result, coreGetCorrespondingCopyGroups<Tuple, Is>(copyMap, args)), ...);
         }

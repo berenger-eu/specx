@@ -12,6 +12,7 @@
 #include "Runtimes/SpRuntime.hpp"
 
 #include "Random/SpMTGenerator.hpp"
+#include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
 
@@ -43,7 +44,7 @@ int main(){
     if(runSeqMove){
         SpMTGenerator<double> randGen(0);
 
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
         size_t cptGenerated = randGen.getNbValuesGenerated();
 
@@ -77,7 +78,7 @@ int main(){
                 if(movedDomain.getNbParticles()){
                     always_assert(nbAttempts != MaxIterationToMove);
                     // Compute new energy
-                    const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
+                    const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                             energyAll, idxDomain, movedDomain);
 
                     std::cout << "[" << idxLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -119,7 +120,7 @@ int main(){
 
         SpMTGenerator<double> randGen(0);
 
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
@@ -174,7 +175,7 @@ int main(){
 
                     if(movedDomainParam.getNbParticles() != 0){
                         // Compute new energy
-                        const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
+                        const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
                                                                                                 energyAllParam, idxDomain, movedDomainParam);
 
                         std::cout << "[" << idxLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -230,7 +231,7 @@ int main(){
 
         SpMTGenerator<double> randGen(0);
 
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
 
         // Compute all
@@ -285,7 +286,7 @@ int main(){
 
                     if(movedDomainParam.getNbParticles() != 0){
                         // Compute new energy
-                        const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
+                        const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
                                                                                                 energyAllParam, idxDomain, movedDomainParam);
 
                         std::cout << "[" << idxLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;

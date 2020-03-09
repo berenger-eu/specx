@@ -11,6 +11,7 @@
 #include "SpAbstractTask.hpp"
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpUtils.hpp"
+#include "Utils/small_vector.hpp"
 
 #ifdef __GNUG__
 #include <cxxabi.h>
@@ -39,9 +40,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     std::array<long int,NbParams> dataHandlesKeys;
 
     //! Extra handles
-    std::vector<SpDataHandle*> dataHandlesExtra;
+    small_vector<SpDataHandle*> dataHandlesExtra;
     //! Extra handles's dependences keys
-    std::vector<long int> dataHandlesKeysExtra;
+    small_vector<long int> dataHandlesKeysExtra;
 
     //! Params (inside data mode)
     TupleParamsType tupleParams;
@@ -183,12 +184,12 @@ public:
     //! The algorithm will first release all the dependences, such that
     //! when filling with potentialReady we are able to find tasks that have more
     //! than one dependence in common with the current task.
-    void releaseDependences(std::vector<SpAbstractTask*>* potentialReady) final {
+    void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) final {
         // Arrays of boolean flags indicating for each released dependency whether the "after release" pointed to
         // dependency slot in the corresponding data handle contains any unfullfilled memory access
         // requests.
         std::array<bool, NbParams> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles;
-        std::vector<bool> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra(dataHandlesExtra.size());
+        small_vector<bool> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra(dataHandlesExtra.size());
         
         SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences";
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
@@ -223,7 +224,7 @@ public:
     }
 
     //! Fill with the tasks that depend on the current task
-    virtual void getDependences(std::vector<SpAbstractTask*>* allDeps) const final {
+    virtual void getDependences(small_vector_base<SpAbstractTask*>* allDeps) const final {
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
@@ -237,7 +238,7 @@ public:
     }
 
     //! Fill with the tasks that current task depend on
-    virtual void getPredecessors(std::vector<SpAbstractTask*>* allPredecessors) const final {
+    virtual void getPredecessors(small_vector_base<SpAbstractTask*>* allPredecessors) const final {
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
@@ -270,8 +271,8 @@ public:
         return false;
     }
 
-    std::vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const final{
-        std::vector<std::pair<SpDataHandle*,SpDataAccessMode>> data;
+    small_vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const final{
+        small_vector<std::pair<SpDataHandle*,SpDataAccessMode>> data;
         data.reserve(NbParams + dataHandlesExtra.size());
 
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){

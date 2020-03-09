@@ -12,6 +12,7 @@
 #include "SpDebug.hpp"
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/SpArrayAccessor.hpp"
+#include "Utils/small_vector.hpp"
 
 ////////////////////////////////////////////////////////
 /// All possible data access modes
@@ -121,7 +122,7 @@ public:
     using AccessorType = AccessorTypeT;
 private:
     AccessorTypeT accessor;
-    std::vector<HandleTypePtr> ptrToData;
+    small_vector<HandleTypePtr> ptrToData;
 
 public:
 
@@ -134,7 +135,7 @@ public:
         }
     }
 
-    std::vector<HandleTypePtr>& getAllData(){
+    small_vector_base<HandleTypePtr>& getAllData(){
         return ptrToData;
     }
 

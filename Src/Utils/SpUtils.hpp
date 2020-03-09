@@ -24,6 +24,7 @@
 #include <cassert>
 
 #include "SpDebug.hpp"
+#include "small_vector.hpp"
 
 /**
  * Utils methods

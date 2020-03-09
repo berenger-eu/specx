@@ -8,6 +8,7 @@
 #include <cassert>
 
 #include "Utils/SpArrayAccessor.hpp"
+#include "Utils/small_vector.hpp"
 
 template <class RealType>
 RealType LennardJones(const RealType r_ij){
@@ -41,7 +42,7 @@ class Matrix {
     int nbRows;
     int nbCols;
 
-    std::vector<RealType> data;
+    small_vector<RealType> data;
 
 public:
     Matrix(const int inNbRows, const int inNbCols)
@@ -85,7 +86,7 @@ public:
 
 template <class RealType>
 class Domain{
-    std::vector<Particle<RealType>> particles;
+    small_vector<Particle<RealType>> particles;
 public:
     explicit Domain(const int inNbParticles = 0){
         particles.resize(inNbParticles);
@@ -109,9 +110,9 @@ public:
 };
 
 template <class RealType, class RandGenClass>
-std::vector<Domain<RealType>> InitDomains(const int NbDomains, const int NbParticlesPerDomain, const RealType BoxWidth,
+small_vector<Domain<RealType>> InitDomains(const int NbDomains, const int NbParticlesPerDomain, const RealType BoxWidth,
                                           RandGenClass& randGen){
-    std::vector<Domain<RealType>> domains;
+    small_vector<Domain<RealType>> domains;
     domains.reserve(NbDomains);
 
     for(int idxDom = 0 ; idxDom < NbDomains ; ++idxDom){
@@ -288,12 +289,12 @@ Matrix<RealType> ComputeForAll(const SpArrayAccessor<const Domain<RealType>>& do
 }
 
 template <class RealType>
-std::pair<RealType,std::vector<RealType>> ComputeForOne(const Domain<RealType> domains[], const int nbDomains,
+std::pair<RealType,small_vector<RealType>> ComputeForOne(const Domain<RealType> domains[], const int nbDomains,
                        const Matrix<RealType>& allEnergy, const int idxTargetDomain,
                        const Domain<RealType>& movedDomain){
 
     RealType deltaEnergy = 0;
-    std::vector<RealType> newEnergy(nbDomains, 0);
+    small_vector<RealType> newEnergy(nbDomains, 0);
 
     for(int idxDomain2 = 0; idxDomain2 < nbDomains ; ++idxDomain2){
         if(idxDomain2 != idxTargetDomain){
@@ -316,11 +317,11 @@ std::pair<RealType,std::vector<RealType>> ComputeForOne(const Domain<RealType> d
 }
 
 template <class RealType>
-std::pair<RealType,std::vector<RealType>> ComputeForOne(const SpArrayAccessor<const Domain<RealType>>& domains, const int nbDomains,
+std::pair<RealType,small_vector<RealType>> ComputeForOne(const SpArrayAccessor<const Domain<RealType>>& domains, const int nbDomains,
                        const Matrix<RealType>& allEnergy, const int idxTargetDomain,
                        const Domain<RealType>& movedDomain){
     RealType deltaEnergy = 0;
-    std::vector<RealType> newEnergy(nbDomains, 0);
+    small_vector<RealType> newEnergy(nbDomains, 0);
 
     for(int idxDomain2 = 0; idxDomain2 < domains.getSize() ; ++idxDomain2){
         assert(domains.getIndexAt(idxDomain2) != idxTargetDomain);

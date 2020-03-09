@@ -11,6 +11,7 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 #include "Utils/SpTimer.hpp"
+#include "Utils/small_vector.hpp"
 
 int main(){
     const int NumThreads = SpUtils::DefaultNumThreads();
@@ -59,7 +60,7 @@ int main(){
         const int NbTasksToSubmit = runtime.getNbThreads();
         int initVal = 1;
 
-        std::vector<SpAbstractTaskWithReturn<double>::SpTaskViewer> elapsed;
+        small_vector<SpAbstractTaskWithReturn<double>::SpTaskViewer> elapsed;
         elapsed.reserve(NbTasksToSubmit*NbLoops);
 
         for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
@@ -88,7 +89,7 @@ int main(){
         const int NbTasksToSubmit = runtime.getNbThreads();
         int initVal = 1;
 
-        std::vector<SpAbstractTaskWithReturn<double>::SpTaskViewer> elapsed;
+        small_vector<SpAbstractTaskWithReturn<double>::SpTaskViewer> elapsed;
         elapsed.reserve(NbTasksToSubmit*NbLoops);
 
         for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){

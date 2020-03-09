@@ -8,11 +8,12 @@
 #include <type_traits>
 #include <vector>
 #include <cassert>
+#include "small_vector.hpp"
 
 template <class ObjectType>
 class SpArrayAccessor {
-    std::vector<ObjectType*> dataPtr;
-    std::vector<long int> dataIdx;
+    small_vector<ObjectType*> dataPtr;
+    small_vector<long int> dataIdx;
 
 public:
     class ConstIterator{

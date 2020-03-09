@@ -14,21 +14,23 @@
 #include "Buffer/SpBufferDataView.hpp"
 #include "Buffer/SpHeapBuffer.hpp"
 
+#include "Utils/small_vector.hpp"
+
 int main(){
     const int NumThreads = SpUtils::DefaultNumThreads();
     SpRuntime runtime(NumThreads);
 
-    SpHeapBuffer<std::vector<int>> heapBuffer;
+    SpHeapBuffer<small_vector<int>> heapBuffer;
 
     for(int idx = 0 ; idx < 5 ; ++idx){
         auto vectorBuffer = heapBuffer.getNewBuffer();
 
         runtime.task(SpWrite(vectorBuffer.getDataDep()),
-                     [](SpDataBuffer<std::vector<int>> /*vector*/){
+                     [](SpDataBuffer<small_vector<int>> /*vector*/){
         });
         for(int idxSub = 0 ; idxSub < 3 ; ++idxSub){
             runtime.task(SpRead(vectorBuffer.getDataDep()),
-                         [](const SpDataBuffer<std::vector<int>> /*vector*/){
+                         [](const SpDataBuffer<small_vector<int>> /*vector*/){
             });
         }
     }
