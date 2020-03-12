@@ -20,6 +20,7 @@
 #include "SpSimpleScheduler.hpp"
 #include "SpPrioScheduler.hpp"
 #include "SpSchedulerInformer.hpp"
+#include "Utils/small_vector.hpp"
 
 //! The runtime is the main component of spetabaru.
 class SpTasksManager{
@@ -105,7 +106,7 @@ class SpTasksManager{
     ///////////////////////////////////////////////////////////////////////////////////////
     
     std::mutex listenersReadyMutex;
-    std::vector<SpAbstractToKnowReady*> listenersReady;
+    small_vector<SpAbstractToKnowReady*> listenersReady;
     
     void informAllReady(SpAbstractTask* aTask){
         if(lockerByThread0 == false || SpUtils::GetThreadId() != 0){
@@ -249,7 +250,7 @@ public:
 
                 taskToManage->setState(SpTaskState::POST_RUN);
 
-                std::vector<SpAbstractTask*> candidates;
+                small_vector<SpAbstractTask*> candidates;
                 taskToManage->releaseDependences(&candidates);
 
                 SpDebugPrint() << "Proceed candidates from after " << taskToManage->getId() << ", they are " << candidates.size();

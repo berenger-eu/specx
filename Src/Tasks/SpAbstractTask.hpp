@@ -17,6 +17,7 @@
 #include "Utils/SpModes.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpProbability.hpp"
+#include "Utils/small_vector.hpp"
 
 /** The possible state of a task */
 enum class SpTaskState {
@@ -109,12 +110,12 @@ public:
     virtual long int getNbParams() = 0;
     virtual bool dependencesAreReady() const = 0;
     virtual void executeCore() = 0;
-    virtual void releaseDependences(std::vector<SpAbstractTask*>* potentialReady) = 0;
-    virtual void getDependences(std::vector<SpAbstractTask*>* allDeps) const = 0;
-    virtual void getPredecessors(std::vector<SpAbstractTask*>* allPredecessors) const = 0;
+    virtual void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) = 0;
+    virtual void getDependences(small_vector_base<SpAbstractTask*>* allDeps) const = 0;
+    virtual void getPredecessors(small_vector_base<SpAbstractTask*>* allPredecessors) const = 0;
     virtual void useDependences(std::unordered_set<SpDataHandle*>* exceptionList) = 0;
     virtual bool hasMode(const SpDataAccessMode inMode) const = 0;
-    virtual std::vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const = 0;
+    virtual small_vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const = 0;
     virtual void executeCallback() = 0;
     virtual std::string getTaskBodyString() = 0;
 
@@ -338,7 +339,7 @@ private:
     RetType resultValue;
 
     std::mutex mutexCallbacks;
-    std::vector<std::function<void(const bool, const RetType&, SpTaskViewer&, const bool)>> callbacks;
+    small_vector<std::function<void(const bool, const RetType&, SpTaskViewer&, const bool)>> callbacks;
 
 public:
     explicit SpAbstractTaskWithReturn(const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
@@ -437,7 +438,7 @@ public:
     };
 private:
     std::mutex mutexCallbacks;
-    std::vector<std::function<void(const bool, SpTaskViewer&, const bool)>> callbacks;
+    small_vector<std::function<void(const bool, SpTaskViewer&, const bool)>> callbacks;
 
 public:
     using SpAbstractTask::SpAbstractTask;

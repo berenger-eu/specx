@@ -13,6 +13,7 @@
 #include "Runtimes/SpRuntime.hpp"
 
 #include "Random/SpMTGenerator.hpp"
+#include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
 
@@ -79,7 +80,7 @@ int main(){
 
     if(runSeq){
         std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
-        std::array<std::vector<Domain<double>>,NbReplicas> replicaDomains;
+        std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
         std::array<size_t,NbReplicas> replicaCptGenerated;
 
@@ -87,7 +88,7 @@ int main(){
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-            std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+            auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
             size_t& cptGenerated = replicaCptGenerated[idxReplica];
 
@@ -107,7 +108,7 @@ int main(){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 size_t& cptGenerated = replicaCptGenerated[idxReplica];
                 const double& Temperature = temperatures[idxReplica];
@@ -122,7 +123,7 @@ int main(){
                         cptGenerated = randGen.getNbValuesGenerated();
 
                         // Compute new energy
-                        const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
+                        const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                                 energyAll, idxDomain, movedDomain);
 
                         if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -187,14 +188,14 @@ int main(){
         SpRuntime runtime(NumThreads);
 
         std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
-        std::array<std::vector<Domain<double>>,NbReplicas> replicaDomains;
+        std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerTask.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-            std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+            auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
@@ -214,7 +215,7 @@ int main(){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 const double& Temperature = temperatures[idxReplica];
 
@@ -235,7 +236,7 @@ int main(){
                             movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
                             // Compute new energy
-                            const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
+                            const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
                                                                                                     energyAllParam, idxDomain, movedDomainParam);
 
                             if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -272,16 +273,16 @@ int main(){
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
                     SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
-                    std::vector<Domain<double>>& domains0 = replicaDomains[idxReplica];
+                    auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
-                    std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
+                    auto& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                     runtime.task(SpWrite(domains0), SpWrite(energyAll0),
                                  SpWrite(domains1), SpWrite(energyAll1),
                                  SpWrite(*nbExchanges),
-                                 [verbose, randGen0, idxReplica, betas, idxLoop](std::vector<Domain<double>>& domains0Param,
-                                 Matrix<double>& energyAll0Param, std::vector<Domain<double>>& domains1Param,
+                                 [verbose, randGen0, idxReplica, betas, idxLoop](small_vector<Domain<double>>& domains0Param,
+                                 Matrix<double>& energyAll0Param, small_vector<Domain<double>>& domains1Param,
                                  Matrix<double>& energyAll1Param, int& nbExchangesParam) mutable{
                         const bool exchange = RemcAccept(GetEnergy(energyAll0Param),
                                                          GetEnergy(energyAll1Param),
@@ -332,14 +333,14 @@ int main(){
         });
 
         std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
-        std::array<std::vector<Domain<double>>,NbReplicas> replicaDomains;
+        std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerSpec.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-            std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+            auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
@@ -359,7 +360,7 @@ int main(){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 const double& Temperature = temperatures[idxReplica];
 
@@ -379,7 +380,7 @@ int main(){
                             movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
                             // Compute new energy
-                            const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
+                            const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
                                                                                                     energyAllParam, idxDomain, movedDomainParam);
 
                             if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -426,9 +427,9 @@ int main(){
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
                     SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
-                    std::vector<Domain<double>>& domains0 = replicaDomains[idxReplica];
+                    auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
-                    std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
+                    auto& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                     runtime.task(
@@ -495,14 +496,14 @@ int main(){
             });
 
             std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
-            std::array<std::vector<Domain<double>>,NbReplicas> replicaDomains;
+            std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
             std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
             timerSpecNoCons[idxConsecutiveSpec].start();
 
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
                 randGen = SpMTGenerator<double>(0/*idxReplica*/);
@@ -524,7 +525,7 @@ int main(){
                 const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
                 for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                     SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                    std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                    auto& domains = replicaDomains[idxReplica];
                     Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                     const double& Temperature = temperatures[idxReplica];
 
@@ -544,7 +545,7 @@ int main(){
                                 movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
                                 // Compute new energy
-                                const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
+                                const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains,
                                                                                                         energyAllParam, idxDomain, movedDomainParam);
 
                                 if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -594,9 +595,9 @@ int main(){
                     const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                     for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
                         SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
-                        std::vector<Domain<double>>& domains0 = replicaDomains[idxReplica];
+                        auto& domains0 = replicaDomains[idxReplica];
                         Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
-                        std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
+                        auto& domains1 = replicaDomains[idxReplica+1];
                         Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                         runtime.task(
@@ -664,14 +665,14 @@ int main(){
         });
 
         std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
-        std::array<std::vector<Domain<double>>,NbReplicas> replicaDomains;
+        std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerSpecAllReject.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
             SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-            std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+            auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
             randGen = SpMTGenerator<double>(0/*idxReplica*/);
@@ -691,7 +692,7 @@ int main(){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
                 SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
-                std::vector<Domain<double>>& domains = replicaDomains[idxReplica];
+                auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
                 for(int idxInnerLoop = idxLoop ; idxInnerLoop < NbInnerLoopsLimit ; ++idxInnerLoop){
@@ -721,7 +722,7 @@ int main(){
                             movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
                             // Compute new energy
-                            const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
+                            const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                                     energyAllParam, idxDomain, movedDomainParam);
 
                             if(verbose) std::cout << "[" << idxReplica << "][" << idxInnerLoop <<"] \t delta energy = " << deltaEnergy.first << std::endl;
@@ -767,9 +768,9 @@ int main(){
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
                     SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
-                    std::vector<Domain<double>>& domains0 = replicaDomains[idxReplica];
+                    auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
-                    std::vector<Domain<double>>& domains1 = replicaDomains[idxReplica+1];
+                    auto& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                     runtime.task(

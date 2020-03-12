@@ -13,6 +13,7 @@
 #include "Runtimes/SpRuntime.hpp"
 
 #include "Random/SpMTGenerator.hpp"
+#include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
 
@@ -68,7 +69,7 @@ int main(){
     if(runSeq){
         SpMTGenerator<double> randGen(0);
 
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
         size_t cptGenerated = randGen.getNbValuesGenerated();
 
@@ -90,7 +91,7 @@ int main(){
                 cptGenerated = randGen.getNbValuesGenerated();
 
                 // Compute new energy
-                const std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
+                const std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domains.data(), NbDomains,
                                                                                         energyAll, idxDomain, movedDomain);
 
                 if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
@@ -134,7 +135,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         timerTask.start();
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
@@ -163,7 +164,7 @@ int main(){
                     Domain<double> movedDomainParam;
                     movedDomainParam = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
 
-                    std::pair<double,std::vector<double>> deltaEnergyParam = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomainParam);
+                    std::pair<double,small_vector<double>> deltaEnergyParam = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomainParam);
                     if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergyParam.first << std::endl;
 
                     // Accept/reject
@@ -216,7 +217,7 @@ int main(){
         SpMTGenerator<double> randGen(0);
 
         timerSpec.start();
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
@@ -244,7 +245,7 @@ int main(){
                     Domain<double> movedDomain;
                     movedDomain = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
                     // Compute new energy
-                    std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
+                    std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
                     if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
@@ -312,7 +313,7 @@ int main(){
             SpMTGenerator<double> randGen(0);
 
             timerSpecNoCons[idxConsecutiveSpec].start();
-            std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+            small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
             always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
             // Compute all
@@ -341,7 +342,7 @@ int main(){
                         Domain<double> movedDomain;
                         movedDomain = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
                         // Compute new energy
-                        std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
+                        std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
                         if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 
@@ -413,7 +414,7 @@ int main(){
 
         timerSpecAllReject.start();
 
-        std::vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
+        small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
 
         // Compute all
@@ -440,7 +441,7 @@ int main(){
                     Domain<double> movedDomain;
                     movedDomain = MoveDomain<double>(domains_idxDomain, BoxWidth, displacement, randGen);
                     // Compute new energy
-                    std::pair<double,std::vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
+                    std::pair<double,small_vector<double>> deltaEnergy = ComputeForOne(domainsParam, NbDomains, energyAllParam, idxDomain, movedDomain);
 
                     if(verbose) std::cout << "[" << idxLoop <<"][" << idxDomain <<"]\t delta energy = " << deltaEnergy.first << std::endl;
 

@@ -11,11 +11,12 @@
 
 #include "SpAbstractBufferManager.hpp"
 #include "SpBufferDataView.hpp"
+#include "Utils/small_vector.hpp"
 
 template <class TargetType>
 class SpHeapBuffer : public SpAbstractBufferManager<TargetType> {
     const long int softLimiteOfNbBuffers;
-    std::vector<TargetType*> availableBuffers;
+    small_vector<TargetType*> availableBuffers;
     std::mutex availableBuffersMutex;
     std::atomic<long int> nbBuffersUnderUse;
 

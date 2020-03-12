@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "Utils/SpModes.hpp"
+#include "Utils/small_vector.hpp"
 
 // Reference
 class SpAbstractTask;
@@ -23,7 +24,7 @@ class SpDependence{
     //! Id of task if it is a write mode
     SpAbstractTask* idTaskWrite;
     //! Ids of all tasks for all other modes (that are concurent safe)
-    std::vector<SpAbstractTask*> idTasksMultiple;
+    small_vector<SpAbstractTask*> idTasksMultiple;
 
     //! Number of tasks that use and have used the data
     long int nbTasksInUsed;
@@ -104,7 +105,7 @@ public:
         nbTasksInUsed += 1;
     }
     
-    void fillWithTaskList(std::vector<SpAbstractTask*>* potentialReady) const {
+    void fillWithTaskList(small_vector_base<SpAbstractTask*>* potentialReady) const {
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             potentialReady->push_back(idTaskWrite);
         }
@@ -117,7 +118,7 @@ public:
     }
 
     //! Copy all the tasks related to the dependence into the given vector
-    void fillWithListOfPotentiallyReadyTasks(std::vector<SpAbstractTask*>* potentialReady) const {
+    void fillWithListOfPotentiallyReadyTasks(small_vector_base<SpAbstractTask*>* potentialReady) const {
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
             if(idTaskWrite->isState(SpTaskState::WAITING_TO_BE_READY)) {
                 potentialReady->push_back(idTaskWrite);

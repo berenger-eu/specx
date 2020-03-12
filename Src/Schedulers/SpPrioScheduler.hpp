@@ -10,6 +10,7 @@
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpPriority.hpp"
+#include "Utils/small_vector.hpp"
 
 
 class SpPrioScheduler{
@@ -23,7 +24,7 @@ class SpPrioScheduler{
     //! To protect the tasksReady list
     mutable std::mutex mutexReadyTasks;
     //! Contains the tasks that can be executed
-    std::priority_queue<SpAbstractTask*, std::vector<SpAbstractTask*>, ComparePrio > tasksReady;
+    std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > tasksReady;
 
 
 public:

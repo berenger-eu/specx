@@ -10,6 +10,7 @@
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
+#include "Utils/small_vector.hpp"
 
 
 namespace SpDotDag {
@@ -24,7 +25,7 @@ inline void GenerateDot(const std::string& outputFilename, const std::list<SpAbs
 
     outputWriter << "digraph G {\n";
     
-    std::vector<SpAbstractTask*> deps;
+    small_vector<SpAbstractTask*> deps;
 
     for(const auto& atask : tasksFinished){
         atask->getDependences(&deps);

@@ -9,6 +9,7 @@
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
+#include "Utils/small_vector.hpp"
 
 template <SpSpeculativeModel SpecModel>
 class SpGeneralSpecGroup{
@@ -27,20 +28,20 @@ protected:
 
     //////////////////////////////////////////////////////////////
 
-    std::vector<SpGeneralSpecGroup*> parentGroups;
+    small_vector<SpGeneralSpecGroup*> parentGroups;
 
     int counterParentResults;
     SpecResult parentSpeculationResults;
     SpecResult selfSpeculationResults;
 
-    std::vector<SpGeneralSpecGroup*> subGroups;
+    small_vector<SpGeneralSpecGroup*> subGroups;
 
     std::atomic<States> state;
 
-    std::vector<SpAbstractTask*> copyTasks;
+    small_vector<SpAbstractTask*> copyTasks;
     SpAbstractTask* mainTask;
     SpAbstractTask* specTask;
-    std::vector<SpAbstractTask*> selectTasks;
+    small_vector<SpAbstractTask*> selectTasks;
 
     SpProbability selfPropability;
 
@@ -50,25 +51,25 @@ protected:
 
     //////////////////////////////////////////////////////////////////
 
-    static void EnableAllTasks(const std::vector<SpAbstractTask*>& inTasks){
+    static void EnableAllTasks(const small_vector_base<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
             ptr->setEnabled(SpTaskActivation::ENABLE);
         }
     }
 
-    static void DisableAllTasks(const std::vector<SpAbstractTask*>& inTasks){
+    static void DisableAllTasks(const small_vector_base<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
             ptr->setEnabled(SpTaskActivation::DISABLE);
         }
     }
     
-    static void DisableTasksDelegate(const std::vector<SpAbstractTask*>& inTasks){
+    static void DisableTasksDelegate(const small_vector_base<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
             ptr->setEnabledDelegate(SpTaskActivation::DISABLE);
         }
     }
 
-    static void DisableIfPossibleAllTasks(const std::vector<SpAbstractTask*>& inTasks){
+    static void DisableIfPossibleAllTasks(const small_vector_base<SpAbstractTask*>& inTasks){
         for(auto* ptr : inTasks){
             ptr->setDisabledIfNotOver();
         }
@@ -222,7 +223,7 @@ public:
         subGroups.push_back(inGroup);
     }
 
-    void addParents(std::vector<SpGeneralSpecGroup*> inParents){
+    void addParents(small_vector_base<SpGeneralSpecGroup*> &inParents){
         assert(parentGroups.empty());
         assert(isParentSpeculationResultUndefined());
         assert(isSpeculationResultUndefined());
@@ -484,7 +485,7 @@ public:
         copyTasks.push_back(inPreTask);
     }
     
-    void addCopyTasks(const std::vector<SpAbstractTask*>& incopyTasks){
+    void addCopyTasks(const small_vector_base<SpAbstractTask*>& incopyTasks){
         copyTasks.reserve(copyTasks.size() + incopyTasks.size());
         copyTasks.insert(std::end(copyTasks), std::begin(incopyTasks), std::end(incopyTasks));
     }
@@ -499,7 +500,7 @@ public:
         specTask = inSpecTask;
     }
 
-    void addSelectTasks(const std::vector<SpAbstractTask*>& inselectTasks){
+    void addSelectTasks(const small_vector_base<SpAbstractTask*>& inselectTasks){
         selectTasks.reserve(selectTasks.size() + inselectTasks.size());
         selectTasks.insert(std::end(selectTasks), std::begin(inselectTasks), std::end(inselectTasks));
     }

@@ -9,6 +9,8 @@
 #include <vector>
 #include <cassert>
 
+#include "small_vector.hpp"
+
 /**
  * An array view should be used to include/exclude itmes
  * from an array when declaring dependences.
@@ -55,7 +57,7 @@ class SpArrayView {
         }
     };
 
-    std::vector<Interval> intervals;
+    small_vector<Interval> intervals;
 
 public:
     class Iterator{
