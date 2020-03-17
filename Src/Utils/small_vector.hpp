@@ -234,7 +234,7 @@ public:
         if(index < size()) {
             return begin()[index];
         } else {
-            throw std::out_of_range();
+            throw std::out_of_range("small_vector::at(size_type index) std::out_or_range exception");
         }
     }
     
@@ -629,19 +629,19 @@ struct alignas(T) small_vector_storage<T, 0> { };
 template <typename T, size_t N = 64>
 class small_vector : public small_vector_base<T>, public small_vector_storage<T, N> {
 public:
-    using small_vector_base<T>::size_type;
-    using small_vector_base<T>::difference_type;
-    using small_vector_base<T>::value_type;
-    using small_vector_base<T>::iterator;
-    using small_vector_base<T>::const_iterator;
+    using typename small_vector_base<T>::size_type;
+    using typename small_vector_base<T>::difference_type;
+    using typename small_vector_base<T>::value_type;
+    using typename small_vector_base<T>::iterator;
+    using typename small_vector_base<T>::const_iterator;
     
-    using small_vector_base<T>::reverse_iterator;
-    using small_vector_base<T>::const_reverse_iterator;
+    using typename small_vector_base<T>::reverse_iterator;
+    using typename small_vector_base<T>::const_reverse_iterator;
     
-    using small_vector_base<T>::reference;
-    using small_vector_base<T>::const_reference;
-    using small_vector_base<T>::pointer;
-    using small_vector_base<T>::const_pointer;
+    using typename small_vector_base<T>::reference;
+    using typename small_vector_base<T>::const_reference;
+    using typename small_vector_base<T>::pointer;
+    using typename small_vector_base<T>::const_pointer;
     
     small_vector() : small_vector_base<T>(N) {}
     
