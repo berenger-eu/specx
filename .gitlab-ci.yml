@@ -21,6 +21,27 @@ spetabaru-debug:
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
+spetabaru-clang:
+  tags:
+    - medium
+  script:
+    - mkdir build
+    - cd build
+    - VERBOSE=1 CXX=clang++-8 cmake -DUSE_ADVANCE_TESTING=ON ..
+    - make
+    - CTEST_OUTPUT_ON_FAILURE=TRUE make test
+    
+    
+spetabaru-debug-clang:
+  tags:
+    - medium
+  script:
+    - mkdir build
+    - cd build
+    - VERBOSE=1 CXX=clang++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
+    - make
+    - CTEST_OUTPUT_ON_FAILURE=TRUE make test
+
 
 spetabaru-debug-coverage:
   tags:
