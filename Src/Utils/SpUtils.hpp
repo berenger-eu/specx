@@ -7,6 +7,8 @@
 
 #include <thread>
 #include <string>
+#include <sstream>
+#include <cstring>
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -32,7 +34,22 @@
 namespace SpUtils{
     /** Return the default number of threads using hardware's capacity */
     inline int DefaultNumThreads(){
+        if(getenv("OMP_NUM_THREADS")){
+            std::istringstream iss(getenv("OMP_NUM_THREADS"),std::istringstream::in);
+            int nbThreads = -1;
+            iss >> nbThreads;
+            if( /*iss.tellg()*/ iss.eof() ) return nbThreads;
+        }
         return static_cast<int>(std::thread::hardware_concurrency());
+    }
+
+    inline bool DefaultToBind(const int inNumThreads){
+        if(getenv("OMP_PROC_BIND")){
+            return strcmp(getenv("OMP_PROC_BIND"), "TRUE") == 0
+                    || strcmp(getenv("OMP_PROC_BIND"), "true") == 0
+                    || strcmp(getenv("OMP_PROC_BIND"), "1") == 0;
+        }
+        return (inNumThreads <= static_cast<int>(std::thread::hardware_concurrency()));
     }
 
     inline void BindToCore(const int inCoreId){

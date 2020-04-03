@@ -1446,7 +1446,7 @@ public:
         : nbThreads(inNumThreads), currentSpecGroup(nullptr){
         threads.reserve(static_cast<unsigned long>(inNumThreads));
         // Bind only if enough core
-        const bool bindToCore = (inNumThreads <= SpUtils::DefaultNumThreads());
+        const bool bindToCore = SpUtils::DefaultToBind(inNumThreads);
 
         // Create all threads
         for(int idxThread = 0 ; idxThread < inNumThreads ; ++idxThread){
