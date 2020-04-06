@@ -1526,7 +1526,7 @@ public:
         auto sequenceParamsNoFunction = std::make_index_sequence<sizeof...(ParamsAndTask)-1>{};
         CheckPrototypeCore<decltype(std::forward_as_tuple(inParamsAndTask...))>(sequenceParamsNoFunction);
         
-        static_assert(!std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsAndTask>...>::value 
+        static_assert(std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsAndTask>...>::value 
                       && "No probability should be indicated for normal tasks.");
         
         return preCoreTaskCreationSpec<ParamsAndTask...>(inPriority, inProbability, std::forward<ParamsAndTask>(inParamsAndTask)...);
