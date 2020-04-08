@@ -47,7 +47,7 @@ You can refer to the paper available at https://peerj.com/articles/cs-183/
 This document is also describing the current models.
 
 # Quick overview example
-```C++
+```cpp
 #include <random>
 #include <cassert>
 
@@ -216,7 +216,7 @@ parameters should be of lvalue reference type and the type of each parameter sho
 dependency object in the data dependency object list (alternatively you can type deduce the type with auto). The parameters should appear in the
 same order as they appear in the data dependency list.  
 Example:
-```C++
+```cpp
 Type1 v1;
 Type2 v2;
 
