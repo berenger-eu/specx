@@ -24,8 +24,8 @@ class MethodTest : public UTester< MethodTest > {
         class C_constint{
         public:
             C_constint() = default;
-            C_constint(const C_constint&) = delete;
-            C_constint& operator=(const C_constint&) = delete;
+            C_constint(const C_constint&) = default;
+            C_constint& operator=(const C_constint&) = default;
             C_constint(C_constint&&) = default;
             C_constint& operator=(C_constint&&) = default;
 
@@ -43,8 +43,8 @@ class MethodTest : public UTester< MethodTest > {
         class C_constint_intref{
         public:
             C_constint_intref() = default;
-            C_constint_intref(const C_constint_intref&) = delete;
-            C_constint_intref& operator=(const C_constint_intref&) = delete;
+            C_constint_intref(const C_constint_intref&) = default;
+            C_constint_intref& operator=(const C_constint_intref&) = default;
             C_constint_intref(C_constint_intref&&) = default;
             C_constint_intref& operator=(C_constint_intref&&) = default;
 
@@ -63,8 +63,8 @@ class MethodTest : public UTester< MethodTest > {
         class C_intref{
         public:
             C_intref() = default;
-            C_intref(const C_intref&) = delete;
-            C_intref& operator=(const C_intref&) = delete;
+            C_intref(const C_intref&) = default;
+            C_intref& operator=(const C_intref&) = default;
             C_intref(C_intref&&) = default;
             C_intref& operator=(C_intref&&) = default;
 

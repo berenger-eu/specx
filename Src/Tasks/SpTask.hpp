@@ -17,22 +17,18 @@
 #include <cxxabi.h>
 #endif
 
-template <class TaskFuncType, class RetType, class ... Params>
+template <class RetType, class DataDependencyTupleTy, class CallableTupleTy>
 class SpTask : public SpAbstractTaskWithReturn<RetType> {
     using Parent = SpAbstractTask;
     using ParentReturn = SpAbstractTaskWithReturn<RetType>;
-    using TupleParamsType = std::tuple<Params...>;
 
     //! Number of parameters in the task function prototype
-    static const long int NbParams = sizeof...(Params);
+    static const long int NbParams = std::tuple_size<DataDependencyTupleTy>::value;
 
     //! Internal value for undefined dependences
     static constexpr long int UndefinedKey(){
         return -1;
     }
-
-    //! Function to call
-    TaskFuncType taskCallback;
 
     //! Data handles
     std::array<SpDataHandle*,NbParams> dataHandles;
@@ -44,45 +40,49 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! Extra handles's dependences keys
     small_vector<long int> dataHandlesKeysExtra;
 
-    //! Params (inside data mode)
-    TupleParamsType tupleParams;
+    //! DataDependency objects
+    DataDependencyTupleTy tupleParams;
+    
+    //! Callables
+    CallableTupleTy callables;
 
     ///////////////////////////////////////////////////////////////////////////////
     /// Methods to call the task function with a conversion from handle to data
     ///////////////////////////////////////////////////////////////////////////////
 
     //! Expand the tuple with the index and call getView
-    template <std::size_t... Is>
-    static RetType SpTaskCoreWrapper(TaskFuncType& taskCallback, TupleParamsType& params, std::index_sequence<Is...>){
-        return taskCallback( std::get<Is>(params).getView() ... );
+    template <class CallableTy, std::size_t... Is>
+    static RetType SpTaskCoreWrapper(CallableTy &callable, DataDependencyTupleTy &dataDep, std::index_sequence<Is...>){
+        return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getView()...);
     }
 
     //! Dispatch use if RetType is not void (will set parent value with the return from function)
-    template <class SRetType>
-    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, TaskFuncType& taskCallback, TupleParamsType& params) {
-        taskObject->setValue(SpTaskCoreWrapper(taskCallback, params, std::make_index_sequence<std::tuple_size<TupleParamsType>::value>{}));
+    template <class SRetType, class CallableTy>
+    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, CallableTy &callable, DataDependencyTupleTy &dataDep) {
+        taskObject->setValue(SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<std::tuple_size<DataDependencyTupleTy>::value>{}));
     }
 
     //! Dispatch use if RetType is void (will not set parent value with the return from function)
-    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, TaskFuncType& taskCallback, TupleParamsType& params) {
-        SpTaskCoreWrapper(taskCallback, params, std::make_index_sequence<std::tuple_size<TupleParamsType>::value>{});
+    template <class CallableTy>
+    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, CallableTy &callable, DataDependencyTupleTy &dataDep) {
+        SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<NbParams>{});
     }
 
     //! Called by parent abstract task class
     void executeCore() final {
-        //Equivalent to ParentReturn::setValue(SpTaskCoreWrapper(taskCallback, dataHandles.data()));
-        executeCore(this, taskCallback, tupleParams);
+        executeCore(this, std::get<0>(callables), tupleParams);
     }
 
 public:
     //! Constructor from a task function
-    template <class TaskFuncTypeCstr, typename... T>
-    explicit SpTask(TaskFuncTypeCstr&& inTaskCallback, const SpTaskActivation initialActivationState, 
-                    const SpPriority& inPriority,
-                    TupleParamsType&& inTupleParams, T... t) 
+    template <typename... T>
+    explicit SpTask(const SpTaskActivation initialActivationState, 
+                    const SpPriority &inPriority,
+                    DataDependencyTupleTy &&inDataDepTuple,
+                    CallableTupleTy &&inCallableTuple, T... t) 
         : SpAbstractTaskWithReturn<RetType>(initialActivationState, inPriority),
-        taskCallback(std::forward<TaskFuncTypeCstr>(inTaskCallback)),
-        tupleParams(inTupleParams){
+        tupleParams(inDataDepTuple),
+        callables(std::move(inCallableTuple)) {
         ((void) t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
@@ -90,12 +90,16 @@ public:
 #ifdef __GNUG__
         // if GCC then we ask for a clean type as default task name
         int status;
-        char *demangledName = abi::__cxa_demangle(typeid(TaskFuncType).name(), 0, 0, &status);
+        char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
         Parent::setTaskName(demangledName);
         free(demangledName);
 #else
-        Parent::setTaskName(typeid(TaskFuncType).name());
+        Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
 #endif
+    }
+
+    DataDependencyTupleTy& getDataDependencyTupleRef() {
+        return tupleParams;
     }
 
     //! Set the dependence at position HandleIdx in the prototype
@@ -332,6 +336,14 @@ public:
         
         return true;
     }
+
+    bool hasCallableOfType([[maybe_unused]] const SpCallableType sct) const override final {
+        if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
+            return std::tuple_element_t<0, CallableTupleTy>::callable_type == sct; 
+        } else {
+            return true;
+        }
+    }
     
     std::string getTaskBodyString() override {
         
@@ -348,22 +360,21 @@ public:
     }
 };
 
-template <class TaskFuncType, class RetType, class ... Params>
-class SpSelectTask : public SpTask<TaskFuncType, RetType, Params...>
+template <class RetType, class DataDependencyTupleTy, class CallableTupleTy>
+class SpSelectTask : public SpTask<RetType, DataDependencyTupleTy, CallableTupleTy>
 {
-    using Parent = SpTask<TaskFuncType, RetType, Params...>;
-    using TupleParamsType = std::tuple<Params...>;
+    using Parent = SpTask<RetType, DataDependencyTupleTy, CallableTupleTy>;
     
     // flag indicating if the select task is carrying surely written values over
     bool isCarrSurWrittValuesOver;
     
 public:
-    template <class TaskFuncTypeCstr, typename... T>
-    explicit SpSelectTask(TaskFuncTypeCstr&& inTaskCallback, const SpTaskActivation initialActivationState, 
+    explicit SpSelectTask(const SpTaskActivation initialActivationState, 
                           const SpPriority& inPriority,
-                          TupleParamsType&& inTupleParams, bool iCSWVO)
-                        : Parent(std::forward<TaskFuncTypeCstr>(inTaskCallback), initialActivationState, inPriority,
-                          std::forward<TupleParamsType>(inTupleParams)), isCarrSurWrittValuesOver(iCSWVO) {}
+                          DataDependencyTupleTy &&inDataDepTuple,
+                          CallableTupleTy &&inCallableTuple, bool iCSWVO)
+                        : Parent(initialActivationState, inPriority,
+                          std::move(inDataDepTuple), std::move(inCallableTuple)), isCarrSurWrittValuesOver(iCSWVO) {}
     
     void setEnabledDelegate(const SpTaskActivation inIsEnable) override final {
         if((inIsEnable == SpTaskActivation::DISABLE && !isCarrSurWrittValuesOver)

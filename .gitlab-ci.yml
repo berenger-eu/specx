@@ -6,7 +6,7 @@ spetabaru:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-7 cmake -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=g++-8 cmake -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
@@ -17,7 +17,7 @@ spetabaru-debug:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-7 cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
@@ -49,7 +49,7 @@ spetabaru-debug-coverage:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-7 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
+    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     - lcov --directory ./ -c -o coverage-rapport.info

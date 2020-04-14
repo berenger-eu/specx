@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <array>
 
+#include "Config/SpConfig.hpp"
 #include "SpArrayView.hpp"
 #include "SpDebug.hpp"
 #include "Data/SpDataDuplicator.hpp"
@@ -285,5 +286,68 @@ struct has_getAllData : std::false_type {};
 
 template<class T>
 struct has_getAllData<T, void_t<decltype(std::declval<T>().getAllData())>> : std::true_type {};
+
+template <SpDataAccessMode dam1, SpDataAccessMode dam2>
+struct access_modes_are_equal_internal : std::conditional_t<dam1==dam2, std::true_type, std::false_type> {};
+    
+template<SpDataAccessMode dam1, typename T, typename = std::void_t<>>
+struct access_modes_are_equal : std::false_type {};
+
+template <SpDataAccessMode dam1, typename T>
+struct access_modes_are_equal<dam1, T, std::void_t<decltype(T::AccessMode)>> : access_modes_are_equal_internal<dam1, T::AccessMode> {};    
+       
+enum class SpCallableType {
+    CPU=0,
+    GPU        
+};
+
+template <bool compileWithCuda, class T, SpCallableType ct>
+class SpCallableWrapper {
+private:
+    using CallableTy = std::remove_reference_t<T>;
+    CallableTy callable; 
+public:
+    static constexpr auto callable_type = ct;
+    
+    template <typename T2, typename=std::enable_if_t<std::is_same<std::remove_reference_t<T2>, CallableTy>::value>> 
+    SpCallableWrapper(T2 &&inCallable) : callable(std::forward<T2>(inCallable)) {}
+       
+    CallableTy& getCallableRef() {
+        return callable;
+    }
+};
+
+template <class T, SpCallableType ct>
+class SpCallableWrapper<false, T, ct> {
+public:
+    template<typename T2>
+    SpCallableWrapper(T2&&) {}
+};
+
+template <class T>
+auto SpCpu(T &&callable) {
+    return SpCallableWrapper<true, T, SpCallableType::CPU>(std::forward<T>(callable));
+}
+
+template <class T>
+auto SpGpu(T &&callable) {
+    return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::GPU>(std::forward<T>(callable));
+}
+
+template <class T0>
+struct is_instantiation_of_callable_wrapper : std::false_type {};
+
+template <bool b, class T0, SpCallableType ct>
+struct is_instantiation_of_callable_wrapper<SpCallableWrapper<b, T0, ct>> : std::true_type {};
+
+template <class T0, SpCallableType callableType0>
+struct is_instantiation_of_callable_wrapper_with_type : std::false_type {};
+
+template <bool b, class T0, SpCallableType callableType0, SpCallableType callableType1>
+struct is_instantiation_of_callable_wrapper_with_type<SpCallableWrapper<b, T0, callableType1>, callableType0> : 
+std::conditional_t<callableType0==callableType1, std::true_type, std::false_type> {};
+
+template <class T, SpCallableType callableType>
+inline constexpr bool is_instantiation_of_callable_wrapper_with_type_v = is_instantiation_of_callable_wrapper_with_type<T, callableType>::value;
 
 #endif
