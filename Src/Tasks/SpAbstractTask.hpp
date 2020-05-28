@@ -117,6 +117,7 @@ public:
     virtual bool hasMode(const SpDataAccessMode inMode) const = 0;
     virtual small_vector<std::pair<SpDataHandle*,SpDataAccessMode>> getDataHandles() const = 0;
     virtual void executeCallback() = 0;
+    virtual bool hasCallableOfType(const SpCallableType sct) const = 0;
     virtual std::string getTaskBodyString() = 0;
 
     void useDependences() {
@@ -333,6 +334,10 @@ public:
             target->setOriginalTask(inOriginal);
         }
 
+        bool hasCallableOfType(const SpCallableType sct) const {
+            return target->hasCallableOfType(sct);
+        }
+
         friend SpAbstractTaskWithReturn;
     };
 private:
@@ -432,6 +437,10 @@ public:
 
         void setOriginalTask(SpAbstractTask* inOriginal){// For speculation
             target->setOriginalTask(inOriginal);
+        }
+        
+        bool hasCallableOfType(const SpCallableType sct) const {
+            return target->hasCallableOfType(sct);
         }
 
         friend SpAbstractTaskWithReturn;

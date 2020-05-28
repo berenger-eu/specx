@@ -122,6 +122,8 @@ if(NOT SPETABARU_AS_SUBPROJECT)
         set(SPETABARU_CXX_FLAGS  "${SPETABARU_CXX_FLAGS} -m64")
     endif()
 
+    OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
+
     OPTION( SPETABARU_ATTACHE_SOURCE "Set to on to add -g flag" OFF )
     if( SPETABARU_ATTACHE_SOURCE )
         set(SPETABARU_CXX_FLAGS  "${SPETABARU_CXX_FLAGS} -g")
@@ -136,8 +138,8 @@ endif()
 #===========================================================================
 # Generate config
 #===========================================================================
-configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/Src/SPETABARUConfig.h.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/Src/SPETABARUConfig.h  )
+configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/Src/Config/SpConfig.hpp.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/Src/Config/SpConfig.hpp  )
 
 #===========================================================================
 # Build lib

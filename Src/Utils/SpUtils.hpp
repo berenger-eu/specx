@@ -9,6 +9,7 @@
 #include <string>
 #include <sstream>
 #include <cstring>
+#include <functional>
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -113,12 +114,40 @@ namespace SpUtils{
             exit(-1);
         }
     }
+
+    template <typename CallableTy, typename TupleTy, std::size_t... Is,
+    std::enable_if_t<std::conjunction_v<std::is_invocable<CallableTy, std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
+    static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
+        if constexpr(sizeof...(Is) > 0) {
+            using RetTy = std::invoke_result_t<CallableTy, std::tuple_element_t<0, std::remove_reference_t<TupleTy>>>;
+
+            if constexpr(std::is_same_v<RetTy, bool>) {
+                (std::invoke(std::forward<CallableTy>(c), std::get<Is>(std::forward<TupleTy>(t))) || ...);
+            } else {
+                (static_cast<void>(std::invoke(std::forward<CallableTy>(c), std::get<Is>(std::forward<TupleTy>(t)))),...);
+            }
+        }
+    }
     
-    template <template <typename...> typename Template, typename T>
-    struct is_instantiation_of : std::false_type {};
-    
-    template <template <typename...> typename Template, typename... Args>
-    struct is_instantiation_of<Template, Template<Args...> > : std::true_type {};
+    template <typename CallableTy, typename TupleTy, std::size_t... Is,
+    std::enable_if_t<std::conjunction_v<std::is_invocable<CallableTy, std::integral_constant<size_t, Is>,
+    std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
+    static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
+        if constexpr(sizeof...(Is) > 0) {
+            using RetTy = std::invoke_result_t<CallableTy, std::integral_constant<size_t, 0>, std::tuple_element_t<0, std::remove_reference_t<TupleTy>>>;
+
+            if constexpr(std::is_same_v<RetTy, bool>) {
+                (std::invoke(std::forward<CallableTy>(c), std::integral_constant<size_t, Is>{}, std::get<Is>(std::forward<TupleTy>(t))) || ...);
+            } else {
+                (static_cast<void>(std::invoke(std::forward<CallableTy>(c), std::integral_constant<size_t, Is>{}, std::get<Is>(std::forward<TupleTy>(t)))),...);
+            }
+        }
+    }
+
+    template <typename CallableTy, typename TupleTy>
+    static void foreach_in_tuple(CallableTy &&c, TupleTy &&t) {
+        foreach_in_tuple_impl(std::forward<CallableTy>(c), std::forward<TupleTy>(t), std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<TupleTy>>>{});
+    }
 }
 
 #define spetabaru_xstr(s) spetabaru_str(s)
