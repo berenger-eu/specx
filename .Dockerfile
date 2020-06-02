@@ -9,8 +9,12 @@ RUN apt-get update \
     && apt-get install -y make \
     && wget https://github.com/Kitware/CMake/releases/download/v3.15.6/cmake-3.15.6-Linux-x86_64.sh && chmod +x cmake-3.15.6-Linux-x86_64.sh \
        && ./cmake-3.15.6-Linux-x86_64.sh --skip-license --prefix=/usr/ \
-    && apt-get install -y lcov \
-    && apt-get install -y clang-8
+    && apt-get install -y clang-8 \
+    && git clone https://github.com/linux-test-project/lcov.git \
+    && cd lcov \
+    && git checkout v1.14 \
+    && make install \
+    && cd ..
 
 # To rebuild and update the repo:
 # - Make sure there are not images: sudo docker images

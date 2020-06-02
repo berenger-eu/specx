@@ -47,14 +47,20 @@ spetabaru-debug-coverage:
   tags:
     - medium
   script:
+    - cd ..
+    - git clone https://github.com/linux-test-project/lcov.git
+    - cd lcov
+    - git checkout v1.14
+    - make install
+    - cd ../spetabaru
     - mkdir build
     - cd build
     - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
-    - lcov --directory ./ -c -o coverage-rapport.info
-    - lcov --list coverage-rapport.info
-    - genhtml -o ../coverage -t "Coverage example" coverage-rapport.info
+    - /usr/local/bin/lcov --gcov-tool /usr/bin/gcov-8 --directory ./ -c -o coverage-rapport.info
+    - /usr/local/bin/lcov --gcov-tool /usr/bin/gcov-8 --list coverage-rapport.info
+    - /usr/local/bin/genhtml -o ../coverage -t "Coverage example" coverage-rapport.info
   artifacts:
     paths:
       - coverage/
