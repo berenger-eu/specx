@@ -47,12 +47,6 @@ spetabaru-debug-coverage:
   tags:
     - medium
   script:
-    - cd ..
-    - git clone https://github.com/linux-test-project/lcov.git
-    - cd lcov
-    - git checkout v1.14
-    - make install
-    - cd ../spetabaru
     - mkdir build
     - cd build
     - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
