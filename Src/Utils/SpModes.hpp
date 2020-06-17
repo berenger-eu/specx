@@ -310,7 +310,7 @@ public:
     static constexpr auto callable_type = ct;
     
     template <typename T2, typename=std::enable_if_t<std::is_same<std::remove_reference_t<T2>, CallableTy>::value>> 
-    SpCallableWrapper(T2 &&inCallable) : callable(std::forward<T2>(inCallable)) {}
+    SpCallableWrapper(T2&& inCallable) : callable(std::forward<T2>(inCallable)) {}
        
     CallableTy& getCallableRef() {
         return callable;
@@ -330,7 +330,7 @@ auto SpCpu(T &&callable) {
 }
 
 template <class T>
-auto SpGpu(T &&callable) {
+auto SpGpu(T&& callable) {
     return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::GPU>(std::forward<T>(callable));
 }
 
@@ -339,6 +339,9 @@ struct is_instantiation_of_callable_wrapper : std::false_type {};
 
 template <bool b, class T0, SpCallableType ct>
 struct is_instantiation_of_callable_wrapper<SpCallableWrapper<b, T0, ct>> : std::true_type {};
+
+template <class T0>
+inline constexpr bool is_instantiation_of_callable_wrapper_v = is_instantiation_of_callable_wrapper<T0>::value;
 
 template <class T0, SpCallableType callableType0>
 struct is_instantiation_of_callable_wrapper_with_type : std::false_type {};
