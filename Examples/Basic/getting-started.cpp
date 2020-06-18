@@ -11,8 +11,8 @@
 #include "Utils/SpProbability.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-const size_t seedSpeculationSuccess = 42;
-const size_t seedSpeculationFailure = 0;
+[[maybe_unused]] const size_t seedSpeculationSuccess = 42;
+[[maybe_unused]] const size_t seedSpeculationFailure = 0;
 const size_t seed = seedSpeculationSuccess;
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]){

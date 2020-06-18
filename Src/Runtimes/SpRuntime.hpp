@@ -53,7 +53,7 @@ private:
     const int nbThreads;
 
     //! Map of all data handles
-    std::unordered_map<void*, std::unique_ptr<SpDataHandle> > allDataHandles;
+    std::unordered_map<void*, std::unique_ptr<SpDataHandle>> allDataHandles;
 
     //! Creation time point
     SpTimePoint startingTime;
@@ -65,7 +65,7 @@ private:
     public:
         virtual ~SpAbstractDeleter(){}
         virtual void deleteObject(void* ptr) = 0;
-        virtual void createDeleteTaskForObject(SpRuntime &rt, void *ptr) = 0;
+        virtual void createDeleteTaskForObject(SpRuntime& rt, void* ptr) = 0;
     };
 
     template <class ObjectType>
@@ -77,7 +77,7 @@ private:
             delete reinterpret_cast<ObjectType*>(ptr);
         }
         
-        void createDeleteTaskForObject(SpRuntime<SpecModel> &rt, void *ptr) override final{
+        void createDeleteTaskForObject(SpRuntime<SpecModel>& rt, void* ptr) override final{
             rt.taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(rt.emptyCopyMap)}, SpTaskActivation::ENABLE, SpPriority(0),
                             SpWrite(*reinterpret_cast<ObjectType*>(ptr)),
                             [](ObjectType& output){
@@ -145,9 +145,9 @@ private:
     /// Cleanup 
     ///////////////////////////////////////////////////////////////////////////
     
-    void releaseCopies(small_vector_base<CopyMapTy> &copyMaps){
+    void releaseCopies(small_vector_base<CopyMapTy>& copyMaps){
         for(auto& copyMapIt : copyMaps){
-            for(auto &iter : copyMapIt) {
+            for(auto& iter : copyMapIt) {
                 assert(iter.second.latestAdress);
                 assert(iter.second.deleter);
                 if(iter.second.isUniquePtr.use_count() == 1) {
@@ -183,7 +183,7 @@ private:
     }
 
     template <class ParamsType>
-    typename std::enable_if<ParamsType::IsScalar, small_vector<SpDataHandle*,1>>::type
+    typename std::enable_if_t<ParamsType::IsScalar, small_vector<SpDataHandle*,1>>
     getDataHandle(ParamsType& scalarData){
         static_assert(std::tuple_size<decltype(scalarData.getAllData())>::value, "Size must be one for scalar");
         typename ParamsType::HandleTypePtr ptrToObject = scalarData.getAllData()[0];
@@ -193,7 +193,7 @@ private:
     }
 
     template <class ParamsType>
-    typename std::enable_if<!ParamsType::IsScalar,small_vector<SpDataHandle*>>::type
+    typename std::enable_if_t<!ParamsType::IsScalar,small_vector<SpDataHandle*>>
     getDataHandle(ParamsType& containerData){
         small_vector<SpDataHandle*> handles;
         for(typename ParamsType::HandleTypePtr ptrToObject : containerData.getAllData()){
@@ -206,9 +206,9 @@ private:
     
     template <bool isSpeculative, class TaskCoreTy, std::size_t N>
     void setDataHandlesOfTaskGeneric(TaskCoreTy* aTask, const std::array<CopyMapPtrTy, N>& copyMapsToLookInto){
-        auto &args = aTask->getDataDependencyTupleRef();
+        auto& args = aTask->getDataDependencyTupleRef();
         SpUtils::foreach_in_tuple(
-            [&, this](auto index, auto&& scalarOrContainerData) {
+            [&, this, aTask](auto index, auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
@@ -216,12 +216,12 @@ private:
                               "They should all be default constructible here");
                 constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
-                auto hh = getDataHandle(scalarOrContainerData);
+                auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                 long int indexHh = 0;
                 
                 for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                    assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     SpDataHandle* h = hh[indexHh];
                     
@@ -235,7 +235,7 @@ private:
                                 assert(cp.isDefined());
                                 assert(cp.originAdress == ptr);
                                 assert(cp.latestAdress != nullptr);
-                                h = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
+                                h = this->getDataHandleCore(*reinterpret_cast<TargetParamType*>(cp.latestAdress));
                                 cpLatestAddress = cp.latestAdress;
                                 foundAddressInCopies = true;
                                 break;
@@ -283,7 +283,7 @@ private:
     ///////////////////////////////////////////////////////////////////////////
     
     template <typename CallableTy, typename TupleTy>
-    static auto apply_on_data_dep_tuple(CallableTy &&c, TupleTy &&t) {
+    static auto apply_on_data_dep_tuple(CallableTy&& c, TupleTy&& t) {
         return std::apply([&c](auto&&... elt) {
                             return std::invoke(std::forward<CallableTy>(c), std::forward<decltype(elt)>(elt).getView()...); 
                           }, std::forward<TupleTy>(t));
@@ -293,8 +293,8 @@ private:
     //! Args is a value to allow for move or pass a rvalue reference
     template <template<typename...> typename TaskType, const bool isSpeculative, class DataDependencyTupleTy, class CallableTupleTy,
              std::size_t N, typename... T>
-    auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, DataDependencyTupleTy &dataDepTuple,
-                             CallableTupleTy &callableTuple, [[maybe_unused]] const std::array<CopyMapPtrTy, N>& copyMapsToLookInto, T... additionalArgs){
+    auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple,
+                             CallableTupleTy& callableTuple, [[maybe_unused]] const std::array<CopyMapPtrTy, N>& copyMapsToLookInto, T... additionalArgs){
         SpDebugPrint() << "SpRuntime -- coreTaskCreation";
                
         auto dataDependencyTupleCopy = std::apply([](auto&&... elt) {
@@ -355,8 +355,8 @@ private:
     inline auto coreTaskCreation(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto, 
                                  const SpTaskActivation inActivation, 
                                  const SpPriority& inPriority, 
-                                 DataDependencyTupleTy &&dataDepTuple, 
-                                 CallableTupleTy &&callableTuple){
+                                 DataDependencyTupleTy&& dataDepTuple, 
+                                 CallableTupleTy&& callableTuple){
         return coreTaskCreationAux<SpTask, false>(inActivation, inPriority,
                std::forward<DataDependencyTupleTy>(dataDepTuple), std::forward<CallableTupleTy>(callableTuple), copyMapsToLookInto);
     }
@@ -365,8 +365,8 @@ private:
     inline auto coreTaskCreationSpeculative(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                             const SpTaskActivation inActivation,
                                             const SpPriority& inPriority,
-                                            DataDependencyTupleTy &&dataDepTuple,
-                                            CallableTupleTy &&callableTuple) {
+                                            DataDependencyTupleTy&& dataDepTuple,
+                                            CallableTupleTy&& callableTuple) {
         return coreTaskCreationAux<SpTask, true>(inActivation, inPriority,
                std::forward<DataDependencyTupleTy>(dataDepTuple), std::forward<CallableTupleTy>(callableTuple), copyMapsToLookInto);
     }
@@ -384,7 +384,7 @@ private:
     };
     
     template <const bool isPotentialTask, class CallableTupleTy, class DataDependencyTupleTy>
-    auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, DataDependencyTupleTy &&dataDepTuple, CallableTupleTy &&callableTuple) {
+    auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, DataDependencyTupleTy&& dataDepTuple, CallableTupleTy&& callableTuple) {
         scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
@@ -398,8 +398,8 @@ private:
         constexpr const unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::MAYBE_WRITE);
         
         constexpr const unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
-											     | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
-											     | 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
+                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
+                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
         
         auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<maybeWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -427,7 +427,7 @@ private:
                 e->emplace_back();
                 auto speculationBranchIt = e->end()-1;
             
-                for(auto &ep : vectorExecutionPaths) {
+                for(auto& ep : vectorExecutionPaths) {
                     if(ep.currentIt != ep.endIt) {
                         for(auto mIt = ep.currentIt->cbegin(); mIt != ep.currentIt->cend();) {
                             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_3) {
@@ -518,7 +518,7 @@ private:
         if constexpr (!isPotentialTask && allAreCopieableAndDeletable<DataDependencyTupleTy>() == false){
             for(; it != copyMaps.end(); it++){
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
-                    for(auto &e : *it) {
+                    for(auto& e : *it) {
                         e.second.deleter->createDeleteTaskForObject(*this, e.second.latestAdress);
                     }
                     it->clear();
@@ -660,7 +660,7 @@ private:
             }
             
             if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_2) {
-                for(auto &e : *it) {
+                for(auto& e : *it) {
                     e.second.deleter->createDeleteTaskForObject(*this, e.second.latestAdress);
                 }
                 it->clear();
@@ -707,19 +707,19 @@ private:
             specGroupNormalTask->setMainTask(result.getTaskPtr());
             result.getTaskPtr()->setSpecGroup(specGroupNormalTask.get());
             
-            for(auto &t : speculativeTasks) {
-                SpGeneralSpecGroup<SpecModel>*sg = t.getTaskPtr()->template getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
+            for(auto& t : speculativeTasks) {
+                SpGeneralSpecGroup<SpecModel>* sg = t.getTaskPtr()->template getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
                 sg->setMainTask(result.getTaskPtr());
                 t.setOriginalTask(result.getTaskPtr());
             }
             
-            for(auto &f : selectTaskCreationFunctions) {
+            for(auto& f : selectTaskCreationFunctions) {
                 f();
             }
             
             if constexpr(isPotentialTask) {
-                for(auto &t : speculativeTasks) {
-                    SpGeneralSpecGroup<SpecModel>*sg = t.getTaskPtr()->template getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
+                for(auto& t : speculativeTasks) {
+                    SpGeneralSpecGroup<SpecModel>* sg = t.getTaskPtr()->template getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
                     addCallbackToTask(t, sg);
                 }
                 
@@ -738,7 +738,7 @@ private:
 
     template <class Tuple, std::size_t N>
     auto createSelectTaskCreationFunctions(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
-                                               [[maybe_unused]] SpGeneralSpecGroup<SpecModel> *sg,
+                                               [[maybe_unused]] SpGeneralSpecGroup<SpecModel>* sg,
                                                const SpPriority& inPriority,
                                                Tuple& args){
         small_vector<std::function<void()>> res;
@@ -754,14 +754,14 @@ private:
                               
                 constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
-                auto hh = getDataHandle(scalarOrContainerData);
+                auto hh = this->getDataHandle(scalarOrContainerData);
                 
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                 
                 long int indexHh = 0;
                 
                 for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                    assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     [[maybe_unused]] SpDataHandle* h1 = hh[indexHh];
                     for(auto me : copyMapsToLookInto) {
@@ -777,9 +777,9 @@ private:
                                 const bool isCarryingSurelyWrittenValuesOver = accessMode == SpDataAccessMode::WRITE;
                                 void* const cpLatestAddress = cp.latestAdress;
                                 
-                                auto s = [this, inPriority, h1, cpLatestAddress, sg]() {
+                                auto s = [this, &inPriority, h1, cpLatestAddress, sg]() {
                                 
-                                    SpDataHandle* h1copy = getDataHandleCore(*reinterpret_cast<TargetParamType*>(cpLatestAddress));
+                                    SpDataHandle* h1copy = this->getDataHandleCore(*reinterpret_cast<TargetParamType*>(cpLatestAddress));
                                     
                                     auto taskViewSelect = this->taskInternalSpSelect(
                                                        std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
@@ -798,7 +798,7 @@ private:
                                     sg->addSelectTask(taskViewSelect.getTaskPtr());
                                     
                                     // delete copied data carried over by select task
-                                    auto taskViewDelete = taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
+                                    auto taskViewDelete = this->taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
                                                                        SpTaskActivation::ENABLE,
                                                                        SpPriority(0),
                                                                        SpWrite(*reinterpret_cast<TargetParamType*>(cpLatestAddress)),
@@ -890,7 +890,7 @@ private:
         std::unordered_map<const void*, SpCurrentCopy> res;
 
         SpUtils::foreach_in_tuple(
-            [&, this](auto&& scalarOrContainerData) {
+            [&, this, initialActivationState](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
@@ -901,12 +901,12 @@ private:
                                   && std::is_copy_assignable<TargetParamType>::value,
                                   "Data must be copiable");
 
-                    auto hh = getDataHandle(scalarOrContainerData);
+                    auto hh = this->getDataHandle(scalarOrContainerData);
                     assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
 
                     long int indexHh = 0;
                     for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                        assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                        assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
                         SpDataHandle* h1 = hh[indexHh];
                         
@@ -945,7 +945,7 @@ private:
                         }
                         
                         if(doCopy) {
-                            auto copy = coreCopyCreationCore(*mPtr, initialActivationState, inPriority, *h1->castPtr<TargetParamType>());
+                            auto copy = this->coreCopyCreationCore(*mPtr, initialActivationState, inPriority, *h1->castPtr<TargetParamType>());
                             res[copy.originAdress] = copy;
                         }
 
@@ -987,7 +987,7 @@ private:
     /// Core logic helper functions
     ///////////////////////////////////////////////////////////////////////////
     template <typename T>
-    void addCallbackToTask(T& inTaskView, SpGeneralSpecGroup<SpecModel> *inSg) {
+    void addCallbackToTask(T& inTaskView, SpGeneralSpecGroup<SpecModel>* inSg) {
         inTaskView.addCallback([this, aTaskPtr = inTaskView.getTaskPtr(), specGroupPtr = inSg]
                                 (const bool alreadyDone, const bool& taskRes, SpAbstractTaskWithReturn<bool>::SpTaskViewer& /*view*/,
                                 const bool isEnabled){
@@ -1015,14 +1015,14 @@ private:
         }
         
         SpUtils::foreach_in_tuple(
-            [&res, this](auto&& scalarOrContainerData) {
+            [this, &res](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
-                [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                 long int indexHh = 0;
                 for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                    assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
                     if(auto found = hashMap.find(ptr); found != hashMap.end()){
@@ -1034,11 +1034,11 @@ private:
             }
         , args);
         
-        auto sortLambda = [] (ExecutionPathWeakPtrTy &a, ExecutionPathWeakPtrTy &b) {
+        auto sortLambda = [] (ExecutionPathWeakPtrTy& a, ExecutionPathWeakPtrTy& b) {
                                     return a.lock() < b.lock();
                              };
         
-        auto uniqueLambda = [] (ExecutionPathWeakPtrTy &a, ExecutionPathWeakPtrTy &b) {
+        auto uniqueLambda = [] (ExecutionPathWeakPtrTy& a, ExecutionPathWeakPtrTy& b) {
                                     return a.lock() == b.lock();
                              };
         
@@ -1054,17 +1054,17 @@ private:
         small_vector<const void*> res;
         
         SpUtils::foreach_in_tuple(
-            [&res, this](auto&& scalarOrContainerData) {
+            [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 
                 constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr((flags & (1 << static_cast<unsigned char>(accessMode))) != 0) {
-                    [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                    [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                     assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                     long int indexHh = 0;
                     for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                        assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                        assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
                         
                         res.push_back(ptr);
@@ -1078,13 +1078,13 @@ private:
         return res;
     }
     
-    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathSharedPtrTy &ep, small_vector_base<const void*> &originalAddresses){
+    void setExecutionPathForOriginalAddressesInHashMap(ExecutionPathSharedPtrTy &ep, small_vector_base<const void*>& originalAddresses){
         for(auto oa : originalAddresses) {
             hashMap[oa] = ep;
         }
     }
     
-    void removeOriginalAddressesFromHashMap(small_vector_base<const void*> &originalAddresses){
+    void removeOriginalAddressesFromHashMap(small_vector_base<const void*>& originalAddresses){
         for(auto oa : originalAddresses) {
             hashMap.erase(oa);
         }
@@ -1095,14 +1095,14 @@ private:
         bool res = false;
 
         SpUtils::foreach_in_tuple(
-            [&res, inPtr, this](auto&& scalarOrContainerData) {
+            [this, &res, inPtr](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 
-                [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                 [[maybe_unused]] long int indexHh = 0;
                 for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                    assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
                     if(ptr == inPtr) {
                         res = true;
@@ -1120,18 +1120,18 @@ private:
     template <class Tuple>
     void manageReadDuplicate(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args){
         SpUtils::foreach_in_tuple(
-            [&copyMap, this](auto&& scalarOrContainerData) {
+            [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
                 constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr (std::is_destructible<TargetParamType>::value && accessMode != SpDataAccessMode::READ){
-                    [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                    [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                     assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                     long int indexHh = 0;
                     for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                        assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                        assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
                         
                         if(auto found = copyMap.find(ptr); found != copyMap.end()
@@ -1166,14 +1166,14 @@ private:
         small_vector<SpGeneralSpecGroup<SpecModel>*> res;
         
         SpUtils::foreach_in_tuple(
-            [&copyMap, &res, this](auto &&scalarOrContainerData) {
+            [this, &copyMap, &res](auto &&scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
-                [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                 long int indexHh = 0;
                 for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                    assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
                     if(auto found = copyMap.find(ptr); found != copyMap.end()){
@@ -1195,7 +1195,7 @@ private:
     template <bool updateIsUniquePtr, class Tuple>
     void removeAllGeneric(std::unordered_map<const void*, SpCurrentCopy>& copyMapToLookInto, Tuple& args){
         SpUtils::foreach_in_tuple(
-            [&copyMapToLookInto, this](auto&& scalarOrContainerData) {
+            [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
@@ -1203,11 +1203,11 @@ private:
                 
                 if constexpr (std::is_destructible<TargetParamType>::value && accessMode != SpDataAccessMode::READ){
 
-                    [[maybe_unused]] auto hh = getDataHandle(scalarOrContainerData);
+                    [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                     assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                     long int indexHh = 0;
                     for(typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                        assert(ptr == getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                        assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
                         if(auto found = copyMapToLookInto.find(ptr); found != copyMapToLookInto.end()){
@@ -1284,12 +1284,12 @@ private:
     auto taskInternal(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                       const SpTaskActivation inActivation,
                       ParamsAndTask&&... inParamsAndTask){
-        auto f = [&, this] (auto isPotentialTask, auto&& priority, auto&& /* unused probability */, auto&&... partitionedParams) {
-            return coreTaskCreationAux<TaskType, isPotentialTask>(inActivation, std::forward<decltype(priority)>(priority),
-                                                                  std::forward<decltype(partitionedParams)>(partitionedParams)..., copyMapsToLookInto);
+        auto f = [&, this, inActivation] (auto isPotentialTask, auto&& priority, auto&& /* unused probability */, auto&&... partitionedParams) {
+            return this->coreTaskCreationAux<TaskType, isPotentialTask>(inActivation, std::forward<decltype(priority)>(priority),
+                                                                        std::forward<decltype(partitionedParams)>(partitionedParams)..., copyMapsToLookInto);
         };
         
-        return callWithPartitionedArgs(f, std::forward<ParamsAndTask>(inParamsAndTask)...); 
+        return this->callWithPartitionedArgs(f, std::forward<ParamsAndTask>(inParamsAndTask)...); 
     }
     
     
@@ -1305,13 +1305,15 @@ private:
                               bool isCarryingSurelyWrittenValuesOver,
                               const SpTaskActivation inActivation,
                               ParamsAndTask&&... inParamsAndTask){
-        auto f = [&, this] (auto isPotentialTask, auto&& priority, auto&& /* unused probability */, auto&&... partitionedParams) {
-            return coreTaskCreationAux<SpSelectTask, isPotentialTask>(inActivation, std::forward<decltype(priority)>(priority),
+        auto f =
+        [&, this, isCarryingSurelyWrittenValuesOver, inActivation]
+        (auto isPotentialTask, auto&& priority, auto&& /* unused probability */, auto&&... partitionedParams) {
+            return this->coreTaskCreationAux<SpSelectTask, isPotentialTask>(inActivation, std::forward<decltype(priority)>(priority),
                                                                   std::forward<decltype(partitionedParams)>(partitionedParams)..., copyMapsToLookInto,
                                                                   isCarryingSurelyWrittenValuesOver);
         };
         
-        return callWithPartitionedArgs(f, std::forward<ParamsAndTask>(inParamsAndTask)...); 
+        return this->callWithPartitionedArgs(f, std::forward<ParamsAndTask>(inParamsAndTask)...); 
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -1325,7 +1327,7 @@ private:
     inline static constexpr bool is_prio_or_proba_v = is_prio_or_proba<T>::value;
     
     template <class T>
-    using is_data_dependency = std::conjunction<has_getView<std::decay_t<T>>, has_getAllData<std::decay_t<T>>>;
+    using is_data_dependency = std::conjunction<has_getView<T>, has_getAllData<T>>;
     
     template <class T>
     inline static constexpr bool is_data_dependency_v = is_data_dependency<T>::value;
@@ -1340,7 +1342,7 @@ private:
     typename=std::enable_if_t<
              std::conjunction_v<
              std::negation<std::is_same<std::decay_t<T0>, std::decay_t<T1>>>, is_prio_or_proba<T0>, is_prio_or_proba<T1>>>>    
-    auto callWithPartitionedArgs(Func &&f, T0 &&t0, T1 &&t1, ParamsTy&&... inParams) {
+    auto callWithPartitionedArgs(Func&& f, T0&& t0, T1&& t1, ParamsTy&&... inParams) {
         if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
             return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), std::forward<T1>(t1), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);
         } else  {
@@ -1350,7 +1352,7 @@ private:
 
     template <typename Func, class T0, class... ParamsTy,
     typename=std::enable_if_t<is_prio_or_proba_v<T0>>>
-    auto callWithPartitionedArgs(Func &&f, T0 &&t0, ParamsTy&&... inParams) {
+    auto callWithPartitionedArgs(Func&& f, T0&& t0, ParamsTy&&... inParams) {
         if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
             return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), SpPriority(0), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);       
         }else {
@@ -1359,7 +1361,7 @@ private:
     }
 
     template <typename Func, class... ParamsTy>
-    auto callWithPartitionedArgs(Func &&f, ParamsTy&&... inParams) {
+    auto callWithPartitionedArgs(Func&& f, ParamsTy&&... inParams) {
         static_assert(sizeof...(inParams) > 0, "SpRuntime::task should be given at least a callable.");
         return callWithPartitionedArgsStage2<false>(std::forward<Func>(f), SpPriority(0), SpProbability(), std::forward<ParamsTy>(inParams)...);
     }
@@ -1370,8 +1372,8 @@ private:
     template <class Tuple, size_t n, size_t... Is>
     struct dispatchRotate<Tuple, n, std::index_sequence<Is...>> {
         template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3>
-        static auto doDispatch(SpRuntime &rt, Func &&f, T0 &&t0, T1 &&t1, typename std::tuple_element<Is, Tuple>::type... args, T2 &&t2, T3 &&t3) {
-            if constexpr(is_data_dependency_v<T2>) {
+        static auto doDispatch(SpRuntime& rt, Func&& f, T0&& t0, T1&& t1, typename std::tuple_element<Is, Tuple>::type... args, T2&& t2, T3&& t3) {
+            if constexpr(is_data_dependency_v<std::remove_reference_t<T2>>) {
                 return rt.callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
                                std::forward<T3>(t3), std::forward<typename std::tuple_element<Is, Tuple>::type>(args)..., std::forward<T2>(t2));
             } else {
@@ -1382,7 +1384,7 @@ private:
     };
                
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class... ParamsAndTask>
-    auto callWithPartitionedArgsStage2(Func &&f, T0 &&t0, T1 &&t1, ParamsAndTask&&... inParamsAndTask){
+    auto callWithPartitionedArgsStage2(Func&& f, T0&& t0, T1&& t1, ParamsAndTask&&... inParamsAndTask){
         static_assert(sizeof...(ParamsAndTask) > 0, "SpRuntime::task should be given at least a callable.");
         
         using TupleTy = decltype(std::forward_as_tuple(std::forward<ParamsAndTask>(inParamsAndTask)...));
@@ -1396,42 +1398,53 @@ private:
         }    
     }
     
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
-    typename = std::enable_if_t<std::conjunction_v<std::negation<is_data_dependency<T2>>, std::negation<is_data_dependency<T3>>>>>
-    auto callWithPartitionedArgsStage3(Func &&f, T0 &&t0, T1 &&t1, T2 &&t2, T3 &&t3, ParamsTy &&... params) {
-        if constexpr(std::negation_v<is_instantiation_of_callable_wrapper<T2>>) {
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   SpCpu(std::forward<T2>(t2)), std::forward<T3>(t3), std::forward<ParamsTy>(params)...);
-        } else if constexpr(std::negation_v<is_instantiation_of_callable_wrapper<T3>>) {
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   SpCpu(std::forward<T3>(t3)), std::forward<T2>(t2), std::forward<ParamsTy>(params)...);
-        } else if constexpr(is_instantiation_of_callable_wrapper_with_type_v<T2, SpCallableType::GPU>){
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   std::forward<T3>(t3), std::forward<T2>(t2), std::forward<ParamsTy>(params)...);
+    template <typename T>
+    decltype(auto) wrapIfNotAlreadyWrapped(T&& callable) {
+        if constexpr(is_instantiation_of_callable_wrapper_v<std::remove_reference_t<T>>) {
+            return std::forward<T>(callable);
         } else {
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   std::forward<T2>(t2), std::forward<T3>(t3), std::forward<ParamsTy>(params)...);
+            return SpCpu(std::forward<T>(callable));
+        }
+    }
+    
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
+    typename = std::enable_if_t<std::conjunction_v<std::negation<is_data_dependency<std::remove_reference_t<T2>>>,
+                                                   std::negation<is_data_dependency<std::remove_reference_t<T3>>>>>>
+    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, T3&& t3, ParamsTy&&... params) {
+        
+        auto dispatchStage4 = [&, this](auto&& c1, auto&& c2) {
+            return this->callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
+                    std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                    std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2),
+                    std::forward<ParamsTy>(params)...);
+        };
+
+        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
+        auto&& c2 = wrapIfNotAlreadyWrapped(std::forward<T3>(t3));    
+
+        if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
+            dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
+        } else {
+            dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
         }
     }
     
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy,
-    typename = std::enable_if_t<std::negation_v<is_data_dependency<T2>>>>
-    auto callWithPartitionedArgsStage3(Func &&f, T0 &&t0, T1 &&t1, T2 &&t2, ParamsTy &&... params) {
-        if constexpr(std::negation_v<is_instantiation_of_callable_wrapper<T2>>) {
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   SpCpu(std::forward<T2>(t2)), std::forward<ParamsTy>(params)...);
-        } else {
-            return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                   std::forward<T2>(t2), std::forward<ParamsTy>(params)...);
-        } 
+    typename = std::enable_if_t<std::negation_v<is_data_dependency<std::remove_reference_t<T2>>>>>
+    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&... params) {
+        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
+        
+        return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
+                std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                std::forward<decltype(c1)>(c1), std::forward<ParamsTy>(params)...);
     }
     
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
     typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
-    auto callWithPartitionedArgsStage4(Func &&f, T0 &&t0, T1 &&t1, T2 &&t2, [[maybe_unused]] T3 &&t3, ParamsTy &&...params) {
-        static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<T2, SpCallableType::CPU>,
-                                       is_instantiation_of_callable_wrapper_with_type<T3, SpCallableType::GPU>>,
-                      "SpRuntime::task when providing two callables to a task on should be a CPU callable and the other a GPU callable");
+    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
+        static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
+                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::GPU>>,
+                      "SpRuntime::task when providing two callables to a task one should be a CPU callable and the other a GPU callable");
         
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpRuntime::task some data dependencies don't have a getView() and/or a getAllData method.");
@@ -1459,8 +1472,8 @@ private:
     }
 
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy>
-    auto callWithPartitionedArgsStage4(Func &&f, T0 &&t0, T1 &&t1, T2 &&t2, ParamsTy &&...params) {
-        static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<T2, SpCallableType::GPU>),
+    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&...params) {
+        static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>),
                       "SpRuntime::task : SPETABARU_USE_CUDA macro is undefined. Unable to compile tasks for which only a GPU callable has been provided.");
 
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
@@ -1577,9 +1590,9 @@ public:
     template <class... ParamsTy>
     auto task(ParamsTy&&...params) {
         auto f = [this](auto isPotentialTask, auto&&... partitionedParams) {
-            return preCoreTaskCreation<isPotentialTask>(std::forward<decltype(partitionedParams)>(partitionedParams)...);
+            return this->preCoreTaskCreation<isPotentialTask>(std::forward<decltype(partitionedParams)>(partitionedParams)...);
         };
-        return callWithPartitionedArgs(f, std::forward<ParamsTy>(params)...);
+        return this->callWithPartitionedArgs(f, std::forward<ParamsTy>(params)...);
     }
 
     ///////////////////////////////////////////////////////////////////////////

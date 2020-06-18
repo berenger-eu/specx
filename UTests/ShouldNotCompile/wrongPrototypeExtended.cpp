@@ -32,7 +32,7 @@ int main(){
 
 #ifdef TEST3
     runtime.task(SpRead(initVal),
-            SpGpu([]([[maybe_unused]] const double& initValParam){})
+            SpGpu([]([[maybe_unused]] const double& initValParam){}),
             SpGpu([]([[maybe_unused]] const double& initValParam){}));
 #endif
 
