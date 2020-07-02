@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <cmath>
+#include <atomic>
 
 #include "Utils/SpUtils.hpp"
 #include "Tasks/SpAbstractTask.hpp"
@@ -21,41 +22,35 @@
 #include "SpPrioScheduler.hpp"
 #include "SpSchedulerInformer.hpp"
 #include "Utils/small_vector.hpp"
+#include "Compute/SpComputeEngine.hpp"
 
 //! The runtime is the main component of spetabaru.
 class SpTasksManager{
-    //! To stop the threads
-    std::atomic<bool> stop;
 
-    //! To protect the tasksReady list
-    std::mutex mutexWaitingWorkers;
+    std::atomic<SpComputeEngine*> ce;
 
     //! To protect tasksFinished
     std::mutex mutexFinishedTasks;
+    
     //! List of tasks finished
     std::list<SpAbstractTask*> tasksFinished;
-
-    //! To wait some tasks to be ready
-    std::condition_variable conditionReadyTasks;
-
-    //! Number of currently running tasks
-    std::atomic<int> nbRunningTasks;
-
+    
     //! To wait all tasks to be over
     std::condition_variable conditionAllTasksOver;
 
-    //! Number of waiting threads
-    std::atomic<int> nbWaitingThreads;
+    //! Number of currently running tasks
+    std::atomic<int> nbRunningTasks;
+    
+    //! Number of added tasks
+    std::atomic<int> nbPushedTasks;
+    
+    //! Number of tasks that are ready
+    std::atomic<int> nbReadyTasks;
 
     //! To protect commute locking
     std::mutex mutexCommute;
-
-    //! Number of added tasks
-    std::atomic<int> nbPushedTasks;
-
-    //! The scheduler
-    //SpSimpleScheduler scheduler;
-    SpPrioScheduler scheduler;
+    
+    small_vector<SpAbstractTask*> readyTasks;
 
     void insertIfReady(SpAbstractTask* aTask){
         if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
@@ -73,20 +68,16 @@ class SpTasksManager{
                     }
                     SpDebugPrint() << "Was not in ready list " << aTask->getId();
 
+                    nbReadyTasks++;
+
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
                     informAllReady(aTask);
-                    const int nbThreadsToAwake = scheduler.push(aTask);
-
-                    if(nbThreadsToAwake && nbWaitingThreads){
-                        std::unique_lock<std::mutex> lockerWaiting(mutexWaitingWorkers);
-                        SpDebugPrint() << "Notify other " << aTask->getId() << " nbThreadsToAwake " << nbThreadsToAwake;
-                        if(nbThreadsToAwake == 1){
-                            conditionReadyTasks.notify_one();
-                        }
-                        else{
-                            conditionReadyTasks.notify_all();
-                        }
+                    
+                    if(!ce) {
+                        readyTasks.push_back(aTask);
+                    } else {
+                        ce.load()->pushTask(aTask);
                     }
                 }
                 else{
@@ -145,7 +136,7 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////
 
-    explicit SpTasksManager() : stop(false), nbRunningTasks(0), nbWaitingThreads(0), nbPushedTasks(0),
+    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0),
         lockerByThread0(false){
     }
 
@@ -157,8 +148,7 @@ public:
 
     ~SpTasksManager(){
         waitAllTasks();
-        stopAllWorkers();
-
+        
         // Delete tasks
         for(auto ptrTask : tasksFinished){
             delete ptrTask;
@@ -173,25 +163,6 @@ public:
         return nbRunningTasks;
     }
 
-    //! Ask the workers to stop
-    //! There must be not pending tasks
-    void stopAllWorkers(){
-        assert(nbRunningTasks == 0);
-#ifndef NDEBUG
-        {
-            std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-            assert(static_cast<long int>(tasksFinished.size()) == nbPushedTasks);
-        }
-#endif
-
-        stop = true;
-        {
-            std::unique_lock<std::mutex> lockerWaiting(mutexWaitingWorkers);
-            conditionReadyTasks.notify_all();
-        }
-        assert(scheduler.getNbTasks() == 0);
-    }
-
     //! Wait all tasks to be finished
     void waitAllTasks(){
         {
@@ -199,8 +170,7 @@ public:
             SpDebugPrint() << "Waiting for  " << tasksFinished.size() << " to finish over " << nbPushedTasks << " created tasks";
             conditionAllTasksOver.wait(locker, [&](){return static_cast<long int>(tasksFinished.size()) == nbPushedTasks;});
         }
-
-        assert(scheduler.getNbTasks() == 0);
+        
         assert(nbRunningTasks == 0);
     }
 
@@ -218,60 +188,55 @@ public:
     }
 
     int getNbReadyTasks() const{
-        return scheduler.getNbTasks();
+        return nbReadyTasks;
+    }
+    
+    void setComputeEngine(SpComputeEngine* inCe) {
+        if(inCe && !ce) {
+            ce = inCe;
+            ce.load()->pushTasks(readyTasks);
+            readyTasks.clear();
+        }
+    }
+    
+    void preTaskExecution(SpAbstractTask* t) {
+        nbReadyTasks--;
+        nbRunningTasks += 1;
+        t->takeControl();
+
+        SpDebugPrint() << "Execute task with ID " << t->getId();
+        assert(t->isState(SpTaskState::READY));
+
+        t->setState(SpTaskState::RUNNING);
     }
 
-    void runnerCallback(){
-        while(stop == false){
-            if(scheduler.getNbTasks() == 0){
-                std::unique_lock<std::mutex> lockerWaiting(mutexWaitingWorkers);
-                nbWaitingThreads += 1;
-                SpDebugPrint() << "Wait for tasks";
-                conditionReadyTasks.wait(lockerWaiting,
-                                                       [&]{return scheduler.getNbTasks() != 0 || stop;});
-                nbWaitingThreads -= 1;
-            }
+    void postTaskExecution(SpAbstractTask* t){
+        t->setState(SpTaskState::POST_RUN);
+        
+        small_vector<SpAbstractTask*> candidates;
+        t->releaseDependences(&candidates);
 
-            SpDebugPrint() << "Awake";
-
-            SpAbstractTask* taskToManage = nullptr;
-            if(stop == false && scheduler.getNbTasks() != 0 && (taskToManage = scheduler.pop())){
-                assert(taskToManage->isState(SpTaskState::READY));
-                SpDebugPrint() << "There are " << scheduler.getNbTasks() << " tasks left but I have one";
-                nbRunningTasks += 1;
-                taskToManage->takeControl();
-
-                SpDebugPrint() << "Execute task with ID " << taskToManage->getId();
-                assert(taskToManage->isState(SpTaskState::READY));
-
-                taskToManage->setState(SpTaskState::RUNNING);
-
-                taskToManage->execute();
-
-                taskToManage->setState(SpTaskState::POST_RUN);
-
-                small_vector<SpAbstractTask*> candidates;
-                taskToManage->releaseDependences(&candidates);
-
-                SpDebugPrint() << "Proceed candidates from after " << taskToManage->getId() << ", they are " << candidates.size();
-                for(auto otherId : candidates){
-                    SpDebugPrint() << "Test " << otherId->getId();
-                    insertIfReady(otherId);
-                }
-
-                {
-                    std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-                    tasksFinished.emplace_back(taskToManage);
-                    nbRunningTasks -= 1;
-                }
-
-                taskToManage->setState(SpTaskState::FINISHED);
-                taskToManage->releaseControl();
-
-                std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-                conditionAllTasksOver.notify_one();
-            }
+        SpDebugPrint() << "Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
+        for(auto otherId : candidates){
+            SpDebugPrint() << "Test " << otherId->getId();
+            insertIfReady(otherId);
         }
+
+        {
+            std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+            tasksFinished.emplace_back(t);
+            nbRunningTasks -= 1;
+        }
+        
+        t->setState(SpTaskState::FINISHED);
+        t->releaseControl();
+        
+        std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+        conditionAllTasksOver.notify_one();
+    }
+    
+    const SpComputeEngine* getComputeEngine() const {
+        return ce;
     }
 };
 

@@ -7,11 +7,12 @@
 
 #include <vector>
 #include <queue>
+#include <utility>
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/small_vector.hpp"
-
+#include "Speculation/SpSpeculativeModel.hpp"
 
 class SpPrioScheduler{
     struct ComparePrio{
@@ -47,13 +48,21 @@ public:
         tasksReady.push(newTask);
         return 1;
     }
+    
+    int pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
+        std::unique_lock<std::mutex> locker(mutexReadyTasks);
+        for(auto t : tasks) {
+            tasksReady.push(t);
+        }
+        return int(tasks.size());
+    }
 
     SpAbstractTask* pop(){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         if(tasksReady.size()){
-            SpAbstractTask* task = tasksReady.top();
+            auto res = tasksReady.top();
             tasksReady.pop();
-            return task;
+            return res;
         }
         return nullptr;
     }

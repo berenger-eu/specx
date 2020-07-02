@@ -10,6 +10,7 @@
 #include <sstream>
 #include <cstring>
 #include <functional>
+#include <memory>
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -116,7 +117,7 @@ namespace SpUtils{
     }
 
     template <typename CallableTy, typename TupleTy, std::size_t... Is,
-    std::enable_if_t<std::conjunction_v<std::is_invocable<CallableTy, std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
+    std::enable_if_t<sizeof...(Is) == 0 || std::conjunction_v<std::is_invocable<CallableTy, std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
     static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
         if constexpr(sizeof...(Is) > 0) {
             using RetTy = std::invoke_result_t<CallableTy, std::tuple_element_t<0, std::remove_reference_t<TupleTy>>>;
@@ -130,7 +131,7 @@ namespace SpUtils{
     }
     
     template <typename CallableTy, typename TupleTy, std::size_t... Is,
-    std::enable_if_t<std::conjunction_v<std::is_invocable<CallableTy, std::integral_constant<size_t, Is>,
+    std::enable_if_t<sizeof...(Is) != 0 && std::conjunction_v<std::is_invocable<CallableTy, std::integral_constant<size_t, Is>,
     std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
     static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
         if constexpr(sizeof...(Is) > 0) {
