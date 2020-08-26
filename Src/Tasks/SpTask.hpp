@@ -91,7 +91,13 @@ public:
         // if GCC then we ask for a clean type as default task name
         int status;
         char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
-        Parent::setTaskName(demangledName);
+        if(status == 0){
+            assert(demangledName);
+            Parent::setTaskName(demangledName);
+        }
+        else{
+            Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
+        }
         free(demangledName);
 #else
         Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
