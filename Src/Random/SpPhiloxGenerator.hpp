@@ -206,6 +206,9 @@ public:
     SpPhiloxGenerator &operator=(SpPhiloxGenerator &&) = default;
 
     SpPhiloxGenerator &skip(const size_t inNbToSeep) {
+        if(inNbToSeep == 0){
+            return *this;
+        }
 
         // Doubling inNbToSeep because dis01 will always call two times phEngine
         phEngine.Skip(inNbToSeep * 2);
