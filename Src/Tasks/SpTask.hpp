@@ -17,6 +17,8 @@
 #include <cxxabi.h>
 #endif
 
+class SpAbstractTaskGraph;
+
 template <class RetType, class DataDependencyTupleTy, class CallableTupleTy>
 class SpTask : public SpAbstractTaskWithReturn<RetType> {
     using Parent = SpAbstractTask;
@@ -69,18 +71,18 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
 
     //! Called by parent abstract task class
-    void executeCore() final {
+    void executeCore([[maybe_unused]] SpCallableType ct) final {
         executeCore(this, std::get<0>(callables), tupleParams);
     }
 
 public:
     //! Constructor from a task function
     template <typename... T>
-    explicit SpTask(const SpTaskActivation initialActivationState, 
+    explicit SpTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialActivationState, 
                     const SpPriority &inPriority,
                     DataDependencyTupleTy &&inDataDepTuple,
                     CallableTupleTy &&inCallableTuple, T... t) 
-        : SpAbstractTaskWithReturn<RetType>(initialActivationState, inPriority),
+        : SpAbstractTaskWithReturn<RetType>(inAtg, initialActivationState, inPriority),
         tupleParams(inDataDepTuple),
         callables(std::move(inCallableTuple)) {
         ((void) t, ...);
@@ -375,11 +377,11 @@ class SpSelectTask : public SpTask<RetType, DataDependencyTupleTy, CallableTuple
     bool isCarrSurWrittValuesOver;
     
 public:
-    explicit SpSelectTask(const SpTaskActivation initialActivationState, 
+    explicit SpSelectTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialActivationState, 
                           const SpPriority& inPriority,
                           DataDependencyTupleTy &&inDataDepTuple,
                           CallableTupleTy &&inCallableTuple, bool iCSWVO)
-                        : Parent(initialActivationState, inPriority,
+                        : Parent(inAtg, initialActivationState, inPriority,
                           std::move(inDataDepTuple), std::move(inCallableTuple)), isCarrSurWrittValuesOver(iCSWVO) {}
     
     void setEnabledDelegate(const SpTaskActivation inIsEnable) override final {

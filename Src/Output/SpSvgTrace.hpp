@@ -7,6 +7,7 @@
 
 #include <fstream>
 #include <cmath>
+#include <iterator>
 
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
@@ -16,12 +17,38 @@
 namespace SpSvgTrace {
 
 inline void GenerateTrace(const std::string& outputFilename, const std::list<SpAbstractTask*>& tasksFinished,
-                          const SpTimePoint& startingTime, const int nbThreads, const bool showDependences) {
+                          const SpTimePoint& startingTime, const bool showDependences) {
+                              
     std::ofstream svgfile(outputFilename);
 
     if(svgfile.is_open() == false){
         throw std::invalid_argument("Cannot open filename : " + outputFilename);
     }
+    
+    const auto threadIds =
+    [&]() {
+        std::vector<long int> res;
+        res.reserve(tasksFinished.size());
+        std::transform(std::begin(tasksFinished), std::end(tasksFinished), std::back_inserter(res),
+                      [](SpAbstractTask* task){
+                        return task->getThreadIdComputer();
+                      });
+                      
+        std::sort(std::begin(res), std::end(res));
+        res.erase(std::unique(std::begin(res), std::end(res)), std::end(res));
+        return res;
+    }();
+    
+    const int nbThreads = static_cast<int>(threadIds.size());
+    
+    const auto threadIdsToVerticalSlotPosMap =
+    [&]() {
+        std::unordered_map<long int, long int> mapping;
+        for(long int i=0; i < static_cast<long int>(threadIds.size()); i++) {
+            mapping[threadIds[i]] = i+1;
+        }
+        return mapping;
+    }();
 
     const long int vsizeperthread = std::max(100, std::min(200, 2000/nbThreads));
     const long int vmargin = 100;
@@ -70,22 +97,23 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
                "\" font-size=\"30\" fill=\"black\">" << label << "</text>\n";
     }
 
-    for(int idxThread = 0 ; idxThread < nbThreads ; ++idxThread){
+    for(auto idxThread : threadIds) {
+        auto yPos = threadIdsToVerticalSlotPosMap.at(idxThread);
         svgfile << "  <rect width=\"" << hdimtime << "\" height=\"" << vsizeperthread
-                << "\" x=\"" << hmargin << "\" y=\"" << idxThread*(vsizeperthread+threadstrock) + vmargin << "\" style=\"fill:white;stroke:black;stroke-width:" << threadstrock << "\" />\n";
+                << "\" x=\"" << hmargin << "\" y=\"" << (yPos-1)*(vsizeperthread+threadstrock) + vmargin << "\" style=\"fill:white;stroke:black;stroke-width:" << threadstrock << "\" />\n";
 
         const std::string label = "Thread " + std::to_string(idxThread);
 
-        svgfile << "<text x=\"" << hmargin/2 << "\" y=\"" << idxThread*(vsizeperthread+threadstrock) + vmargin + label.size()*30 - vsizeperthread/2 <<
+        svgfile << "<text x=\"" << hmargin/2 << "\" y=\"" << (yPos-1)*(vsizeperthread+threadstrock) + vmargin + label.size()*30 - vsizeperthread/2 <<
                    "\" font-size=\"30\" fill=\"black\" transform=\"rotate(-90, " << hmargin/2 << " "
-                << idxThread*(vsizeperthread+threadstrock) + vmargin + label.size()*30 - vsizeperthread/2 << ")\">" << label << "</text>\n";
+                << (yPos-1)*(vsizeperthread+threadstrock) + vmargin + label.size()*30 - vsizeperthread/2 << ")\">" << label << "</text>\n";
     }
 
     std::unordered_map<std::string, std::string> colors;
 
     for(const auto& atask : tasksFinished){
         const long int idxThreadComputer = atask->getThreadIdComputer();
-        const long int ypos_start = (idxThreadComputer-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin;
+        const long int ypos_start = (threadIdsToVerticalSlotPosMap.at(idxThreadComputer)-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin;
         const long int ypos_end = ypos_start + vsizeperthread - threadstrock;
         const double taskStartTime = startingTime.differenceWith(atask->getStartingTime());
         const double taskEndTime = startingTime.differenceWith(atask->getEndingTime());
@@ -139,7 +167,7 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
 
         for(const auto& atask : tasksFinished){
             atask->getDependences(&deps);
-            const long int ypos_start = (atask->getThreadIdComputer()-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin + vsizeperthread/2;
+            const long int ypos_start = (threadIdsToVerticalSlotPosMap.at(atask->getThreadIdComputer())-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin + vsizeperthread/2;
             const double taskEndTime = startingTime.differenceWith(atask->getEndingTime());
             const long int xpos_start = static_cast<long  int>(double(hdimtime)*taskEndTime/duration) + hmargin;
 
@@ -147,7 +175,7 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
 
             for(const auto& taskDep : deps){
                 if(alreadyExist.find(taskDep) == alreadyExist.end()){
-                    const long int ypos_end = (taskDep->getThreadIdComputer()-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin + vsizeperthread/2;
+                    const long int ypos_end = (threadIdsToVerticalSlotPosMap.at(taskDep->getThreadIdComputer())-1)*(vsizeperthread+threadstrock) + threadstrock/2 + vmargin + vsizeperthread/2;
                     const long int depstrocke = 1;
                     const double taskStartTime = startingTime.differenceWith(taskDep->getStartingTime());
                     const long int xpos_end = static_cast<long  int>(double(hdimtime)*taskStartTime/duration) + hmargin;

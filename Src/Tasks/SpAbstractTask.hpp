@@ -19,6 +19,8 @@
 #include "Utils/SpProbability.hpp"
 #include "Utils/small_vector.hpp"
 
+class SpAbstractTaskGraph;
+
 /** The possible state of a task */
 enum class SpTaskState {
     NOT_INITIALIZED, //! Is currently being build in the runtime
@@ -84,15 +86,18 @@ class SpAbstractTask{
 
     void* specTaskGroup;
     SpAbstractTask* originalTask;
+    
+    SpAbstractTaskGraph* const atg;
 
 public:
-    explicit SpAbstractTask(const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
+    explicit SpAbstractTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
                                currentState(SpTaskState::NOT_INITIALIZED),
                                threadIdComputer(-1), priority(inPriority),
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
-                               originalTask(nullptr){
+                               originalTask(nullptr),
+                               atg(inAtg) {
     }
 
     virtual ~SpAbstractTask(){}
@@ -109,7 +114,7 @@ public:
 
     virtual long int getNbParams() = 0;
     virtual bool dependencesAreReady() const = 0;
-    virtual void executeCore() = 0;
+    virtual void executeCore(SpCallableType ct) = 0;
     virtual void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) = 0;
     virtual void getDependences(small_vector_base<SpAbstractTask*>* allDeps) const = 0;
     virtual void getPredecessors(small_vector_base<SpAbstractTask*>* allPredecessors) const = 0;
@@ -124,10 +129,10 @@ public:
         useDependences(nullptr);
     }
 
-    void execute() {
+    void execute(SpCallableType ct) {
         startingTime.setToNow();
         if(isEnabled == SpTaskActivation::ENABLE){
-            executeCore();
+            executeCore(ct);
         }
         endingTime.setToNow();
 
@@ -270,6 +275,10 @@ public:
     bool isEnable() const{
         return isEnabled == SpTaskActivation::ENABLE;
     }
+    
+    SpAbstractTaskGraph* getAbstractTaskGraph() {
+        return atg;
+    }
 };
 
 
@@ -347,8 +356,8 @@ private:
     small_vector<std::function<void(const bool, const RetType&, SpTaskViewer&, const bool)>> callbacks;
 
 public:
-    explicit SpAbstractTaskWithReturn(const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
-        SpAbstractTask(initialAtivationState, inPriority), resultValue(){
+    explicit SpAbstractTaskWithReturn(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
+        SpAbstractTask(inAtg, initialAtivationState, inPriority), resultValue(){
     }
 
     const RetType& getValue() const {
