@@ -45,6 +45,8 @@ class SpPhiloxGenerator {
             temp_results_.fill(0);
 
             cycles_ = cycles;
+
+            operatorPPcounter = 0;
         }
 
         // Returns the minimum value productible by the engine
@@ -82,6 +84,7 @@ class SpPhiloxGenerator {
 
         // Returns an random number using the philox engine
         uint32 operator()() {
+            operatorPPcounter += 1;
 
             if (temp_counter_ > 3) {
                 temp_counter_ = 0;
@@ -97,7 +100,10 @@ class SpPhiloxGenerator {
             temp_counter_ ++;
 
             return value;
+        }
 
+        int getOperatorPPCounter() const{
+            return operatorPPcounter;
         }
 
     private:
@@ -130,6 +136,10 @@ class SpPhiloxGenerator {
 
         // To force the engine to compute the rounds to populates temp_results_
         bool force_compute_ = true;
+
+        // The number of times operator () is called to ensure that the STL
+        // always call it once
+        int operatorPPcounter;
 
         // Skip one step
         void SkipOne() {
@@ -205,20 +215,24 @@ public:
 
     SpPhiloxGenerator &operator=(SpPhiloxGenerator &&) = default;
 
-    SpPhiloxGenerator &skip(const size_t inNbToSeep) {
-        if(inNbToSeep == 0){
+    SpPhiloxGenerator &skip(const size_t inNbToSkeep) {
+        if(inNbToSkeep == 0){
             return *this;
         }
 
         // Doubling inNbToSeep because dis01 will always call two times phEngine
-        phEngine.Skip(inNbToSeep * 2);
-        nbValuesGenerated += inNbToSeep;
+        phEngine.Skip(inNbToSkeep);
+        nbValuesGenerated += inNbToSkeep;
         return *this;
     }
 
     RealType getRand01() {
         nbValuesGenerated += 1;
-        return dis01(phEngine);
+        [[maybe_unused]] const int counterOperatorPPBefore = phEngine.getOperatorPPCounter();
+        const RealType number = dis01(phEngine);
+        [[maybe_unused]] const int counterOperatorPPAfter = phEngine.getOperatorPPCounter();
+        assert(counterOperatorPPAfter == counterOperatorPPBefore+1);
+        return number;
     }
 
     size_t getNbValuesGenerated() const {
