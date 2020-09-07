@@ -227,14 +227,14 @@ public:
 
     SpPhiloxGenerator &operator=(SpPhiloxGenerator &&) = default;
 
-    SpPhiloxGenerator &skip(const size_t inNbToSkeep) {
-        if(inNbToSkeep == 0){
+    SpPhiloxGenerator &skip(const size_t inNbToSkip) {
+        if(inNbToSkip == 0){
             return *this;
         }
 
-        phEngine.Skip(inNbToSkeep);
+        phEngine.Skip(inNbToSkip);
         
-        nbValuesGenerated += inNbToSkeep;
+        nbValuesGenerated += inNbToSkip;
         
         return *this;
     }
