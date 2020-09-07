@@ -58,11 +58,7 @@ class SpPhiloxGenerator {
         // Skip the specified number of steps
         void Skip(uint64 count) {
             if(count > 0) {
-                if(temp_counter_ > 3) {
-                    SkipOne();
-                    temp_counter_ = 0;
-                    force_compute_ = true;
-                }
+                skipOnWrap();
                 
                 const auto position = temp_counter_ + count;
 
@@ -97,12 +93,9 @@ class SpPhiloxGenerator {
         uint32 operator()() {
             operatorPPcounter += 1;
 
-            if (temp_counter_ > 3) {
-                temp_counter_ = 0;
-                SkipOne();
-                temp_results_ = counter_;
-                ExecuteRounds();
-            } else if (force_compute_) {
+            skipOnWrap();
+            
+            if (force_compute_) {
                 force_compute_ = false;
                 temp_results_ = counter_;
                 ExecuteRounds();
@@ -207,6 +200,14 @@ class SpPhiloxGenerator {
             (*key)[0] += kPhiloxW32A;
             (*key)[1] += kPhiloxW32B;
         }
+        
+        void skipOnWrap() {
+            if(temp_counter_ > 3) {
+                temp_counter_ = 0;
+                SkipOne();
+                force_compute_ = true;
+            }
+        }
     };
 
     philox4x32 phEngine;
@@ -231,9 +232,10 @@ public:
             return *this;
         }
 
-        // Doubling inNbToSeep because dis01 will always call two times phEngine
         phEngine.Skip(inNbToSkeep);
+        
         nbValuesGenerated += inNbToSkeep;
+        
         return *this;
     }
 
