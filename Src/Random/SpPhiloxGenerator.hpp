@@ -57,27 +57,38 @@ class SpPhiloxGenerator {
 
         // Skip the specified number of steps
         void Skip(uint64 count) {
-
-            temp_counter_ += count;
-
-            if (temp_counter_ > 3) {
-
-                temp_counter_ = temp_counter_%4;
-                force_compute_ = true;
-
-                const auto count_lo = static_cast<uint32>((count-temp_counter_)/4);
-                auto count_hi = static_cast<uint32>((count-temp_counter_)/4 >> 32);
-
-                counter_[0] += count_lo;
-                if (counter_[0] < count_lo) {
-                    ++count_hi;
+            if(count > 0) {
+                if(temp_counter_ > 3) {
+                    SkipOne();
+                    temp_counter_ = 0;
+                    force_compute_ = true;
                 }
+                
+                const auto position = temp_counter_ + count;
 
-                counter_[1] += count_hi;
-                if (counter_[1] < count_hi) {
-                    if (++counter_[2] == 0) {
-                        ++counter_[3];
+                if (position > 3) {
+                    force_compute_ = true;
+                    temp_counter_ = position % 4;
+                    
+                    const auto nbOfCounterIncrements = position / 4;
+
+                    const auto count_lo = static_cast<uint32>(nbOfCounterIncrements);
+                    auto count_hi = static_cast<uint32>(nbOfCounterIncrements >> 32);
+                    
+                    // 128 bit add
+                    counter_[0] += count_lo;
+                    if (counter_[0] < count_lo) {
+                        ++count_hi;
                     }
+
+                    counter_[1] += count_hi;
+                    if (counter_[1] < count_hi) {
+                        if (++counter_[2] == 0) {
+                            ++counter_[3];
+                        }
+                    }
+                } else {
+                    temp_counter_ = position;
                 }
             }
         }
@@ -88,6 +99,7 @@ class SpPhiloxGenerator {
 
             if (temp_counter_ > 3) {
                 temp_counter_ = 0;
+                SkipOne();
                 temp_results_ = counter_;
                 ExecuteRounds();
             } else if (force_compute_) {
@@ -97,7 +109,7 @@ class SpPhiloxGenerator {
             }
 
             uint32 value = temp_results_[temp_counter_];
-            temp_counter_ ++;
+            temp_counter_++;
 
             return value;
         }
@@ -143,6 +155,7 @@ class SpPhiloxGenerator {
 
         // Skip one step
         void SkipOne() {
+            // 128 bit increment
             if (++counter_[0] == 0) {
                 if (++counter_[1] == 0) {
                     if (++counter_[2] == 0) {
@@ -170,8 +183,6 @@ class SpPhiloxGenerator {
                 temp_results_ = ComputeSingleRound(temp_results_, key);
                 RaiseKey(&key);
             }
-
-            SkipOne();
         }
 
         // Helper function for a single round of the underlying Philox algorithm.
