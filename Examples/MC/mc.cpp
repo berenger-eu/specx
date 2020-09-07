@@ -12,7 +12,7 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-#include "Random/SpMTGenerator.hpp"
+#include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
@@ -67,7 +67,7 @@ int main(){
     SpTimer timerSpecNoCons[MaxidxConsecutiveSpec];
 
     if(runSeq){
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
@@ -132,7 +132,7 @@ int main(){
     if(runTask){
         SpRuntime runtime(NumThreads);
 
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         timerTask.start();
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
@@ -214,7 +214,7 @@ int main(){
             return true;
         });
 
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         timerSpec.start();
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
@@ -310,7 +310,7 @@ int main(){
                 return true;
             });
 
-            SpMTGenerator<double> randGen(0);
+            SpPhiloxGenerator<double> randGen(0);
 
             timerSpecNoCons[idxConsecutiveSpec].start();
             small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
@@ -410,7 +410,7 @@ int main(){
             return true;
         });
 
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         timerSpecAllReject.start();
 

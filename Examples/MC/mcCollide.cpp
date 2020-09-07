@@ -11,7 +11,7 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-#include "Random/SpMTGenerator.hpp"
+#include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
@@ -42,7 +42,7 @@ int main(){
     const double collisionLimit = 0.00001;
 
     if(runSeqMove){
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
@@ -118,7 +118,7 @@ int main(){
     if(runTaskMove){
         SpRuntime runtime(NumThreads);
 
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);
@@ -229,7 +229,7 @@ int main(){
     if(runSpecMove){
         SpRuntime runtime(NumThreads);
 
-        SpMTGenerator<double> randGen(0);
+        SpPhiloxGenerator<double> randGen(0);
 
         small_vector<Domain<double>> domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
         always_assert(randGen.getNbValuesGenerated() == 3 * NbDomains * NbParticlesPerDomain);

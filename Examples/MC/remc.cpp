@@ -12,7 +12,7 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-#include "Random/SpMTGenerator.hpp"
+#include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
 
 #include "mcglobal.hpp"
@@ -79,7 +79,7 @@ int main(){
     SpTimer timerSpecNoCons[MaxidxConsecutiveSpec];
 
     if(runSeq){
-        std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
+        std::array<SpPhiloxGenerator<double>,NbReplicas> replicaRandGen;
         std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
         std::array<size_t,NbReplicas> replicaCptGenerated;
@@ -87,12 +87,12 @@ int main(){
         timerSeq.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+            SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
             auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
             size_t& cptGenerated = replicaCptGenerated[idxReplica];
 
-            randGen = SpMTGenerator<double>(0/*idxReplica*/);
+            randGen = SpPhiloxGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
             always_assert(randGen.getNbValuesGenerated() == 3 * static_cast<size_t>(NbDomains) * static_cast<size_t>(NbParticlesPerDomain));
@@ -107,7 +107,7 @@ int main(){
         for(int idxLoop = 0 ; idxLoop < NbLoops ; idxLoop += NbInnerLoops){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                 auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 size_t& cptGenerated = replicaCptGenerated[idxReplica];
@@ -187,18 +187,18 @@ int main(){
     if(runTask){
         SpRuntime runtime(NumThreads);
 
-        std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
+        std::array<SpPhiloxGenerator<double>,NbReplicas> replicaRandGen;
         std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerTask.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+            SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
             auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
-            randGen = SpMTGenerator<double>(0/*idxReplica*/);
+            randGen = SpPhiloxGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
 
@@ -214,7 +214,7 @@ int main(){
         for(int idxLoop = 0 ; idxLoop < NbLoops ; idxLoop += NbInnerLoops){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                 auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 const double& Temperature = temperatures[idxReplica];
@@ -272,7 +272,7 @@ int main(){
                 int* nbExchanges = new int(0);
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
-                    SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
+                    SpPhiloxGenerator<double>& randGen0 = replicaRandGen[idxReplica];
                     auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
                     auto& domains1 = replicaDomains[idxReplica+1];
@@ -332,18 +332,18 @@ int main(){
             return true;
         });
 
-        std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
+        std::array<SpPhiloxGenerator<double>,NbReplicas> replicaRandGen;
         std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerSpec.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+            SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
             auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
-            randGen = SpMTGenerator<double>(0/*idxReplica*/);
+            randGen = SpPhiloxGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
 
@@ -359,7 +359,7 @@ int main(){
         for(int idxLoop = 0 ; idxLoop < NbLoops ; idxLoop += NbInnerLoops){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                 auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                 const double& Temperature = temperatures[idxReplica];
@@ -426,7 +426,7 @@ int main(){
                 // TODO int* nbExchanges = new int(0);
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
-                    SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
+                    SpPhiloxGenerator<double>& randGen0 = replicaRandGen[idxReplica];
                     auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
                     auto& domains1 = replicaDomains[idxReplica+1];
@@ -495,18 +495,18 @@ int main(){
                 return true;
             });
 
-            std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
+            std::array<SpPhiloxGenerator<double>,NbReplicas> replicaRandGen;
             std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
             std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
             timerSpecNoCons[idxConsecutiveSpec].start();
 
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                 auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
-                randGen = SpMTGenerator<double>(0/*idxReplica*/);
+                randGen = SpPhiloxGenerator<double>(0/*idxReplica*/);
 
                 domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
 
@@ -524,7 +524,7 @@ int main(){
             for(int idxLoop = 0 ; idxLoop < NbLoops ; idxLoop += NbInnerLoops){
                 const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
                 for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                    SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                    SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                     auto& domains = replicaDomains[idxReplica];
                     Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
                     const double& Temperature = temperatures[idxReplica];
@@ -594,7 +594,7 @@ int main(){
                     // TODO int* nbExchanges = new int(0);
                     const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                     for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
-                        SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
+                        SpPhiloxGenerator<double>& randGen0 = replicaRandGen[idxReplica];
                         auto& domains0 = replicaDomains[idxReplica];
                         Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
                         auto& domains1 = replicaDomains[idxReplica+1];
@@ -664,18 +664,18 @@ int main(){
             return true;
         });
 
-        std::array<SpMTGenerator<double>,NbReplicas> replicaRandGen;
+        std::array<SpPhiloxGenerator<double>,NbReplicas> replicaRandGen;
         std::array<small_vector<Domain<double>>,NbReplicas> replicaDomains;
         std::array<Matrix<double>,NbReplicas> replicaEnergyAll;
 
         timerSpecAllReject.start();
 
         for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-            SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+            SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
             auto& domains = replicaDomains[idxReplica];
             Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
-            randGen = SpMTGenerator<double>(0/*idxReplica*/);
+            randGen = SpPhiloxGenerator<double>(0/*idxReplica*/);
 
             domains = InitDomains<double>(NbDomains, NbParticlesPerDomain, BoxWidth, randGen);
 
@@ -691,7 +691,7 @@ int main(){
         for(int idxLoop = 0 ; idxLoop < NbLoops ; idxLoop += NbInnerLoops){
             const int NbInnerLoopsLimit = std::min(NbInnerLoops, NbLoops-idxLoop) + idxLoop;
             for(int idxReplica = 0 ; idxReplica < NbReplicas ; ++idxReplica){
-                SpMTGenerator<double>& randGen = replicaRandGen[idxReplica];
+                SpPhiloxGenerator<double>& randGen = replicaRandGen[idxReplica];
                 auto& domains = replicaDomains[idxReplica];
                 Matrix<double>& energyAll = replicaEnergyAll[idxReplica];
 
@@ -767,7 +767,7 @@ int main(){
                 // TODO int* nbExchanges = new int(0);
                 const int startExchangeIdx = ((idxLoop/NbInnerLoops)&1);
                 for(int idxReplica = startExchangeIdx ; idxReplica+1 < NbReplicas ; idxReplica += 2){
-                    SpMTGenerator<double>& randGen0 = replicaRandGen[idxReplica];
+                    SpPhiloxGenerator<double>& randGen0 = replicaRandGen[idxReplica];
                     auto& domains0 = replicaDomains[idxReplica];
                     Matrix<double>& energyAll0 = replicaEnergyAll[idxReplica];
                     auto& domains1 = replicaDomains[idxReplica+1];
