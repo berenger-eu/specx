@@ -77,11 +77,7 @@ class SpPhiloxGenerator {
                 
                 counter_[0] += count_lo;
                 if (counter_[0] < count_lo) {
-                    if(++counter_[1] == 0) {
-                        if(++counter_[2] == 0) {
-                            ++counter_[3];
-                        }
-                    }
+                    ++count_hi;
                 }
 
                 counter_[1] += count_hi;
