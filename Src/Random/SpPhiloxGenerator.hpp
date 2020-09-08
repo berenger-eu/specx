@@ -68,7 +68,7 @@ class SpPhiloxGenerator {
                 temp_counter_ = 0;
                 
                 const auto nbOfCounterIncrements = count / 4 + 1;
-                const auto newTempCounter = count % 4;
+                temp_counter_ = count % 4;
                 
                 const auto count_lo = static_cast<uint32>(nbOfCounterIncrements);
                 auto count_hi = static_cast<uint32>(nbOfCounterIncrements >> 32);
@@ -87,7 +87,6 @@ class SpPhiloxGenerator {
                     }
                 }
                 
-                temp_counter_ = newTempCounter;
                 force_computation_ = true;
             }
         }
