@@ -37,7 +37,7 @@ class SpPhiloxGenerator {
 
         explicit philox4x32(uint64 seed, int cycles = DEFAULT_CYCLES)
         : counter_(), temp_results_(), key_(), temp_counter_(0), cycles_(cycles),
-        force_computation_(true), operatorPPcounter(0)
+          operatorPPcounter(0)
         {
             // Splitting the seed in two
             key_[0] = static_cast<uint32>(seed);
@@ -66,16 +66,10 @@ class SpPhiloxGenerator {
                 
                 count -= nbStepsToNextMultipleOf4;
                 
-                // We need to add 1 to the counter because we have moved past
-                // all the 4 results from the current temp_results_ array. This 
-                // also includes the special case where we already are on the edge
-                // (temp_counter_ == 4) but we haven't triggered a counter increment yet.
-                // We can safely add 1 here (instead of calling SkipOne). I won't cause any
-                // overfow since we are dividing the value of count by 4 and count has a 
-                // width of 64 bits.  
-                const auto nbOfCounterIncrements = count / 4 + 1;
+                temp_counter_ = 4; // we set it to 4 to trigger computation the next time operator() is called
                 
-                temp_counter_ = count % 4;
+                const auto nbOfCounterIncrements = count / 4;
+                const auto newTempCounter = count % 4;
                 
                 const auto count_lo = static_cast<uint32>(nbOfCounterIncrements);
                 auto count_hi = static_cast<uint32>(nbOfCounterIncrements >> 32);
@@ -94,7 +88,11 @@ class SpPhiloxGenerator {
                     }
                 }
                 
-                force_computation_ = true;
+                if(newTempCounter > 0) {
+                    temp_counter_ = newTempCounter;
+                    temp_results_ = counter_;
+                    ExecuteRounds();
+                }
             }
         }
 
@@ -104,12 +102,6 @@ class SpPhiloxGenerator {
 
             if(temp_counter_ == 4) {
                 temp_counter_ = 0;
-                SkipOne();
-                force_computation_ = true;
-            }
-            
-            if(force_computation_) {
-                force_computation_ = false;
                 temp_results_ = counter_;
                 ExecuteRounds();
             }
@@ -152,9 +144,6 @@ class SpPhiloxGenerator {
         // The number of cycles used to generate randomness
         int cycles_;
 
-        // To force the engine to compute the rounds to populates temp_results_
-        bool force_computation_;
-
         // The number of times operator () is called to ensure that the STL
         // always call it once
         uint32 operatorPPcounter;
@@ -189,6 +178,8 @@ class SpPhiloxGenerator {
                 temp_results_ = ComputeSingleRound(temp_results_, key);
                 RaiseKey(&key);
             }
+            
+            SkipOne();
         }
 
         // Helper function for a single round of the underlying Philox algorithm.
