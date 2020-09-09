@@ -65,7 +65,6 @@ class SpPhiloxGenerator {
                 }
                 
                 count -= nbStepsToNextMultipleOf4;
-                temp_counter_ = 0;
                 
                 const auto nbOfCounterIncrements = count / 4 + 1;
                 temp_counter_ = count % 4;
