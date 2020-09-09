@@ -66,7 +66,15 @@ class SpPhiloxGenerator {
                 
                 count -= nbStepsToNextMultipleOf4;
                 
+                // We need to add 1 to the counter because we have moved past
+                // all the 4 results from the current temp_results_ array. This 
+                // also includes the special case where we already are on the edge
+                // (temp_counter_ == 4) but we haven't triggered a counter increment yet.
+                // We can safely add 1 here (instead of calling SkipOne). I won't cause any
+                // overfow since we are dividing the value of count by 4 and count has a 
+                // width of 64 bits.  
                 const auto nbOfCounterIncrements = count / 4 + 1;
+                
                 temp_counter_ = count % 4;
                 
                 const auto count_lo = static_cast<uint32>(nbOfCounterIncrements);
