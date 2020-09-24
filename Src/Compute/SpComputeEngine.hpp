@@ -18,7 +18,6 @@ class SpComputeEngine {
 
 private:
     small_vector<std::unique_ptr<SpWorker>> workers;
-    small_vector<SpAbstractTaskGraph*> taskGraphs;
     std::mutex ceMutex;
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
@@ -35,13 +34,6 @@ private:
     bool hasBeenStopped;
 
 private:
-    
-    void wakeUpWaitingWorkers() {
-        {
-            std::unique_lock<std::mutex> workerLock(ceMutex);
-        }
-        ceCondVar.notify_all();
-    }
     
     auto sendWorkersToInternal(SpComputeEngine *otherCe, const SpWorker::SpWorkerType wt, const long int maxCount, const bool allowBusyWorkersToBeDetached) {
         small_vector<std::unique_ptr<SpWorker>> res;
@@ -174,12 +166,7 @@ private:
         }
     }
     
-    void wait(SpWorker& worker) {
-        std::unique_lock<std::mutex> ceLock(ceMutex);
-        updateWorkerCounters<false, true>(worker.getType(), +1);
-        ceCondVar.wait(ceLock, [&]() { return worker.hasBeenStopped() || areThereAnyWorkersToMigrate() || areThereAnyReadyTasks();});
-        updateWorkerCounters<false, true>(worker.getType(), -1);
-    }
+    void wait(SpWorker& worker, SpAbstractTaskGraph* atg);
     
     auto getCeToMigrateTo() {
         return ceToMigrateTo;
@@ -200,22 +187,22 @@ private:
         return migrationSignalingCounter.fetch_sub(1, std::memory_order_release);
     }
     
-    friend void SpWorker::start();
-    friend void SpWorker::waitOnCe(SpComputeEngine*);
+    friend void SpWorker::waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
+    friend void SpWorker::doLoop(SpAbstractTaskGraph* atg);
 
 public:
-    explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers = SpWorker::createDefaultWorkerTeam())
-    : workers(), taskGraphs(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
+    explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers)
+    : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorker::SpWorkerType::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
       nbAvailableGpuWorkers(0), totalNbCpuWorkers(0), totalNbGpuWorkers(0), hasBeenStopped(false) {
         addWorkers(std::move(inWorkers));
     }
     
+    explicit SpComputeEngine() : SpComputeEngine(small_vector<std::unique_ptr<SpWorker>, 0>{}) {}
+    
     ~SpComputeEngine() {
         stopIfNotAlreadyStopped();
     }
-    
-    void addGraph(SpAbstractTaskGraph* tg);
     
     void pushTask(SpAbstractTask* t) {
         prioSched.push(t);
@@ -246,6 +233,13 @@ public:
     }
     
     void stopIfNotAlreadyStopped();
+    
+    void wakeUpWaitingWorkers() {
+        {
+            std::unique_lock<std::mutex> ceLock(ceMutex);
+        }
+        ceCondVar.notify_all();
+    }
 };
 
 #endif

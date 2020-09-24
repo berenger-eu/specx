@@ -26,10 +26,11 @@ class SpPrioScheduler{
     mutable std::mutex mutexReadyTasks;
     //! Contains the tasks that can be executed
     std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > tasksReady;
-
+    
+    std::atomic<int> nbReadyTasks;
 
 public:
-    explicit SpPrioScheduler() {
+    explicit SpPrioScheduler() : mutexReadyTasks(), tasksReady(), nbReadyTasks(0) {
     }
 
     // No copy or move
@@ -39,18 +40,19 @@ public:
     SpPrioScheduler& operator=(SpPrioScheduler&&) = delete;
 
     int getNbTasks() const{
-        std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        return int(tasksReady.size());
+        return nbReadyTasks;
     }
 
     int push(SpAbstractTask* newTask){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
+        nbReadyTasks++;
         tasksReady.push(newTask);
         return 1;
     }
     
     int pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
+        nbReadyTasks += int(tasks.size());
         for(auto t : tasks) {
             tasksReady.push(t);
         }
@@ -60,6 +62,7 @@ public:
     SpAbstractTask* pop(){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         if(tasksReady.size()){
+            nbReadyTasks--;
             auto res = tasksReady.top();
             tasksReady.pop();
             return res;

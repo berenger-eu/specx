@@ -12,8 +12,8 @@ protected:
     SpTasksManager scheduler;
 
 public:
-    void setComputeEngine(SpComputeEngine* inCe) {
-        scheduler.setComputeEngine(inCe);
+    void computeOn(SpComputeEngine& inCe) {
+        scheduler.setComputeEngine(std::addressof(inCe));
     }
     
     void preTaskExecution(SpAbstractTask* t) {
@@ -30,6 +30,12 @@ public:
     
     void waitRemain(const long int windowSize){
         scheduler.waitRemain(windowSize);
+    }
+    
+    void finish();
+    
+    bool isFinished() const {
+        return scheduler.isFinished();
     }
     
 };

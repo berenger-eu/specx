@@ -46,12 +46,16 @@ class SpTasksManager{
     
     //! Number of tasks that are ready
     std::atomic<int> nbReadyTasks;
+    
+    //! Number of finished tasks
+    std::atomic<int> nbFinishedTasks;
 
     //! To protect commute locking
     std::mutex mutexCommute;
     
     small_vector<SpAbstractTask*> readyTasks;
 
+    template <const bool isNotCalledInAContextOfTaskCreation>
     void insertIfReady(SpAbstractTask* aTask){
         if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
             aTask->takeControl();
@@ -72,7 +76,8 @@ class SpTasksManager{
 
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
-                    informAllReady(aTask);
+                    
+                    informAllReady<isNotCalledInAContextOfTaskCreation>(aTask);
                     
                     if(!ce) {
                         readyTasks.push_back(aTask);
@@ -99,32 +104,27 @@ class SpTasksManager{
     std::mutex listenersReadyMutex;
     small_vector<SpAbstractToKnowReady*> listenersReady;
     
+    template <const bool isNotCalledInAContextOfTaskCreation>
     void informAllReady(SpAbstractTask* aTask){
-        if(lockerByThread0 == false || SpUtils::GetThreadId() != 0){
+        if constexpr (isNotCalledInAContextOfTaskCreation){
             listenersReadyMutex.lock();
         }
+        
         for(SpAbstractToKnowReady* listener : listenersReady){
-            listener->thisTaskIsReady(aTask);
+            listener->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
         }
-        if(lockerByThread0 == false || SpUtils::GetThreadId() != 0){
+        
+        if constexpr (isNotCalledInAContextOfTaskCreation){
             listenersReadyMutex.unlock();
         }
     }
 
-    std::atomic<bool> lockerByThread0;
-
 public:
     void lockListenersReadyMutex(){
-        assert(lockerByThread0 == false);
-        assert(SpUtils::GetThreadId() == 0);
-        lockerByThread0 = true;
         listenersReadyMutex.lock();
     }
 
     void unlockListenersReadyMutex(){
-        assert(lockerByThread0 == true);
-        assert(SpUtils::GetThreadId() == 0);
-        lockerByThread0 = false;
         listenersReadyMutex.unlock();
     }
 
@@ -136,9 +136,7 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////
 
-    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0),
-        lockerByThread0(false){
-    }
+    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0), nbFinishedTasks(0) {}
 
     // No copy or move
     SpTasksManager(const SpTasksManager&) = delete;
@@ -183,8 +181,8 @@ public:
 
 
     void addNewTask(SpAbstractTask* newTask){
-        nbPushedTasks += 1;
-        insertIfReady(newTask);
+        nbPushedTasks++;
+        insertIfReady<false>(newTask);
     }
 
     int getNbReadyTasks() const{
@@ -219,24 +217,46 @@ public:
         SpDebugPrint() << "Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
         for(auto otherId : candidates){
             SpDebugPrint() << "Test " << otherId->getId();
-            insertIfReady(otherId);
-        }
-
-        {
-            std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-            tasksFinished.emplace_back(t);
-            nbRunningTasks -= 1;
+            insertIfReady<true>(otherId);
         }
         
         t->setState(SpTaskState::FINISHED);
         t->releaseControl();
         
-        std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-        conditionAllTasksOver.notify_one();
+        nbRunningTasks--;
+        
+        // We save all of the following values because the SpTasksManager
+        // instance might get destroyed as soon as the mutex (mutexFinishedTasks)
+        // protected region below has been executed.
+        auto previousCntVal = nbFinishedTasks.fetch_add(1);
+        auto nbPushedTasksVal = nbPushedTasks.load();
+        SpComputeEngine *saveCe = ce.load();
+            
+        {
+            // In this case the lock on mutexFinishedTasks should be held
+            // while doing the notify on conditionAllTasksOver
+            // (conditionAllTasksOver.notify_one()) because we don't want
+            // the condition variable to get destroyed before we were able
+            // to notify.
+            std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+            tasksFinished.emplace_back(t);
+            
+            // We notify conditionAllTasksOver every time because of
+            // waitRemain  
+            conditionAllTasksOver.notify_one();
+        }
+        
+        if(nbPushedTasksVal == (previousCntVal + 1)) {
+            saveCe->wakeUpWaitingWorkers();
+        }
     }
     
     const SpComputeEngine* getComputeEngine() const {
         return ce;
+    }
+    
+    bool isFinished() const {
+        return nbFinishedTasks == nbPushedTasks;
     }
 };
 

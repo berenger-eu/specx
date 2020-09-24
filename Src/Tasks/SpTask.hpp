@@ -7,6 +7,7 @@
 
 #include <tuple>
 #include <unordered_map>
+#include <typeinfo>
 
 #include "SpAbstractTask.hpp"
 #include "Data/SpDataHandle.hpp"
