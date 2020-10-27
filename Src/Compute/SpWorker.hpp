@@ -12,6 +12,7 @@
 #include "Utils/small_vector.hpp"
 
 class SpComputeEngine;
+class SpAbstractTaskGraph;
 
 class SpWorker {
 public:
@@ -36,6 +37,9 @@ public:
     static auto createDefaultWorkerTeam() {
         return createATeamOfNCpuWorkers(SpUtils::DefaultNumThreads());
     }
+    
+    static void setWorkerForThread(SpWorker *w);
+    static SpWorker* getWorkerForThread();
 
 private:
     const SpWorkerType wt;
@@ -104,7 +108,7 @@ private:
         workerConditionVariable.wait(workerLock, [&]() { return stopFlag.load(std::memory_order_relaxed) || ce.load(std::memory_order_relaxed); });
     }
     
-    void waitOnCe(SpComputeEngine* inCe);
+    void waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
     
     friend class SpComputeEngine;
 
@@ -130,6 +134,8 @@ public:
     }
     
     void start();
+    
+    void doLoop(SpAbstractTaskGraph* inAtg);
 };
 
 #endif

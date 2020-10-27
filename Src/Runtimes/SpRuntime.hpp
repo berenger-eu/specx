@@ -31,7 +31,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 
     explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) : tg(), ce(SpWorker::createATeamOfNCpuWorkers(inNumThreads)) {
-        ce.addGraph(std::addressof(tg));
+        tg.computeOn(ce);
     }
         
     ///////////////////////////////////////////////////////////////////////////

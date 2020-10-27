@@ -71,7 +71,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
             );
         }
         
-        ce1.addGraph(std::addressof(tg1));
+        tg1.computeOn(ce1);
         
         mainThreadPromise.get_future().get();
         
@@ -81,7 +81,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         
         UASSERTEEQUAL(static_cast<int>(workers.size()), 1);
         
-        ce2.addGraph(std::addressof(tg2));
+        tg2.computeOn(ce2);
         
         promises[promises.size()-1].set_value(true);
         

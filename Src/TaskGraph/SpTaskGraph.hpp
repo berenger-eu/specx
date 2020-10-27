@@ -290,7 +290,8 @@ private:
         auto callableTupleCopy = std::apply([](auto&&... elt) {
                                                 return std::make_tuple(std::forward<decltype(elt)>(elt)...);
                                             }, callableTuple);
-
+                                            
+        static_assert(0 < std::tuple_size<decltype(callableTupleCopy)>::value );
          
         using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopy)>;    
         using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopy)>;
@@ -980,12 +981,12 @@ private:
                                 const bool isEnabled){
                                     if(isEnabled){
                                         if(!alreadyDone){
-                                            assert(SpUtils::GetThreadId() != 0);
                                             specGroupMutex.lock();
                                         }
+                                        
                                         specGroupPtr->setSpeculationCurrentResult(!taskRes);
+                                        
                                         if(!alreadyDone){
-                                            assert(SpUtils::GetThreadId() != 0);
                                             specGroupMutex.unlock();
                                         }
                                     }
@@ -1484,13 +1485,19 @@ private:
     /// Notify function (called by scheduler when a task is ready to run)
     ///////////////////////////////////////////////////////////////////////////
 
-    void thisTaskIsReady(SpAbstractTask* aTask) final {
+    void thisTaskIsReady(SpAbstractTask* aTask, const bool isNotCalledInAContextOfTaskCreation) final {
         SpGeneralSpecGroup<SpecModel>* specGroup = aTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
         SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- will test ";
+        /*
+         * ATTENTION!
+         * TO DO :
+         * We should verify that this double checking doesn't cause any trouble.
+         */
         if(specGroup && specGroup->isSpeculationNotSet()){
-            if(specGroup != currentSpecGroup || SpUtils::GetThreadId() != 0){
+            if(isNotCalledInAContextOfTaskCreation){
                 specGroupMutex.lock();
             }
+            
             if(specGroup->isSpeculationNotSet()){
                 if(specFormula){
                     if(specFormula(scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
@@ -1509,9 +1516,11 @@ private:
                     specGroup->setSpeculationActivation(false);
                 }
             }
-            if(specGroup != currentSpecGroup || SpUtils::GetThreadId() != 0){
+            
+            if(isNotCalledInAContextOfTaskCreation){
                 specGroupMutex.unlock();
             }
+            
             assert(!specGroup->isSpeculationNotSet());
         }
     }
