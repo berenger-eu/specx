@@ -44,7 +44,7 @@ class SpArrayView {
         long int step;
 
         long int lastElement() const {
-            return std::max(0L,((lastIdx-firstIdx-1)/step)*step) + firstIdx;
+            return ((lastIdx-firstIdx-1)/step)*step + firstIdx;
         }
 
         bool isInside(const long int inIdx) const{
@@ -53,7 +53,7 @@ class SpArrayView {
         }
 
         long int nbElements() const{
-            return (lastIdx-firstIdx)/step;
+            return (lastIdx-firstIdx-1)/step + 1;
         }
     };
 
@@ -225,16 +225,14 @@ public:
         if(iter != intervals.end() && (*iter).isInside(inIdx)){
             assert((*iter).nbElements() != 0);
             if((*iter).firstIdx == inIdx){
-                (*iter).firstIdx += (*iter).step;
-                if((*iter).nbElements() == 0){
+                if((*iter).nbElements() == 1){
                     intervals.erase(iter);
+                } else {
+                    (*iter).firstIdx += (*iter).step;
                 }
             }
             else if(inIdx == (*iter).lastElement()){
-                (*iter).lastIdx -= 1;
-                if((*iter).nbElements() == 0){
-                    intervals.erase(iter);
-                }
+                (*iter).lastIdx -= (*iter).step;
             }
             else{
                 auto beforeIter = intervals.insert(iter, *iter);
