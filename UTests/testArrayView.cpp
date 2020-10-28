@@ -170,6 +170,58 @@ class TestArrayView : public UTester< TestArrayView > {
                 CompareWithArray(view, shouldBe, __LINE__);
             }
         }
+        
+        {
+            SpArrayView view(5, 21, 5);
+            
+            UASSERTETRUE(view.getNbIntervals() == 1);
+            {
+                small_vector<long int> shouldBe(21, 0);
+                shouldBe[20] = 1;
+                shouldBe[15] = 1;
+                shouldBe[10] = 1;
+                shouldBe[5] = 1;
+                CompareWithArray(view, shouldBe, __LINE__);
+            }
+            
+            view.removeItem(20);
+            
+            UASSERTETRUE(view.getNbIntervals() == 1);
+            {
+                small_vector<long int> shouldBe(21, 0);
+                shouldBe[15] = 1;
+                shouldBe[10] = 1;
+                shouldBe[5] = 1;
+                CompareWithArray(view, shouldBe, __LINE__);
+            }
+            
+            view.removeItem(15);
+            
+            UASSERTETRUE(view.getNbIntervals() == 1);
+            {
+                small_vector<long int> shouldBe(21, 0);
+                shouldBe[10] = 1;
+                shouldBe[5] = 1;
+                CompareWithArray(view, shouldBe, __LINE__);
+            }
+            
+            view.removeItem(10);
+            
+            UASSERTETRUE(view.getNbIntervals() == 1);
+            {
+                small_vector<long int> shouldBe(21, 0);
+                shouldBe[5] = 1;
+                CompareWithArray(view, shouldBe, __LINE__);
+            }
+            
+            view.removeItem(5);
+            
+            UASSERTETRUE(view.getNbIntervals() == 0);
+            {
+                small_vector<long int> shouldBe(21, 0);
+                CompareWithArray(view, shouldBe, __LINE__);
+            }
+        }
     }
 
     void SetTests() {
