@@ -12,6 +12,7 @@
 #include "Tasks/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "Utils/small_vector.hpp"
+#include "Random/SpMTGenerator.hpp"
 
 
 namespace SpSvgTrace {

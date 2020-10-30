@@ -23,16 +23,272 @@
 #include "Utils/SpTimePoint.hpp"
 #include "Random/SpMTGenerator.hpp"
 #include "Schedulers/SpTasksManager.hpp"
-#include "Output/SpDotDag.hpp"
-#include "Output/SpSvgTrace.hpp"
 #include "Speculation/SpSpecTaskGroup.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
 
+template <const bool isSpeculativeTaskGraph>
+class SpTaskGraphCommon : public SpAbstractTaskGraph {
+protected:
+    //! Map of all data handles
+    std::unordered_map<void*, std::unique_ptr<SpDataHandle>> allDataHandles;
+    
+    ///////////////////////////////////////////////////////////////////////////
+    /// Data handle management
+    ///////////////////////////////////////////////////////////////////////////
+
+    template <class ParamsType>
+    SpDataHandle* getDataHandleCore(ParamsType& inParam){
+        auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
+        if(iterHandleFound == allDataHandles.end()){
+            SpDebugPrint() << "SpTaskGraph -- => Not found";
+            // Create a new data handle
+            auto newHandle = std::make_unique<SpDataHandle>(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
+            // Save the ptr
+            SpDataHandle* newHandlePtr = newHandle.get();
+            // Move in the map
+            allDataHandles[const_cast<std::remove_const_t<ParamsType>*>(&inParam)] = std::move(newHandle);
+            // Return the ptr
+            return newHandlePtr;
+        }
+        SpDebugPrint() << "SpTaskGraph -- => Found";
+        // Exists, return the pointer
+        return iterHandleFound->second.get();
+    }
+
+    template <class ParamsType>
+    typename std::enable_if_t<ParamsType::IsScalar, small_vector<SpDataHandle*,1>>
+    getDataHandle(ParamsType& scalarData){
+        static_assert(std::tuple_size<decltype(scalarData.getAllData())>::value, "Size must be one for scalar");
+        typename ParamsType::HandleTypePtr ptrToObject = scalarData.getAllData()[0];
+        SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with mode provided " << SpModeToStr(ParamsType::AccessMode)
+                       << " scalarData address " << &scalarData;
+        return small_vector<SpDataHandle*, 1>{getDataHandleCore(*ptrToObject)};
+    }
+
+    template <class ParamsType>
+    typename std::enable_if_t<!ParamsType::IsScalar,small_vector<SpDataHandle*>>
+    getDataHandle(ParamsType& containerData){
+        small_vector<SpDataHandle*> handles;
+        for(typename ParamsType::HandleTypePtr ptrToObject : containerData.getAllData()){
+            SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with array view in getDataHandleExtra";
+            SpDataHandle* handle = getDataHandleCore(*ptrToObject);
+            handles.emplace_back(handle);
+        }
+        return handles;
+    }
+    
+    ///////////////////////////////////////////////////////////////////////////
+    /// Task method call argument partitioning and dispatch 
+    ///////////////////////////////////////////////////////////////////////////
+      
+    template <typename T>
+    using is_prio_or_proba = typename std::disjunction<std::is_same<std::decay_t<T>, SpPriority>, std::is_same<std::decay_t<T>, SpProbability>>;
+
+    template <typename T>
+    inline static constexpr bool is_prio_or_proba_v = is_prio_or_proba<T>::value;
+    
+    template <class T>
+    using is_data_dependency = std::conjunction<has_getView<T>, has_getAllData<T>>;
+    
+    template <class T>
+    inline static constexpr bool is_data_dependency_v = is_data_dependency<T>::value;
+    
+    template <class... ParamsTy>
+    using contains_maybe_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsTy>...>;
+
+    template <class... ParamsTy>
+    inline static constexpr bool contains_maybe_write_dependencies_v = contains_maybe_write_dependencies<ParamsTy...>::value; 
+
+    template <typename Func, class T0, class T1, class... ParamsTy,
+    typename=std::enable_if_t<
+             std::conjunction_v<is_prio_or_proba<T0>, is_prio_or_proba<T1>, std::negation<std::is_same<std::decay_t<T0>, std::decay_t<T1>>>>>>    
+    auto callWithPartitionedArgs(Func&& f, T0&& t0, T1&& t1, ParamsTy&&... inParams) {
+        static_assert(isSpeculativeTaskGraph, "SpTaskGraph::task of non speculative task graph should not be given a probability.");
+        if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
+            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), std::forward<T1>(t1), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);
+        } else  {
+            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1), std::forward<ParamsTy>(inParams)...);
+        }
+    }
+
+    template <typename Func, class T0, class... ParamsTy,
+    typename=std::enable_if_t<is_prio_or_proba_v<T0>>>
+    auto callWithPartitionedArgs(Func&& f, T0&& t0, ParamsTy&&... inParams) {
+        if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
+            static_assert(isSpeculativeTaskGraph, "SpTaskGraph::task of non speculative task graph should not be given a probability.");
+            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), SpPriority(0), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);       
+        }else {
+            return callWithPartitionedArgsStage2<false>(std::forward<Func>(f), std::forward<T0>(t0), SpProbability(), std::forward<ParamsTy>(inParams)...);    
+        }    
+    }
+
+    template <typename Func, class... ParamsTy>
+    auto callWithPartitionedArgs(Func&& f, ParamsTy&&... inParams) {
+        static_assert(sizeof...(inParams) > 0, "SpTaskGraph::task should be given at least a callable.");
+        return callWithPartitionedArgsStage2<false>(std::forward<Func>(f), SpPriority(0), SpProbability(), std::forward<ParamsTy>(inParams)...);
+    }
+         
+    template <class Tuple, size_t n, typename = std::make_index_sequence<n>>
+    struct dispatchRotate {};
+    
+    template <class Tuple, size_t n, size_t... Is>
+    struct dispatchRotate<Tuple, n, std::index_sequence<Is...>> {
+        template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3>
+        static auto doDispatch(SpTaskGraphCommon& tg, Func&& f, T0&& t0, T1&& t1, typename std::tuple_element<Is, Tuple>::type... args, T2&& t2, T3&& t3) {
+            if constexpr(is_data_dependency_v<std::remove_reference_t<T2>>) {
+                return tg.callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                               std::forward<T3>(t3), std::forward<typename std::tuple_element<Is, Tuple>::type>(args)..., std::forward<T2>(t2));
+            } else {
+                return tg.callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                                std::forward<T2>(t2), std::forward<T3>(t3), std::forward<typename std::tuple_element<Is, Tuple>::type>(args)...);
+            }   
+        }
+    };
+               
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class... ParamsAndTask>
+    auto callWithPartitionedArgsStage2(Func&& f, T0&& t0, T1&& t1, ParamsAndTask&&... inParamsAndTask){
+        static_assert(sizeof...(ParamsAndTask) > 0, "SpTaskGraph::task should be given at least a callable.");
+        
+        using TupleTy = decltype(std::forward_as_tuple(std::forward<ParamsAndTask>(inParamsAndTask)...));
+        
+        if constexpr(sizeof...(ParamsAndTask) >= 2) {
+            return dispatchRotate<TupleTy, std::tuple_size<TupleTy>::value-2>::template doDispatch<probabilityArgWasGivenByUser>(*this,
+                   std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1), std::forward<ParamsAndTask>(inParamsAndTask)...);
+        } else {
+            return callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+            std::forward<ParamsAndTask>(inParamsAndTask)...);
+        }    
+    }
+    
+    template <typename T>
+    decltype(auto) wrapIfNotAlreadyWrapped(T&& callable) {
+        if constexpr(is_instantiation_of_callable_wrapper_v<std::remove_reference_t<T>>) {
+            return std::forward<T>(callable);
+        } else {
+            return SpCpu(std::forward<T>(callable));
+        }
+    }
+    
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
+    typename = std::enable_if_t<std::conjunction_v<std::negation<is_data_dependency<std::remove_reference_t<T2>>>,
+                                                   std::negation<is_data_dependency<std::remove_reference_t<T3>>>>>>
+    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, T3&& t3, ParamsTy&&... params) {
+        
+        auto dispatchStage4 = [&, this](auto&& c1, auto&& c2) {
+            return this->callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
+                    std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                    std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2),
+                    std::forward<ParamsTy>(params)...);
+        };
+
+        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
+        auto&& c2 = wrapIfNotAlreadyWrapped(std::forward<T3>(t3));    
+
+        if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
+            dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
+        } else {
+            dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
+        }
+    }
+    
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy,
+    typename = std::enable_if_t<std::negation_v<is_data_dependency<std::remove_reference_t<T2>>>>>
+    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&... params) {
+        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
+        
+        return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
+                std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
+                std::forward<decltype(c1)>(c1), std::forward<ParamsTy>(params)...);
+    }
+    
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
+    typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
+    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
+        static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
+                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::GPU>>,
+                      "SpTaskGraph::task when providing two callables to a task one should be a CPU callable and the other a GPU callable");
+        
+        static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
+                      "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
+        
+        static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
+                      "SpTaskGraph::task Cpu callable is not invocable with data dependencies.");
+
+        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
+        
+        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given maybe-write data dependencies.");
+        
+        static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
+                      "SpTaskGraph::task no probability should be specified for normal tasks.");
+                      
+        auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...); 
+        auto callableTuple = 
+        [&](){
+            if constexpr(SpConfig::CompileWithCuda) {
+                static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), decltype(params.getView())...>,
+                      "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
+                return std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
+            } else {
+                return std::forward_as_tuple(std::forward<T2>(t2));
+            }
+        }();
+        
+        if constexpr(isSpeculativeTaskGraph) {
+            return std::invoke(std::forward<Func>(f), std::bool_constant<isPotentialTask>{}, std::forward<T0>(t0), std::forward<T1>(t1), dataDepTuple, callableTuple);
+        } else {
+            return std::invoke(std::forward<Func>(f), std::forward<T0>(t0), dataDepTuple, callableTuple);
+        }
+    }
+
+    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy>
+    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&...params) {
+        static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>),
+                      "SpTaskGraph::task : SPETABARU_USE_CUDA macro is undefined. Unable to compile tasks for which only a GPU callable has been provided.");
+
+        static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
+                      "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
+        
+        static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
+                      "SpTaskGraph::task callable is not invocable with data dependencies.");
+        
+        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
+        
+        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given maybe-write data dependencies.");
+        
+        static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
+                      "SpTaskGraph::task no probability should be specified for normal tasks.");
+
+        auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...); 
+        auto callableTuple = std::forward_as_tuple(std::forward<T2>(t2));
+        
+        if constexpr(isSpeculativeTaskGraph) {
+            return std::invoke(std::forward<Func>(f), std::bool_constant<isPotentialTask>{}, std::forward<T0>(t0), std::forward<T1>(t1), dataDepTuple, callableTuple);
+        } else {
+            return std::invoke(std::forward<Func>(f), std::forward<T0>(t0), dataDepTuple, callableTuple);
+        }
+    }
+    
+    template <typename CallableTy, typename TupleTy>
+    static auto apply_on_data_dep_tuple(CallableTy&& c, TupleTy&& t) {
+        return std::apply([&c](auto&&... elt) {
+                            return std::invoke(std::forward<CallableTy>(c), std::forward<decltype(elt)>(elt).getView()...); 
+                          }, std::forward<TupleTy>(t));
+    }
+    
+    explicit SpTaskGraphCommon() : allDataHandles() {}
+    
+    // No copy and no move
+    SpTaskGraphCommon(const SpTaskGraphCommon&) = delete;
+    SpTaskGraphCommon(SpTaskGraphCommon&&) = delete;
+    SpTaskGraphCommon& operator=(const SpTaskGraphCommon&) = delete;
+    SpTaskGraphCommon& operator=(SpTaskGraphCommon&&) = delete;
+};
+
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
-class SpTaskGraph : public SpAbstractTaskGraph, public SpAbstractToKnowReady {
+class SpTaskGraph : public SpTaskGraphCommon<true>, public SpAbstractToKnowReady {
     
     static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
                    || SpecModel == SpSpeculativeModel::SP_MODEL_2
@@ -42,11 +298,6 @@ class SpTaskGraph : public SpAbstractTaskGraph, public SpAbstractToKnowReady {
 //         Private API - members
 //=====----------------------------=====
 private:
-    //! Creation time point
-    SpTimePoint startingTime;
-
-    //! Map of all data handles
-    std::unordered_map<void*, std::unique_ptr<SpDataHandle>> allDataHandles;
 
     class SpAbstractDeleter{
     public:
@@ -145,51 +396,6 @@ private:
         }
         copyMaps.clear();
     }
-
-    ///////////////////////////////////////////////////////////////////////////
-    /// Data handle management
-    ///////////////////////////////////////////////////////////////////////////
-
-    template <class ParamsType>
-    SpDataHandle* getDataHandleCore(ParamsType& inParam){
-        auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
-        if(iterHandleFound == allDataHandles.end()){
-            SpDebugPrint() << "SpTaskGraph -- => Not found";
-            // Create a new data handle
-            auto newHandle = std::make_unique<SpDataHandle>(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
-            // Save the ptr
-            SpDataHandle* newHandlePtr = newHandle.get();
-            // Move in the map
-            allDataHandles[const_cast<std::remove_const_t<ParamsType>*>(&inParam)] = std::move(newHandle);
-            // Return the ptr
-            return newHandlePtr;
-        }
-        SpDebugPrint() << "SpTaskGraph -- => Found";
-        // Exists, return the pointer
-        return iterHandleFound->second.get();
-    }
-
-    template <class ParamsType>
-    typename std::enable_if_t<ParamsType::IsScalar, small_vector<SpDataHandle*,1>>
-    getDataHandle(ParamsType& scalarData){
-        static_assert(std::tuple_size<decltype(scalarData.getAllData())>::value, "Size must be one for scalar");
-        typename ParamsType::HandleTypePtr ptrToObject = scalarData.getAllData()[0];
-        SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with mode provided " << SpModeToStr(ParamsType::AccessMode)
-                       << " scalarData address " << &scalarData;
-        return small_vector<SpDataHandle*, 1>{getDataHandleCore(*ptrToObject)};
-    }
-
-    template <class ParamsType>
-    typename std::enable_if_t<!ParamsType::IsScalar,small_vector<SpDataHandle*>>
-    getDataHandle(ParamsType& containerData){
-        small_vector<SpDataHandle*> handles;
-        for(typename ParamsType::HandleTypePtr ptrToObject : containerData.getAllData()){
-            SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with array view in getDataHandleExtra";
-            SpDataHandle* handle = getDataHandleCore(*ptrToObject);
-            handles.emplace_back(handle);
-        }
-        return handles;
-    }        
     
     template <bool isSpeculative, class TaskCoreTy, std::size_t N>
     void setDataHandlesOfTaskGeneric(TaskCoreTy* aTask, const std::array<CopyMapPtrTy, N>& copyMapsToLookInto){
@@ -269,13 +475,6 @@ private:
     /// Core task creation and task submission to scheduler
     ///////////////////////////////////////////////////////////////////////////
     
-    template <typename CallableTy, typename TupleTy>
-    static auto apply_on_data_dep_tuple(CallableTy&& c, TupleTy&& t) {
-        return std::apply([&c](auto&&... elt) {
-                            return std::invoke(std::forward<CallableTy>(c), std::forward<decltype(elt)>(elt).getView()...); 
-                          }, std::forward<TupleTy>(t));
-    }
-    
     //! Convert tuple to data and call the function
     //! Args is a value to allow for move or pass a rvalue reference
     template <template<typename...> typename TaskType, const bool isSpeculative, class DataDependencyTupleTy, class CallableTupleTy,
@@ -283,24 +482,34 @@ private:
     auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple,
                              CallableTupleTy& callableTuple, [[maybe_unused]] const std::array<CopyMapPtrTy, N>& copyMapsToLookInto, T... additionalArgs){
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
+        
+        auto createCopyTupleFunc =
+        [](auto& tupleOfRefs) {
+            return [&tupleOfRefs]() {
+                // Notice we create a tuple from lvalue references (we don't perfect forward to the
+                // std::tuple_element_t<Is, std::remove_reference_t<DataDependencyTupleTy> type) because we want
+                // to copy all data dependency objects into the new tuple (i.e. we don't want to move from the object even 
+                // if it is an rvalue because we might need to reference it again later on when we insert yet another
+                // speculative version of the same task).
+                return std::apply([](const auto&...elt) {
+                    return std::make_tuple(elt...);
+                }, tupleOfRefs);
+            };
+        };
                
-        auto dataDependencyTupleCopy = std::apply([](auto&&... elt) {
-                                                    return std::make_tuple(std::forward<decltype(elt)>(elt)...);
-                                                  }, dataDepTuple);
-        auto callableTupleCopy = std::apply([](auto&&... elt) {
-                                                return std::make_tuple(std::forward<decltype(elt)>(elt)...);
-                                            }, callableTuple);
+        auto dataDependencyTupleCopyFunc = createCopyTupleFunc(dataDepTuple);
+        auto callableTupleCopyFunc = createCopyTupleFunc(callableTuple);
                                             
-        static_assert(0 < std::tuple_size<decltype(callableTupleCopy)>::value );
+        static_assert(0 < std::tuple_size<decltype(callableTupleCopyFunc())>::value );
          
-        using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopy)>;    
-        using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopy)>;
+        using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopyFunc())>;    
+        using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopyFunc())>;
         using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple).getCallableRef(), dataDepTuple));
         using RetType = std::remove_reference_t<RetTypeRef>;
         using TaskTy = TaskType<RetType, DataDependencyTupleCopyTy, CallableTupleCopyTy>;
 
         // Create a task with a copy of the callables and the data dependency objects
-        auto aTask = new TaskTy(this, inActivation, inPriority, std::move(dataDependencyTupleCopy), std::move(callableTupleCopy), additionalArgs...);
+        auto aTask = new TaskTy(this, inActivation, inPriority, dataDependencyTupleCopyFunc(), callableTupleCopyFunc(), additionalArgs...);
 
         // Lock the task
         aTask->takeControl();
@@ -333,7 +542,7 @@ private:
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
         
         // Push to the scheduler
-        scheduler.addNewTask(aTask);
+        this->scheduler.addNewTask(aTask);
         
         // Return the view
         return descriptor;
@@ -373,7 +582,7 @@ private:
     
     template <const bool isPotentialTask, class CallableTupleTy, class DataDependencyTupleTy>
     auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, DataDependencyTupleTy&& dataDepTuple, CallableTupleTy&& callableTuple) {
-        scheduler.lockListenersReadyMutex();
+        this->scheduler.lockListenersReadyMutex();
         specGroupMutex.lock();
         
         bool isPathResultingFromMerge = false;
@@ -488,7 +697,7 @@ private:
         }
         
         specGroupMutex.unlock();
-        scheduler.unlockListenersReadyMutex();
+        this->scheduler.unlockListenersReadyMutex();
     
         return res;
     }
@@ -1303,183 +1512,6 @@ private:
         
         return this->callWithPartitionedArgs(f, std::forward<ParamsAndTask>(inParamsAndTask)...); 
     }
-
-    ///////////////////////////////////////////////////////////////////////////
-    /// Task method call argument partitioning and dispatch 
-    ///////////////////////////////////////////////////////////////////////////
-      
-    template <typename T>
-    using is_prio_or_proba = typename std::disjunction<std::is_same<std::decay_t<T>, SpPriority>, std::is_same<std::decay_t<T>, SpProbability>>;
-
-    template <typename T>
-    inline static constexpr bool is_prio_or_proba_v = is_prio_or_proba<T>::value;
-    
-    template <class T>
-    using is_data_dependency = std::conjunction<has_getView<T>, has_getAllData<T>>;
-    
-    template <class T>
-    inline static constexpr bool is_data_dependency_v = is_data_dependency<T>::value;
-    
-    template <class... ParamsTy>
-    using contains_maybe_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsTy>...>;
-
-    template <class... ParamsTy>
-    inline static constexpr bool contains_maybe_write_dependencies_v = contains_maybe_write_dependencies<ParamsTy...>::value; 
-
-    template <typename Func, class T0, class T1, class... ParamsTy,
-    typename=std::enable_if_t<
-             std::conjunction_v<
-             std::negation<std::is_same<std::decay_t<T0>, std::decay_t<T1>>>, is_prio_or_proba<T0>, is_prio_or_proba<T1>>>>    
-    auto callWithPartitionedArgs(Func&& f, T0&& t0, T1&& t1, ParamsTy&&... inParams) {
-        if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
-            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), std::forward<T1>(t1), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);
-        } else  {
-            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1), std::forward<ParamsTy>(inParams)...);
-        }
-    }
-
-    template <typename Func, class T0, class... ParamsTy,
-    typename=std::enable_if_t<is_prio_or_proba_v<T0>>>
-    auto callWithPartitionedArgs(Func&& f, T0&& t0, ParamsTy&&... inParams) {
-        if constexpr(std::is_same_v<std::decay_t<T0>, SpProbability>) {
-            return callWithPartitionedArgsStage2<true>(std::forward<Func>(f), SpPriority(0), std::forward<T0>(t0), std::forward<ParamsTy>(inParams)...);       
-        }else {
-            return callWithPartitionedArgsStage2<false>(std::forward<Func>(f), std::forward<T0>(t0), SpProbability(), std::forward<ParamsTy>(inParams)...);    
-        }    
-    }
-
-    template <typename Func, class... ParamsTy>
-    auto callWithPartitionedArgs(Func&& f, ParamsTy&&... inParams) {
-        static_assert(sizeof...(inParams) > 0, "SpTaskGraph::task should be given at least a callable.");
-        return callWithPartitionedArgsStage2<false>(std::forward<Func>(f), SpPriority(0), SpProbability(), std::forward<ParamsTy>(inParams)...);
-    }
-         
-    template <class Tuple, size_t n, typename = std::make_index_sequence<n>>
-    struct dispatchRotate {};
-    
-    template <class Tuple, size_t n, size_t... Is>
-    struct dispatchRotate<Tuple, n, std::index_sequence<Is...>> {
-        template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3>
-        static auto doDispatch(SpTaskGraph& tg, Func&& f, T0&& t0, T1&& t1, typename std::tuple_element<Is, Tuple>::type... args, T2&& t2, T3&& t3) {
-            if constexpr(is_data_dependency_v<std::remove_reference_t<T2>>) {
-                return tg.callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                               std::forward<T3>(t3), std::forward<typename std::tuple_element<Is, Tuple>::type>(args)..., std::forward<T2>(t2));
-            } else {
-                return tg.callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                                std::forward<T2>(t2), std::forward<T3>(t3), std::forward<typename std::tuple_element<Is, Tuple>::type>(args)...);
-            }   
-        }
-    };
-               
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class... ParamsAndTask>
-    auto callWithPartitionedArgsStage2(Func&& f, T0&& t0, T1&& t1, ParamsAndTask&&... inParamsAndTask){
-        static_assert(sizeof...(ParamsAndTask) > 0, "SpTaskGraph::task should be given at least a callable.");
-        
-        using TupleTy = decltype(std::forward_as_tuple(std::forward<ParamsAndTask>(inParamsAndTask)...));
-        
-        if constexpr(sizeof...(ParamsAndTask) >= 2) {
-            return dispatchRotate<TupleTy, std::tuple_size<TupleTy>::value-2>::template doDispatch<probabilityArgWasGivenByUser>(*this,
-                   std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1), std::forward<ParamsAndTask>(inParamsAndTask)...);
-        } else {
-            return callWithPartitionedArgsStage3<probabilityArgWasGivenByUser>(std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-            std::forward<ParamsAndTask>(inParamsAndTask)...);
-        }    
-    }
-    
-    template <typename T>
-    decltype(auto) wrapIfNotAlreadyWrapped(T&& callable) {
-        if constexpr(is_instantiation_of_callable_wrapper_v<std::remove_reference_t<T>>) {
-            return std::forward<T>(callable);
-        } else {
-            return SpCpu(std::forward<T>(callable));
-        }
-    }
-    
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
-    typename = std::enable_if_t<std::conjunction_v<std::negation<is_data_dependency<std::remove_reference_t<T2>>>,
-                                                   std::negation<is_data_dependency<std::remove_reference_t<T3>>>>>>
-    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, T3&& t3, ParamsTy&&... params) {
-        
-        auto dispatchStage4 = [&, this](auto&& c1, auto&& c2) {
-            return this->callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
-                    std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                    std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2),
-                    std::forward<ParamsTy>(params)...);
-        };
-
-        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
-        auto&& c2 = wrapIfNotAlreadyWrapped(std::forward<T3>(t3));    
-
-        if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
-            dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
-        } else {
-            dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
-        }
-    }
-    
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy,
-    typename = std::enable_if_t<std::negation_v<is_data_dependency<std::remove_reference_t<T2>>>>>
-    auto callWithPartitionedArgsStage3(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&... params) {
-        auto&& c1 = wrapIfNotAlreadyWrapped(std::forward<T2>(t2));
-        
-        return callWithPartitionedArgsStage4<probabilityArgWasGivenByUser>(
-                std::forward<Func>(f), std::forward<T0>(t0), std::forward<T1>(t1),
-                std::forward<decltype(c1)>(c1), std::forward<ParamsTy>(params)...);
-    }
-    
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
-    typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
-    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
-        static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
-                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::GPU>>,
-                      "SpTaskGraph::task when providing two callables to a task one should be a CPU callable and the other a GPU callable");
-        
-        static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
-                      "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
-        
-        static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
-                      "SpTaskGraph::task Cpu callable is not invocable with data dependencies.");
-
-        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
-        
-        static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
-                      "SpTaskGraph::task no probability should be specified for normal tasks.");
-
-        if constexpr(SpConfig::CompileWithCuda) {
-            auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...); 
-            auto callableTuple = std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
-
-            static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), decltype(params.getView())...>,
-                      "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
-            return std::invoke(std::forward<Func>(f), std::bool_constant<isPotentialTask>{}, std::forward<T0>(t0), std::forward<T1>(t1), dataDepTuple, callableTuple); 
-        } else {
-            auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...); 
-            auto callableTuple = std::forward_as_tuple(std::forward<T2>(t2));
-            return std::invoke(std::forward<Func>(f), std::bool_constant<isPotentialTask>{}, std::forward<T0>(t0), std::forward<T1>(t1), dataDepTuple, callableTuple); 
-        }
-    }
-
-    template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy>
-    auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&...params) {
-        static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>),
-                      "SpTaskGraph::task : SPETABARU_USE_CUDA macro is undefined. Unable to compile tasks for which only a GPU callable has been provided.");
-
-        static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
-                      "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
-        
-        static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
-                      "SpTaskGraph::task Cpu callable is not invocable with data dependencies.");
-        
-        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
-        
-        static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
-                      "SpTaskGraph::task no probability should be specified for normal tasks.");
-
-        auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...); 
-        auto callableTuple = std::forward_as_tuple(std::forward<T2>(t2));
-        
-        return std::invoke(std::forward<Func>(f), std::bool_constant<isPotentialTask>{}, std::forward<T0>(t0), std::forward<T1>(t1), dataDepTuple, callableTuple); 
-    }
     
     ///////////////////////////////////////////////////////////////////////////
     /// Notify function (called by scheduler when a task is ready to run)
@@ -1500,7 +1532,7 @@ private:
             
             if(specGroup->isSpeculationNotSet()){
                 if(specFormula){
-                    if(specFormula(scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
+                    if(specFormula(this->scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
                         SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
                         specGroup->setSpeculationActivation(true);
                     }
@@ -1508,7 +1540,7 @@ private:
                         specGroup->setSpeculationActivation(false);
                     }
                 }
-                else if(scheduler.getNbReadyTasks() == 0){
+                else if(this->scheduler.getNbReadyTasks() == 0){
                     SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
                     specGroup->setSpeculationActivation(true);
                 }
@@ -1533,18 +1565,17 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpTaskGraph()
-        : currentSpecGroup(nullptr){
-        scheduler.registerListener(this);
+    explicit SpTaskGraph() : currentSpecGroup(nullptr) {
+        this->scheduler.registerListener(this);
     }
         
     ///////////////////////////////////////////////////////////////////////////
     /// Destructor
     ///////////////////////////////////////////////////////////////////////////
 
-    //! Destructor waits tasks and stop threads
+    //! Destructor waits for tasks to finish
     ~SpTaskGraph(){
-        waitAllTasks();
+        this->waitAllTasks();
         // free copies
         for(auto &e : hashMap) {
             releaseCopies(*(e.second));
@@ -1576,21 +1607,156 @@ public:
     void setSpeculationTest(std::function<bool(int,const SpProbability&)> inFormula){
         specFormula = std::move(inFormula);
     }
-           
-    ///////////////////////////////////////////////////////////////////////////
-    /// Output
-    ///////////////////////////////////////////////////////////////////////////
+};
 
-    void generateDot(const std::string& outputFilename, bool printAccesses=false) const {
-        SpDotDag::GenerateDot(outputFilename, scheduler.getFinishedTaskList(), printAccesses);
+template<>
+class SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> : public SpTaskGraphCommon<false> {
+
+private:
+    
+    template <class TaskCoreTy>
+    void setDataHandlesOfTask(TaskCoreTy* aTask) {
+        auto& args = aTask->getDataDependencyTupleRef();
+        SpUtils::foreach_in_tuple(
+            [&, this, aTask](auto index, auto&& scalarOrContainerData) {
+                using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
+                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+
+                auto hh = this->getDataHandle(scalarOrContainerData);
+                assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
+                long int indexHh = 0;
+                
+                for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                    assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
+                    SpDataHandle* h = hh[indexHh];
+                    
+                    SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
+                    
+                    const long int handleKey = h->addDependence(aTask, accessMode);
+                    if(indexHh == 0){
+                        aTask->template setDataHandle<index>(h, handleKey);
+                    }
+                    else{
+                        assert(ScalarOrContainerType::IsScalar == false);
+                        aTask->template addDataHandleExtra<index>(h, handleKey);
+                    }
+                    indexHh += 1;
+                }
+            }
+        , args);
+    }
+    
+    template <typename CallableTy, typename TupleTy, std::size_t... Is>
+    static auto apply_with_forward_impl(CallableTy&& c, TupleTy&& t, std::index_sequence<Is...>) {
+        using TupleTyWithoutRef = std::remove_reference_t<TupleTy>;
+        
+        return std::invoke(std::forward<CallableTy>(c),
+                           std::forward<std::tuple_element_t<Is, TupleTyWithoutRef>>(std::get<Is>(t))...);
+    }
+    
+    template <typename CallableTy, typename TupleTy>
+    static auto apply_with_forward(CallableTy&& c, TupleTy&& t) {
+        using TupleTyWithoutRef = std::remove_reference_t<TupleTy>;
+        return apply_with_forward_impl(std::forward<CallableTy>(c),
+                                     std::forward<TupleTy>(t),
+                                     std::make_index_sequence<std::tuple_size_v<TupleTyWithoutRef>>{});
+    }
+    
+    template <class DataDependencyTupleTy, class CallableTupleTy>
+    auto coreTaskCreation(const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple, CallableTupleTy& callableTuple) {
+        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
+               
+        auto createCopyTupleFunc =
+        [](auto& tupleOfRefs) {
+            return [&tupleOfRefs]() {
+                // Here we forward to std::tuple_element_t<Is, std::remove_reference_t<DataDependencyTupleTy>> in order
+                // to move the data dependency object into the new tuple when the data dependency object is an rvalue.
+                // Since this is a non speculative task graph we will only insert one instance of each task and so we can safely
+                // move from the data dependency object since we won't reference it again afterwards.
+                return apply_with_forward([](auto&&...elt) {
+                    return std::make_tuple(std::forward<decltype(elt)>(elt)...);
+                }, tupleOfRefs);
+            };
+        };
+        
+        auto dataDependencyTupleCopyFunc = createCopyTupleFunc(dataDepTuple);
+        auto callableTupleCopyFunc = createCopyTupleFunc(callableTuple);
+                                            
+        static_assert(0 < std::tuple_size<decltype(callableTupleCopyFunc())>::value );
+         
+        using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopyFunc())>;    
+        using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopyFunc())>;
+        using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple).getCallableRef(), dataDepTuple));
+        using RetType = std::remove_reference_t<RetTypeRef>;
+        using TaskTy = SpTask<RetType, DataDependencyTupleCopyTy, CallableTupleCopyTy>;
+
+        // Create a task with a copy of the callables and the data dependency objects
+        auto aTask = new TaskTy(this, SpTaskActivation::ENABLE, inPriority, dataDependencyTupleCopyFunc(), callableTupleCopyFunc());
+
+        // Lock the task
+        aTask->takeControl();
+        
+        // Add the handles
+        setDataHandlesOfTask(aTask);
+
+        // Check coherency
+        assert(aTask->areDepsCorrect());
+
+        // The task has been initialized
+        aTask->setState(SpTaskState::INITIALIZED);
+
+        // Get the view
+        auto descriptor = aTask->getViewer();
+
+        aTask->setState(SpTaskState::WAITING_TO_BE_READY);
+        
+        aTask->releaseControl();
+
+        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
+        
+        // Push to the scheduler
+        this->scheduler.addNewTask(aTask);
+        
+        // Return the view
+        return descriptor;
     }
 
-    void generateTrace([[maybe_unused]] const std::string& outputFilename, [[maybe_unused]] const bool showDependences = true) const {
-        const SpComputeEngine * ce = scheduler.getComputeEngine();
+//=====--------------------=====
+//          Public API
+//=====--------------------=====
+public:
+    ///////////////////////////////////////////////////////////////////////////
+    /// Constructor
+    ///////////////////////////////////////////////////////////////////////////
+
+    explicit SpTaskGraph() {}
         
-        if(ce) {
-            SpSvgTrace::GenerateTrace(outputFilename, scheduler.getFinishedTaskList(), startingTime, showDependences);
-        }
+    ///////////////////////////////////////////////////////////////////////////
+    /// Destructor
+    ///////////////////////////////////////////////////////////////////////////
+
+    //! Destructor waits for tasks to finish
+    ~SpTaskGraph(){
+        this->waitAllTasks();
+    }
+    
+    // No copy and no move
+    SpTaskGraph(const SpTaskGraph&) = delete;
+    SpTaskGraph(SpTaskGraph&&) = delete;
+    SpTaskGraph& operator=(const SpTaskGraph&) = delete;
+    SpTaskGraph& operator=(SpTaskGraph&&) = delete;
+
+    ///////////////////////////////////////////////////////////////////////////
+    /// Task creation method
+    ///////////////////////////////////////////////////////////////////////////
+
+    template <class... ParamsTy>
+    auto task(ParamsTy&&...params) {
+        auto f = [this](auto&&... partitionedParams) {
+            return this->coreTaskCreation(std::forward<decltype(partitionedParams)>(partitionedParams)...);
+        };
+        return this->callWithPartitionedArgs(f, std::forward<ParamsTy>(params)...);
     }
 };
 

@@ -9,7 +9,7 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-// @NBTESTS = 5
+// @NBTESTS = 7
 
 int main(){
     const int NumThreads = SpUtils::DefaultNumThreads();
@@ -54,4 +54,22 @@ int main(){
 
     runtime.waitAllTasks();
     runtime.stopAllThreads();
+    
+    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+    
+#ifdef TEST6
+    tg.task(SpProbability(0.5), SpRead(initVal), SpCpu([](const double&p) {}));
+#endif
+
+#idef TEST7
+    tg.task(SpPriority(10), SpRead(initVal), SpMaybeWrite(writeVal),
+        SpCpu([](const auto& rParam, auto& wParam) -> bool {
+            if(rParam == 0.5) {
+                wParam = 2.0;
+                return true;
+            }
+            
+            return false;
+        });
+#endif
 }
