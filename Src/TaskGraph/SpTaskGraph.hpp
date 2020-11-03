@@ -28,6 +28,7 @@
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
+#include "Schedulers/SpTaskManagerListener.hpp"
 
 template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {
@@ -288,7 +289,7 @@ protected:
 };
 
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
-class SpTaskGraph : public SpTaskGraphCommon<true>, public SpAbstractToKnowReady {
+class SpTaskGraph : public SpTaskGraphCommon<true>, public SpTaskManagerListener {
     
     static_assert(SpecModel == SpSpeculativeModel::SP_MODEL_1
                    || SpecModel == SpSpeculativeModel::SP_MODEL_2
@@ -582,8 +583,7 @@ private:
     
     template <const bool isPotentialTask, class CallableTupleTy, class DataDependencyTupleTy>
     auto preCoreTaskCreation(const SpPriority& inPriority, const SpProbability& inProbability, DataDependencyTupleTy&& dataDepTuple, CallableTupleTy&& callableTuple) {
-        this->scheduler.lockListenersReadyMutex();
-        specGroupMutex.lock();
+        std::unique_lock<std::mutex> lock(specGroupMutex);
         
         bool isPathResultingFromMerge = false;
         auto executionPaths = getCorrespondingExecutionPaths(std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -695,9 +695,6 @@ private:
                 removeOriginalAddressesFromHashMap(originalAddressesOfWrittenHandles);
             }
         }
-        
-        specGroupMutex.unlock();
-        this->scheduler.unlockListenersReadyMutex();
     
         return res;
     }
@@ -1518,29 +1515,17 @@ private:
     ///////////////////////////////////////////////////////////////////////////
 
     void thisTaskIsReady(SpAbstractTask* aTask, const bool isNotCalledInAContextOfTaskCreation) final {
-        SpGeneralSpecGroup<SpecModel>* specGroup = aTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
         SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- will test ";
-        /*
-         * ATTENTION!
-         * TO DO :
-         * We should verify that this double checking doesn't cause any trouble.
-         */
+        
+        if(isNotCalledInAContextOfTaskCreation){
+            specGroupMutex.lock();
+        }
+        
+        SpGeneralSpecGroup<SpecModel>* specGroup = aTask->getSpecGroup<SpGeneralSpecGroup<SpecModel>>();
+        
         if(specGroup && specGroup->isSpeculationNotSet()){
-            if(isNotCalledInAContextOfTaskCreation){
-                specGroupMutex.lock();
-            }
-            
-            if(specGroup->isSpeculationNotSet()){
-                if(specFormula){
-                    if(specFormula(this->scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
-                        SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
-                        specGroup->setSpeculationActivation(true);
-                    }
-                    else{
-                        specGroup->setSpeculationActivation(false);
-                    }
-                }
-                else if(this->scheduler.getNbReadyTasks() == 0){
+            if(specFormula){
+                if(specFormula(this->scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
                     SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
                     specGroup->setSpeculationActivation(true);
                 }
@@ -1548,12 +1533,19 @@ private:
                     specGroup->setSpeculationActivation(false);
                 }
             }
-            
-            if(isNotCalledInAContextOfTaskCreation){
-                specGroupMutex.unlock();
+            else if(this->scheduler.getNbReadyTasks() == 0){
+                SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
+                specGroup->setSpeculationActivation(true);
+            }
+            else{
+                specGroup->setSpeculationActivation(false);
             }
             
             assert(!specGroup->isSpeculationNotSet());
+        }
+        
+        if(isNotCalledInAContextOfTaskCreation){
+            specGroupMutex.unlock();
         }
     }
 
@@ -1566,7 +1558,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 
     explicit SpTaskGraph() : currentSpecGroup(nullptr) {
-        this->scheduler.registerListener(this);
+        this->scheduler.setListener(this);
     }
         
     ///////////////////////////////////////////////////////////////////////////

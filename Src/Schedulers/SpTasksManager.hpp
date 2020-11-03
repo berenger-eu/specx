@@ -20,9 +20,9 @@
 #include "Utils/SpTimePoint.hpp"
 #include "SpSimpleScheduler.hpp"
 #include "SpPrioScheduler.hpp"
-#include "SpSchedulerInformer.hpp"
 #include "Utils/small_vector.hpp"
 #include "Compute/SpComputeEngine.hpp"
+#include "SpTaskManagerListener.hpp"
 
 //! The runtime is the main component of spetabaru.
 class SpTasksManager{
@@ -77,7 +77,11 @@ class SpTasksManager{
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
                     
-                    informAllReady<isNotCalledInAContextOfTaskCreation>(aTask);
+                    auto l = listener.load();
+                    
+                    if(l) {
+                        l->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
+                    }
                     
                     if(!ce) {
                         readyTasks.push_back(aTask);
@@ -100,43 +104,17 @@ class SpTasksManager{
     }
     
     ///////////////////////////////////////////////////////////////////////////////////////
+    std::atomic<SpTaskManagerListener*> listener;
     
-    std::mutex listenersReadyMutex;
-    small_vector<SpAbstractToKnowReady*> listenersReady;
-    
-    template <const bool isNotCalledInAContextOfTaskCreation>
-    void informAllReady(SpAbstractTask* aTask){
-        if constexpr (isNotCalledInAContextOfTaskCreation){
-            listenersReadyMutex.lock();
-        }
-        
-        for(SpAbstractToKnowReady* listener : listenersReady){
-            listener->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
-        }
-        
-        if constexpr (isNotCalledInAContextOfTaskCreation){
-            listenersReadyMutex.unlock();
-        }
-    }
-
 public:
-    void lockListenersReadyMutex(){
-        listenersReadyMutex.lock();
-    }
-
-    void unlockListenersReadyMutex(){
-        listenersReadyMutex.unlock();
-    }
-
-
-    void registerListener(SpAbstractToKnowReady* aListener){
-        std::unique_lock<std::mutex> locker(listenersReadyMutex);
-        listenersReady.push_back(aListener);
+    
+    void setListener(SpTaskManagerListener* inListener){
+        listener = inListener;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////
 
-    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0), nbFinishedTasks(0) {}
+    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0), nbFinishedTasks(0), listener(nullptr) {}
 
     // No copy or move
     SpTasksManager(const SpTasksManager&) = delete;
