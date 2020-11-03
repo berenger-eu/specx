@@ -1,11 +1,11 @@
-#ifndef SPSCHEDULERINFORMER_HPP
-#define SPSCHEDULERINFORMER_HPP
+#ifndef SPTASKMANAGERLISTENER_HPP
+#define SPTASKMANAGERLISTENER_HPP
 
 class SpAbstractTask;
 
-class SpAbstractToKnowReady{
+class SpTaskManagerListener {
 public:
-    virtual ~SpAbstractToKnowReady(){}
+    virtual ~SpTaskManagerListener(){}
     virtual void thisTaskIsReady(SpAbstractTask*, const bool isNotCalledInAContextOfTaskCreation) = 0;
 };
 
