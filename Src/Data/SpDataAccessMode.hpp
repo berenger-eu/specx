@@ -2,15 +2,15 @@
 // Spetabaru - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
-#ifndef SPMODES_HPP
-#define SPMODES_HPP
+#ifndef SPDATAACCESSMODE_HPP
+#define SPDATAACCESSMODE_HPP
 
 #include <type_traits>
 #include <array>
 
 #include "Config/SpConfig.hpp"
-#include "SpArrayView.hpp"
-#include "SpDebug.hpp"
+#include "Utils/SpArrayView.hpp"
+#include "Utils/SpDebug.hpp"
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 #include "Utils/small_vector.hpp"

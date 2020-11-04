@@ -13,22 +13,22 @@
 
 #include "Config/SpConfig.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Tasks/SpAbstractTask.hpp"
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpDependence.hpp"
+#include "Task/SpAbstractTask.hpp"
+#include "Task/SpTask.hpp"
+#include "Data/SpDependence.hpp"
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpArrayView.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpProbability.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "Random/SpMTGenerator.hpp"
-#include "Schedulers/SpTasksManager.hpp"
+#include "Scheduler/SpTaskManager.hpp"
 #include "Speculation/SpSpecTaskGroup.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
-#include "Schedulers/SpTaskManagerListener.hpp"
+#include "Scheduler/SpTaskManagerListener.hpp"
 
 template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {

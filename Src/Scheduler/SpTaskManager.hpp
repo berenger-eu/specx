@@ -2,8 +2,8 @@
 // Spetabaru - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
-#ifndef SPTASKSMANAGER_HPP
-#define SPTASKSMANAGER_HPP
+#ifndef SPTASKMANAGER_HPP
+#define SPTASKMANAGER_HPP
 
 #include <functional>
 #include <list>
@@ -15,7 +15,7 @@
 #include <atomic>
 
 #include "Utils/SpUtils.hpp"
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "SpSimpleScheduler.hpp"
@@ -25,7 +25,7 @@
 #include "SpTaskManagerListener.hpp"
 
 //! The runtime is the main component of spetabaru.
-class SpTasksManager{
+class SpTaskManager{
 
     std::atomic<SpComputeEngine*> ce;
 
@@ -114,15 +114,15 @@ public:
 
     ///////////////////////////////////////////////////////////////////////////////////////
 
-    explicit SpTasksManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0), nbFinishedTasks(0), listener(nullptr) {}
+    explicit SpTaskManager() : ce(nullptr), nbRunningTasks(0), nbPushedTasks(0), nbReadyTasks(0), nbFinishedTasks(0), listener(nullptr) {}
 
     // No copy or move
-    SpTasksManager(const SpTasksManager&) = delete;
-    SpTasksManager(SpTasksManager&&) = delete;
-    SpTasksManager& operator=(const SpTasksManager&) = delete;
-    SpTasksManager& operator=(SpTasksManager&&) = delete;
+    SpTaskManager(const SpTaskManager&) = delete;
+    SpTaskManager(SpTaskManager&&) = delete;
+    SpTaskManager& operator=(const SpTaskManager&) = delete;
+    SpTaskManager& operator=(SpTaskManager&&) = delete;
 
-    ~SpTasksManager(){
+    ~SpTaskManager(){
         waitAllTasks();
         
         // Delete tasks
@@ -203,7 +203,7 @@ public:
         
         nbRunningTasks--;
         
-        // We save all of the following values because the SpTasksManager
+        // We save all of the following values because the SpTaskManager
         // instance might get destroyed as soon as the mutex (mutexFinishedTasks)
         // protected region below has been executed.
         auto previousCntVal = nbFinishedTasks.fetch_add(1);

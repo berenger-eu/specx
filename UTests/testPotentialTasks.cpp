@@ -6,16 +6,16 @@
 #include "UTester.hpp"
 #include "utestUtils.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpArrayView.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
-class TestPotiential : public UTester< TestPotiential > {
-    using Parent = UTester< TestPotiential >;
+class TestPotentialTask : public UTester< TestPotentialTask > {
+    using Parent = UTester< TestPotentialTask >;
     
     template <SpSpeculativeModel Spm>
     void TestBasic(){
@@ -174,16 +174,16 @@ class TestPotiential : public UTester< TestPotiential > {
     void TestBasicLoop3() { TestBasicLoop<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestPotiential::TestBasic1, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasicLoop1, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasic2, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasicLoop2, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasic3, "Basic test for vec type");
-        Parent::AddTest(&TestPotiential::TestBasicLoop3, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasic1, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasicLoop1, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasic2, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasicLoop2, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasic3, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialTask::TestBasicLoop3, "Basic test for vec type");
     }
 };
 
 // You must do this
-TestClass(TestPotiential)
+TestClass(TestPotentialTask)
 
 

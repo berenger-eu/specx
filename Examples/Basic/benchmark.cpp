@@ -5,11 +5,11 @@
 
 #include <iostream>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 #include "Utils/SpTimer.hpp"
 #include "Utils/small_vector.hpp"
 

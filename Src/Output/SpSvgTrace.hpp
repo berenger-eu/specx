@@ -9,7 +9,7 @@
 #include <cmath>
 #include <iterator>
 
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "Utils/small_vector.hpp"
 #include "Random/SpMTGenerator.hpp"

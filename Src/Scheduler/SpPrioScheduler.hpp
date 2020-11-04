@@ -9,7 +9,7 @@
 #include <queue>
 #include <utility>
 
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"

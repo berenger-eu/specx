@@ -1,7 +1,7 @@
 #ifndef SPABSTRACTTASKGRAPH_HPP
 #define SPABSTRACTTASKGRAPH_HPP
 
-#include "Schedulers/SpTasksManager.hpp"
+#include "Scheduler/SpTaskManager.hpp"
 #include "Output/SpDotDag.hpp"
 #include "Output/SpSvgTrace.hpp"
 
@@ -14,7 +14,7 @@ protected:
     SpTimePoint startingTime;
     
     //! Internal scheduler of tasks
-    SpTasksManager scheduler;
+    SpTaskManager scheduler;
 
 protected:
     

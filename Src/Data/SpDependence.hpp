@@ -10,7 +10,7 @@
 #include <cassert>
 #include <algorithm>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/small_vector.hpp"
 
 // Reference

@@ -10,7 +10,7 @@
 #include <mutex>
 #include <atomic>
 
-#include "Runtimes/SpDependence.hpp"
+#include "SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"

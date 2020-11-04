@@ -14,7 +14,7 @@
 
 #include "Utils/SpTimePoint.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpProbability.hpp"
 #include "Utils/small_vector.hpp"

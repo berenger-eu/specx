@@ -6,10 +6,10 @@
 #include <random>
 #include <cassert>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpPriority.hpp"
 #include "Utils/SpProbability.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 [[maybe_unused]] const size_t seedSpeculationSuccess = 42;
 [[maybe_unused]] const size_t seedSpeculationFailure = 0;

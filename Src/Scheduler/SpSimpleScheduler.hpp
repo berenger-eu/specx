@@ -7,7 +7,7 @@
 
 #include <list>
 
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Utils/SpPriority.hpp"
 
 
@@ -17,9 +17,11 @@ class SpSimpleScheduler{
     mutable std::mutex mutexReadyTasks;
     //! Contains the tasks that can be executed
     std::list<SpAbstractTask*> tasksReady;
+    
+    std::atomic<int> nbReadyTasks;
 
 public:
-    explicit SpSimpleScheduler(){
+    explicit SpSimpleScheduler() : mutexReadyTasks(), tasksReady(), nbReadyTasks(0) {
     }
 
     // No copy or move
@@ -29,12 +31,12 @@ public:
     SpSimpleScheduler& operator=(SpSimpleScheduler&&) = delete;
 
     int getNbTasks() const{
-        std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        return static_cast<int>(tasksReady.size());
+        return nbReadyTasks;
     }
 
     int push(SpAbstractTask* newTask){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
+        nbReadyTasks++;
         tasksReady.push_back(newTask);
         return 1;
     }
@@ -42,6 +44,7 @@ public:
     SpAbstractTask* pop(){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         if(tasksReady.size()){
+            nbReadyTasks--;
             SpAbstractTask* newTask = tasksReady.back();
             tasksReady.pop_back();
             return newTask;
