@@ -11,8 +11,8 @@
 #include "Task/SpTask.hpp"
 #include "Legacy/SpRuntime.hpp"
 
-#include "Buffer/SpBufferDataView.hpp"
-#include "Buffer/SpHeapBuffer.hpp"
+#include "Utils/SpBufferDataView.hpp"
+#include "Utils/SpHeapBuffer.hpp"
 
 class TestClassWithCounter{
     static std::atomic<int> NbCreated;

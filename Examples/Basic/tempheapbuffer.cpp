@@ -11,8 +11,8 @@
 #include "Task/SpTask.hpp"
 #include "Legacy/SpRuntime.hpp"
 
-#include "Buffer/SpBufferDataView.hpp"
-#include "Buffer/SpHeapBuffer.hpp"
+#include "Utils/SpBufferDataView.hpp"
+#include "Utils/SpHeapBuffer.hpp"
 
 #include "Utils/small_vector.hpp"
 
