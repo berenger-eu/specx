@@ -222,7 +222,7 @@ SpContainerDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType*,SpArrayAccessor<
 }
 
 ////////////////////////////////////////////////////////
-/// Forbid on lvalue
+/// Forbid on rvalue
 ////////////////////////////////////////////////////////
 
 template <class DepType>
