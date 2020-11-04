@@ -5,12 +5,12 @@
 
 #include <iostream>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpTimer.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 #include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
@@ -226,7 +226,7 @@ int main(){
                         runtime.task(SpWrite(energyAll),
                                      SpWrite(domains[idxDomain]),
                                      SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                                     SpAtomicWrite(*acceptedMove),
+                                     SpParallelWrite(*acceptedMove),
                                      [verbose, BoxWidth, displacement, Temperature, idxDomain, idxReplica, idxInnerLoop, randGen](
                                      Matrix<double>& energyAllParam,
                                      Domain<double>& domains_idxDomain,
@@ -369,8 +369,8 @@ int main(){
 
                     for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                         runtime.task(
-                                    SpMaybeWrite(energyAll),
-                                    SpMaybeWrite(domains[idxDomain]),
+                                    SpPotentialWrite(energyAll),
+                                    SpPotentialWrite(domains[idxDomain]),
                                     SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                     [verbose, BoxWidth, displacement, Temperature, idxDomain, idxReplica, idxInnerLoop, randGen](
                                     Matrix<double>& energyAllParam,
@@ -433,10 +433,10 @@ int main(){
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                     runtime.task(
-                                SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
-                                SpMaybeWrite(energyAll0),
-                                SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
-                                SpMaybeWrite(energyAll1),
+                                SpPotentialWriteArray(domains0.data(), SpArrayView(NbDomains)),
+                                SpPotentialWrite(energyAll0),
+                                SpPotentialWriteArray(domains1.data(), SpArrayView(NbDomains)),
+                                SpPotentialWrite(energyAll1),
                                 [verbose, randGen0, idxReplica, &betas, idxLoop](
                                 SpArrayAccessor<Domain<double>>& domains0Param,
                                 Matrix<double>& energyAll0Param,
@@ -534,8 +534,8 @@ int main(){
 
                         for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                             runtime.task(
-                                        SpMaybeWrite(energyAll),
-                                        SpMaybeWrite(domains[idxDomain]),
+                                        SpPotentialWrite(energyAll),
+                                        SpPotentialWrite(domains[idxDomain]),
                                         SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                         [verbose, BoxWidth, displacement, Temperature, idxDomain, idxReplica, idxInnerLoop, randGen](
                                         Matrix<double>& energyAllParam,
@@ -601,10 +601,10 @@ int main(){
                         Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                         runtime.task(
-                                    SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
-                                    SpMaybeWrite(energyAll0),
-                                    SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
-                                    SpMaybeWrite(energyAll1),
+                                    SpPotentialWriteArray(domains0.data(), SpArrayView(NbDomains)),
+                                    SpPotentialWrite(energyAll0),
+                                    SpPotentialWriteArray(domains1.data(), SpArrayView(NbDomains)),
+                                    SpPotentialWrite(energyAll1),
                                     [verbose, randGen0, idxReplica, &betas, idxLoop](
                                     SpArrayAccessor<Domain<double>>& domains0Param,
                                     Matrix<double>& energyAll0Param,
@@ -710,8 +710,8 @@ int main(){
                         }
 
                         runtime.task(
-                                    SpMaybeWrite(energyAll),
-                                    SpMaybeWrite(domains[idxDomain]),
+                                    SpPotentialWrite(energyAll),
+                                    SpPotentialWrite(domains[idxDomain]),
                                     //SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                     SpRead(*tmpDomains[0]), SpRead(*tmpDomains[1]), SpRead(*tmpDomains[2]), SpRead(*tmpDomains[3]),
                                 [verbose, BoxWidth, displacement, idxDomain, idxReplica, idxInnerLoop, randGen, &domains](
@@ -774,10 +774,10 @@ int main(){
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
                     runtime.task(
-                                SpMaybeWriteArray(domains0.data(), SpArrayView(NbDomains)),
-                                SpMaybeWrite(energyAll0),
-                                SpMaybeWriteArray(domains1.data(), SpArrayView(NbDomains)),
-                                SpMaybeWrite(energyAll1),
+                                SpPotentialWriteArray(domains0.data(), SpArrayView(NbDomains)),
+                                SpPotentialWrite(energyAll0),
+                                SpPotentialWriteArray(domains1.data(), SpArrayView(NbDomains)),
+                                SpPotentialWrite(energyAll1),
                                 [randGen0, idxReplica, &betas](
                                 SpArrayAccessor<Domain<double>>& /*domains0Param*/,
                                 Matrix<double>& energyAll0Param,

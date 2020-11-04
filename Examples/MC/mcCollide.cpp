@@ -5,11 +5,11 @@
 
 #include <iostream>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 #include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
@@ -149,8 +149,8 @@ int main(){
                              SpWrite(*movedDomain),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              SpWrite(domains[idxDomain]),
-                             SpAtomicWrite(*acceptedMove),
-                             SpAtomicWrite(*failedMove),
+                             SpParallelWrite(*acceptedMove),
+                             SpParallelWrite(*failedMove),
                              [&Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& movedDomainParam,
@@ -256,12 +256,12 @@ int main(){
                 }).setTaskName("MoveDomain -- "+std::to_string(idxLoop)+"/"+std::to_string(idxDomain));
                 randGen.skip(3*NbParticlesPerDomain);
 
-                runtime.task(SpMaybeWrite(energyAll),
+                runtime.task(SpPotentialWrite(energyAll),
                              SpWrite(*movedDomain),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             SpMaybeWrite(domains[idxDomain]),
-                             SpAtomicWrite(*acceptedMove),
-                             SpAtomicWrite(*failedMove),
+                             SpPotentialWrite(domains[idxDomain]),
+                             SpParallelWrite(*acceptedMove),
+                             SpParallelWrite(*failedMove),
                              [&Temperature, idxDomain, idxLoop, &collisionLimit, &BoxWidth, &displacement, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& movedDomainParam,

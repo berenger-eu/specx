@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cassert>
 
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "Utils/small_vector.hpp"
 
@@ -43,7 +43,7 @@ protected:
     SpAbstractTask* specTask;
     small_vector<SpAbstractTask*> selectTasks;
 
-    SpProbability selfPropability;
+    SpProbability selfProbability;
 
     bool isSpeculatif;
     
@@ -95,8 +95,8 @@ public:
 
     /////////////////////////////////////////////////////////////////////////
 
-    void setProbability(const SpProbability& inSelfPropability){
-        selfPropability = inSelfPropability;
+    void setProbability(const SpProbability& inSelfProbability){
+        selfProbability = inSelfProbability;
     }
 
     SpProbability getAllProbability(){
@@ -112,7 +112,7 @@ public:
             SpGeneralSpecGroup* currentGroup = toProceed.front();
             toProceed.pop();
 
-            proba.append(currentGroup->selfPropability);
+            proba.append(currentGroup->selfProbability);
 
             for(auto* parent : parentGroups){
                 if(groupsIncluded.find(parent) == groupsIncluded.end()){

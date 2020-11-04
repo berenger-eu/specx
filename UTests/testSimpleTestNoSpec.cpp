@@ -5,10 +5,10 @@
 
 #include "UTester.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
+#include "Task/SpTask.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "Compute/SpWorker.hpp"

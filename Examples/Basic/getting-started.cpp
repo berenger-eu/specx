@@ -6,10 +6,10 @@
 #include <random>
 #include <cassert>
 
-#include "Utils/SpModes.hpp"
-#include "Utils/SpPriority.hpp"
-#include "Utils/SpProbability.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Data/SpDataAccessMode.hpp"
+#include "Task/SpPriority.hpp"
+#include "Task/SpProbability.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 [[maybe_unused]] const size_t seedSpeculationSuccess = 42;
 [[maybe_unused]] const size_t seedSpeculationFailure = 0;
@@ -58,7 +58,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]){
     std::uniform_real_distribution<double> dis01(0,1);
     
     runtime.task(SpPriority(0), SpProbability(0.5), SpRead(b),
-    SpMaybeWrite(a),
+    SpPotentialWrite(a),
     [dis01, mtEngine] (const int &inB, int &inA) mutable -> bool{
         double val = dis01(mtEngine);
         

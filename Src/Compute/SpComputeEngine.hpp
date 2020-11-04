@@ -9,7 +9,7 @@
 #include <atomic>
 
 #include "Compute/SpWorker.hpp"
-#include "Schedulers/SpPrioScheduler.hpp"
+#include "Scheduler/SpPrioScheduler.hpp"
 #include "Utils/small_vector.hpp"
 
 class SpAbstractTaskGraph;

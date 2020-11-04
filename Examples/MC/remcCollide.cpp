@@ -5,11 +5,11 @@
 
 #include <iostream>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 #include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
@@ -224,8 +224,8 @@ int main(){
                                      SpWrite(*movedDomain),
                                      SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                      SpWrite(domains[idxDomain]),
-                                     SpAtomicWrite(*acceptedMove),
-                                     SpAtomicWrite(*failedMove),
+                                     SpParallelWrite(*acceptedMove),
+                                     SpParallelWrite(*failedMove),
                                      [&Temperature, idxDomain, idxInnerLoop, idxReplica, &collisionLimit, &BoxWidth, &displacement, randGen](
                                      Matrix<double>& energyAllParam,
                                      Domain<double>& movedDomainParam,
@@ -385,12 +385,12 @@ int main(){
                         });
                         randGen.skip(3*NbParticlesPerDomain);
 
-                        runtime.task(SpMaybeWrite(energyAll),
+                        runtime.task(SpPotentialWrite(energyAll),
                                      SpWrite(*movedDomain),
                                      SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                                     SpMaybeWrite(domains[idxDomain]),
-                                     SpAtomicWrite(*acceptedMove),
-                                     SpAtomicWrite(*failedMove),
+                                     SpPotentialWrite(domains[idxDomain]),
+                                     SpParallelWrite(*acceptedMove),
+                                     SpParallelWrite(*failedMove),
                                      [&Temperature, idxDomain, idxInnerLoop, idxReplica, &collisionLimit, &BoxWidth, &displacement, randGen](
                                      Matrix<double>& energyAllParam,
                                      Domain<double>& movedDomainParam,
@@ -470,9 +470,9 @@ int main(){
                     auto& domains1 = replicaDomains[idxReplica+1];
                     Matrix<double>& energyAll1 = replicaEnergyAll[idxReplica+1];
 
-                    runtime.task(SpMaybeWrite(domains0), SpMaybeWrite(energyAll0),
-                                 SpMaybeWrite(domains1), SpMaybeWrite(energyAll1),
-                                 SpAtomicWrite(*nbExchanges),
+                    runtime.task(SpPotentialWrite(domains0), SpPotentialWrite(energyAll0),
+                                 SpPotentialWrite(domains1), SpPotentialWrite(energyAll1),
+                                 SpParallelWrite(*nbExchanges),
                                  [randGen0, idxReplica, &betas, idxLoop](small_vector<Domain<double>>& domains0Param,
                                  Matrix<double>& energyAll0Param, small_vector<Domain<double>>& domains1Param,
                                  Matrix<double>& energyAll1Param, int& nbExchangesParam) mutable -> bool {

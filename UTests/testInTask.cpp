@@ -1,5 +1,5 @@
 #include "Utils/SpUtils.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 #include "UTester.hpp"
 

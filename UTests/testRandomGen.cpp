@@ -1,4 +1,5 @@
-#include "Utils/SpModes.hpp"
+#include <cassert>
+
 #include "Random/SpMTGenerator.hpp"
 #include "Random/SpPhiloxGenerator.hpp"
 

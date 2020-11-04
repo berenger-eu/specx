@@ -6,13 +6,13 @@
 #include "UTester.hpp"
 #include "utestUtils.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpArrayView.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 class TestPartialMerge : public UTester< TestPartialMerge > {
     using Parent = UTester< TestPartialMerge >;
@@ -29,16 +29,16 @@ class TestPartialMerge : public UTester< TestPartialMerge > {
 
         std::promise<bool> promise1;
 
-        runtime.task(SpMaybeWrite(a), SpMaybeWrite(b), [&promise1]([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_b){
+        runtime.task(SpPotentialWrite(a), SpPotentialWrite(b), [&promise1]([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_b){
             promise1.get_future().get();
             return false;
         });
         
-        runtime.task(SpMaybeWrite(c), []([[maybe_unused]] int& param_c){
+        runtime.task(SpPotentialWrite(c), []([[maybe_unused]] int& param_c){
             return false;
         });
         
-        runtime.task(SpMaybeWrite(a), SpMaybeWrite(c), []([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_c){
+        runtime.task(SpPotentialWrite(a), SpPotentialWrite(c), []([[maybe_unused]] int& param_a, [[maybe_unused]] int& param_c){
             return false;
         });
         

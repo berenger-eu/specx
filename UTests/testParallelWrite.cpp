@@ -7,14 +7,14 @@
 
 #include "UTester.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
-class TestAtomic : public UTester< TestAtomic > {
-    using Parent = UTester< TestAtomic >;
+class TestParallelWrite : public UTester< TestParallelWrite > {
+    using Parent = UTester< TestParallelWrite >;
 
     void TestBasic(){
         {
@@ -23,7 +23,7 @@ class TestAtomic : public UTester< TestAtomic > {
             std::atomic<int> initVal(0);
 
             for(int idxThread = 0 ; idxThread < runtime.getNbThreads() ; ++idxThread){
-                runtime.task(SpAtomicWrite(initVal),
+                runtime.task(SpParallelWrite(initVal),
                              [&](std::atomic<int>& initValParam){
                     initValParam += 1;
                     while(initValParam != runtime.getNbThreads()){
@@ -40,7 +40,7 @@ class TestAtomic : public UTester< TestAtomic > {
             std::atomic<int> initVal(0);
 
             for(int idxThread = 0 ; idxThread < runtime.getNbThreads() ; ++idxThread){
-                runtime.task(SpAtomicWrite(initVal),
+                runtime.task(SpParallelWrite(initVal),
                              [&](std::atomic<int>& initValParam){
                     initValParam += 1;
                     while(initValParam != runtime.getNbThreads()){
@@ -58,7 +58,7 @@ class TestAtomic : public UTester< TestAtomic > {
             int dumbVal = 0;
 
             for(int idxThread = 0 ; idxThread < runtime.getNbThreads() ; ++idxThread){
-                runtime.task(SpAtomicWrite(dumbVal),
+                runtime.task(SpParallelWrite(dumbVal),
                              [&,idxThread](int& /*dumbValParam*/){
                     promises[idxThread].set_value(idxThread);
                     const long int res = promises[(idxThread+1)%10].get_future().get();
@@ -71,11 +71,11 @@ class TestAtomic : public UTester< TestAtomic > {
     }
 
     void SetTests() {
-        Parent::AddTest(&TestAtomic::TestBasic, "Basic test for atomic access");
+        Parent::AddTest(&TestParallelWrite::TestBasic, "Basic test for parrallel write access");
     }
 };
 
 // You must do this
-TestClass(TestAtomic)
+TestClass(TestParallelWrite)
 
 

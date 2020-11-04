@@ -5,12 +5,12 @@
 
 #include <iostream>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpTimer.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 #include "Random/SpPhiloxGenerator.hpp"
 #include "Utils/small_vector.hpp"
@@ -154,7 +154,7 @@ int main(){
                 runtime.task(SpWrite(energyAll),
                              SpWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
-                             SpAtomicWrite(*acceptedMove),
+                             SpParallelWrite(*acceptedMove),
                              [verbose, BoxWidth, displacement, Temperature, idxDomain, idxLoop, randGen](
                              Matrix<double>& energyAllParam,
                              Domain<double>& domains_idxDomain,
@@ -234,8 +234,8 @@ int main(){
 
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                 runtime.task(
-                             SpMaybeWrite(energyAll),
-                             SpMaybeWrite(domains[idxDomain]),
+                             SpPotentialWrite(energyAll),
+                             SpPotentialWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              [verbose, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                              Matrix<double>& energyAllParam,
@@ -332,8 +332,8 @@ int main(){
 
                 for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                     runtime.task(
-                                 SpMaybeWrite(energyAll),
-                                 SpMaybeWrite(domains[idxDomain]),
+                                 SpPotentialWrite(energyAll),
+                                 SpPotentialWrite(domains[idxDomain]),
                                  SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                                  [verbose, idxDomain, idxLoop, BoxWidth, displacement, Temperature, randGen](
                                  Matrix<double>& energyAllParam,
@@ -431,8 +431,8 @@ int main(){
 
             for(int idxDomain = 0 ; idxDomain < NbDomains ; ++idxDomain){
                 runtime.task(
-                             SpMaybeWrite(energyAll),
-                             SpMaybeWrite(domains[idxDomain]),
+                             SpPotentialWrite(energyAll),
+                             SpPotentialWrite(domains[idxDomain]),
                              SpReadArray(domains.data(),SpArrayView(NbDomains).removeItem(idxDomain)),
                              [verbose, idxDomain, idxLoop, BoxWidth, displacement, randGen](
                              Matrix<double>& energyAllParam,

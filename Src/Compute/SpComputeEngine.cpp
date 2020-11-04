@@ -4,7 +4,7 @@
 
 #include "SpComputeEngine.hpp"
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "SpWorker.hpp"
 
 void SpComputeEngine::stopIfNotAlreadyStopped() {

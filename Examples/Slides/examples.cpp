@@ -3,11 +3,11 @@
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 int main(){
     std::cout << "Example basis:" << std::endl;
@@ -62,7 +62,7 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("B");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("C");
 
@@ -75,7 +75,7 @@ int main(){
         // val is 1
 
 
-        runtime.task(SpMaybeWrite(val), [](int& valParam) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& valParam) -> bool {
             valParam += 2;
             return true;
         }).setTaskName("E");
@@ -119,7 +119,7 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("B");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("C");
 
@@ -132,7 +132,7 @@ int main(){
         // val is 1
 
 
-        runtime.task(SpMaybeWrite(val), [](int& valParam) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& valParam) -> bool {
             valParam += 2;
             return true;
         }).setTaskName("E");
@@ -173,7 +173,7 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("A");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("B");
 
@@ -183,7 +183,7 @@ int main(){
             counterFirstSpec += 1;
         }).setTaskName("C");
 
-        runtime.task(SpMaybeWrite(val), [](int& valParam) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& valParam) -> bool {
             valParam += 2;
             return true;
         }).setTaskName("D");
@@ -223,11 +223,11 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("A");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("B");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("C");
 
@@ -265,11 +265,11 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("A");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("B");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return true;
         }).setTaskName("C");
 
@@ -310,19 +310,19 @@ int main(){
             promise1.get_future().get();
         }).setTaskName("A");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return false;
         }).setTaskName("B");
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             return true;
         }).setTaskName("C");
 
-        runtime.task(SpMaybeWrite(val2), [](int& /*valParam2*/) -> bool {
+        runtime.task(SpPotentialWrite(val2), [](int& /*valParam2*/) -> bool {
             return true;
         }).setTaskName("D");
 
-        runtime.task(SpMaybeWrite(val3), [](int& /*valParam3*/) -> bool {
+        runtime.task(SpPotentialWrite(val3), [](int& /*valParam3*/) -> bool {
             return true;
         }).setTaskName("E");
 

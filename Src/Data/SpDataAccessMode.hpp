@@ -2,15 +2,15 @@
 // Spetabaru - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
-#ifndef SPMODES_HPP
-#define SPMODES_HPP
+#ifndef SPDATAACCESSMODE_HPP
+#define SPDATAACCESSMODE_HPP
 
 #include <type_traits>
 #include <array>
 
 #include "Config/SpConfig.hpp"
-#include "SpArrayView.hpp"
-#include "SpDebug.hpp"
+#include "Utils/SpArrayView.hpp"
+#include "Utils/SpDebug.hpp"
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 #include "Utils/small_vector.hpp"
@@ -22,9 +22,9 @@
 enum class SpDataAccessMode{
     READ=0,
     WRITE,
-    ATOMIC_WRITE,
-    COMMUTE_WRITE,
-    MAYBE_WRITE
+    PARALLEL_WRITE,
+    COMMUTATIVE_WRITE,
+    POTENTIAL_WRITE
 };
 
 ////////////////////////////////////////////////////////
@@ -35,9 +35,9 @@ inline std::string SpModeToStr(const SpDataAccessMode inMode){
     switch(inMode){
     case SpDataAccessMode::READ: return "READ";
     case SpDataAccessMode::WRITE: return "WRITE";
-    case SpDataAccessMode::ATOMIC_WRITE: return "ATOMIC_WRITE";
-    case SpDataAccessMode::COMMUTE_WRITE: return "COMMUTE_WRITE";
-    case SpDataAccessMode::MAYBE_WRITE: return "MAYBE_WRITE";
+    case SpDataAccessMode::PARALLEL_WRITE: return "PARALLEL_WRITE";
+    case SpDataAccessMode::COMMUTATIVE_WRITE: return "COMMUTATIVE_WRITE";
+    case SpDataAccessMode::POTENTIAL_WRITE: return "POTENTIAL_WRITE";
     }
     return "UNDEFINED";
 }
@@ -172,22 +172,22 @@ constexpr SpScalarDataMode<SpDataAccessMode::WRITE, DepType&> SpWrite(DepType& i
 }
 
 template <class DepType>
-constexpr SpScalarDataMode<SpDataAccessMode::ATOMIC_WRITE, DepType&> SpAtomicWrite(DepType& inDep){
+constexpr SpScalarDataMode<SpDataAccessMode::PARALLEL_WRITE, DepType&> SpParallelWrite(DepType& inDep){
     static_assert(std::is_const<DepType>::value == false, "Atomic Write cannot be done on const value");
-    return SpScalarDataMode<SpDataAccessMode::ATOMIC_WRITE, DepType&>(inDep);
+    return SpScalarDataMode<SpDataAccessMode::PARALLEL_WRITE, DepType&>(inDep);
 }
 
 template <class DepType>
-constexpr SpScalarDataMode<SpDataAccessMode::COMMUTE_WRITE, DepType&> SpCommuteWrite(DepType& inDep){
+constexpr SpScalarDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType&> SpCommutativeWrite(DepType& inDep){
     static_assert(std::is_const<DepType>::value == false, "Commute Write cannot be done on const value");
-    return SpScalarDataMode<SpDataAccessMode::COMMUTE_WRITE, DepType&>(inDep);
+    return SpScalarDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType&>(inDep);
 }
 
 template <class DepType>
-constexpr SpScalarDataMode<SpDataAccessMode::MAYBE_WRITE, DepType&> SpMaybeWrite(DepType& inDep){
+constexpr SpScalarDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType&> SpPotentialWrite(DepType& inDep){
     static_assert(std::is_const<DepType>::value == false, "Maybe Write cannot be done on const value");
     static_assert(SpDataCanBeDuplicate<DepType>::value, "Maybe write data must be duplicatable");
-    return SpScalarDataMode<SpDataAccessMode::MAYBE_WRITE, DepType&>(inDep);
+    return SpScalarDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType&>(inDep);
 }
 
 ////////////////////////////////////////////////////////
@@ -204,25 +204,25 @@ SpContainerDataMode<SpDataAccessMode::WRITE, DepType*,SpArrayAccessor<DepType>> 
 }
 
 template <class DepType, class ViewType>
-SpContainerDataMode<SpDataAccessMode::COMMUTE_WRITE, DepType*,SpArrayAccessor<DepType>> SpCommuteWriteArray(DepType* inDep, ViewType&& inInterval){
-    static_assert(std::is_const<DepType>::value == false, "SpCommuteWriteArray cannot be done on const value");
-    return SpContainerDataMode<SpDataAccessMode::COMMUTE_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
+SpContainerDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType*,SpArrayAccessor<DepType>> SpCommutativeWriteArray(DepType* inDep, ViewType&& inInterval){
+    static_assert(std::is_const<DepType>::value == false, "SpCommutativeWriteArray cannot be done on const value");
+    return SpContainerDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
 }
 
 template <class DepType, class ViewType>
-SpContainerDataMode<SpDataAccessMode::ATOMIC_WRITE, DepType*,SpArrayAccessor<DepType>> SpAtomicWriteArray(DepType* inDep, ViewType&& inInterval){
-    static_assert(std::is_const<DepType>::value == false, "SpAtomicWriteArray cannot be done on const value");
-    return SpContainerDataMode<SpDataAccessMode::ATOMIC_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
+SpContainerDataMode<SpDataAccessMode::PARALLEL_WRITE, DepType*,SpArrayAccessor<DepType>> SpParallelWriteArray(DepType* inDep, ViewType&& inInterval){
+    static_assert(std::is_const<DepType>::value == false, "SpParallelWriteArray cannot be done on const value");
+    return SpContainerDataMode<SpDataAccessMode::PARALLEL_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
 }
 
 template <class DepType, class ViewType>
-SpContainerDataMode<SpDataAccessMode::MAYBE_WRITE, DepType*,SpArrayAccessor<DepType>> SpMaybeWriteArray(DepType* inDep, ViewType&& inInterval){
-    static_assert(std::is_const<DepType>::value == false, "SpMaybeWriteArray cannot be done on const value");
-    return SpContainerDataMode<SpDataAccessMode::MAYBE_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
+SpContainerDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType*,SpArrayAccessor<DepType>> SpPotentialWriteArray(DepType* inDep, ViewType&& inInterval){
+    static_assert(std::is_const<DepType>::value == false, "SpPotentialWriteArray cannot be done on const value");
+    return SpContainerDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType*,SpArrayAccessor<DepType>>(inDep,std::forward<ViewType>(inInterval));
 }
 
 ////////////////////////////////////////////////////////
-/// Forbid on lvalue
+/// Forbid on rvalue
 ////////////////////////////////////////////////////////
 
 template <class DepType>
@@ -232,13 +232,13 @@ template <class DepType>
 constexpr std::remove_const_t<DepType>& SpWrite(DepType&& inDep) = delete;
 
 template <class DepType>
-constexpr std::remove_const_t<DepType>& SpAtomicWrite(DepType&& inDep) = delete;
+constexpr std::remove_const_t<DepType>& SpParallelWrite(DepType&& inDep) = delete;
 
 template <class DepType>
-constexpr std::remove_const_t<DepType>& SpCommuteWrite(DepType&& inDep) = delete;
+constexpr std::remove_const_t<DepType>& SpCommutativeWrite(DepType&& inDep) = delete;
 
 template <class DepType>
-constexpr std::remove_const_t<DepType>& SpMaybeWrite(DepType&& inDep) = delete;
+constexpr std::remove_const_t<DepType>& SpPotentialWrite(DepType&& inDep) = delete;
 
 ////////////////////////////////////////////////////////
 /// Get data from data, or SpDataAccessMode or pair

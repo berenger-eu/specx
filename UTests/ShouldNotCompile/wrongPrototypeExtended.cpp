@@ -3,11 +3,11 @@
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #include "Config/SpConfig.hpp"
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 // @NBTESTS = 7
 
@@ -62,7 +62,7 @@ int main(){
 #endif
 
 #idef TEST7
-    tg.task(SpPriority(10), SpRead(initVal), SpMaybeWrite(writeVal),
+    tg.task(SpPriority(10), SpRead(initVal), SpPotentialWrite(writeVal),
         SpCpu([](const auto& rParam, auto& wParam) -> bool {
             if(rParam == 0.5) {
                 wParam = 2.0;

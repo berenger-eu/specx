@@ -6,13 +6,13 @@
 #include "UTester.hpp"
 #include "utestUtils.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpArrayView.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 class TestInsertion : public UTester< TestInsertion > {
     using Parent = UTester< TestInsertion >;
@@ -34,11 +34,11 @@ class TestInsertion : public UTester< TestInsertion > {
             promise1.get_future().get();
         });
 
-        runtime.task(SpRead(a), SpMaybeWrite(b), []([[maybe_unused]] const int& a_param, [[maybe_unused]] int&) -> bool{
+        runtime.task(SpRead(a), SpPotentialWrite(b), []([[maybe_unused]] const int& a_param, [[maybe_unused]] int&) -> bool{
             return false;
         });
 
-        runtime.task(SpRead(b), SpMaybeWrite(c), [](const int& param_b, [[maybe_unused]] int&) -> bool {
+        runtime.task(SpRead(b), SpPotentialWrite(c), [](const int& param_b, [[maybe_unused]] int&) -> bool {
             bool res = false;
             if(param_b != 0) {
                 res = true;

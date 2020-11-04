@@ -13,22 +13,22 @@
 
 #include "Config/SpConfig.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Tasks/SpAbstractTask.hpp"
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpDependence.hpp"
+#include "Task/SpAbstractTask.hpp"
+#include "Task/SpTask.hpp"
+#include "Data/SpDependence.hpp"
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpArrayView.hpp"
-#include "Utils/SpPriority.hpp"
-#include "Utils/SpProbability.hpp"
+#include "Task/SpPriority.hpp"
+#include "Task/SpProbability.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "Random/SpMTGenerator.hpp"
-#include "Schedulers/SpTasksManager.hpp"
+#include "Scheduler/SpTaskManager.hpp"
 #include "Speculation/SpSpecTaskGroup.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
-#include "Schedulers/SpTaskManagerListener.hpp"
+#include "Scheduler/SpTaskManagerListener.hpp"
 
 template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {
@@ -98,7 +98,7 @@ protected:
     inline static constexpr bool is_data_dependency_v = is_data_dependency<T>::value;
     
     template <class... ParamsTy>
-    using contains_maybe_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::MAYBE_WRITE, ParamsTy>...>;
+    using contains_maybe_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::POTENTIAL_WRITE, ParamsTy>...>;
 
     template <class... ParamsTy>
     inline static constexpr bool contains_maybe_write_dependencies_v = contains_maybe_write_dependencies<ParamsTy...>::value; 
@@ -592,11 +592,11 @@ private:
         
         small_vector<const void *> originalAddresses;
         
-        constexpr const unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::MAYBE_WRITE);
+        constexpr const unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::POTENTIAL_WRITE);
         
         constexpr const unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
-                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTE_WRITE)
-                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::ATOMIC_WRITE);
+                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTATIVE_WRITE)
+                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::PARALLEL_WRITE);
         
         auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<maybeWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -1158,7 +1158,7 @@ private:
                                                             const SpTaskActivation initialActivationState,
                                                             const SpPriority& inPriority,
                                                             Tuple& args){
-        return copyIfAccess<false, true, SpDataAccessMode::MAYBE_WRITE>(copyMapsToLookInto, initialActivationState, inPriority, args);
+        return copyIfAccess<false, true, SpDataAccessMode::POTENTIAL_WRITE>(copyMapsToLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t N>
@@ -1166,7 +1166,7 @@ private:
                                              const SpTaskActivation initialActivationState,
                                              const SpPriority& inPriority,
                                              Tuple& args){
-        return copyIfAccess<true, false, SpDataAccessMode::MAYBE_WRITE>(copyMapsToLookInto, initialActivationState, inPriority, args);
+        return copyIfAccess<true, false, SpDataAccessMode::POTENTIAL_WRITE>(copyMapsToLookInto, initialActivationState, inPriority, args);
     }
 
     template <class Tuple, std::size_t N>

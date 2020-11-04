@@ -5,11 +5,11 @@
 
 #include "UTester.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
     using Parent = UTester< TestSelectActivationLogic >;
@@ -25,12 +25,12 @@ class TestSelectActivationLogic : public UTester< TestSelectActivationLogic> {
             return true;
         });
 
-        runtime.task(SpMaybeWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
+        runtime.task(SpPotentialWrite(a), [&promise1]([[maybe_unused]] int &param_a) -> bool{
             promise1.get_future().get();
             return false;
         });
         
-        runtime.task(SpRead(a), SpMaybeWrite(b), [](const int &param_a, int &param_b) -> bool{
+        runtime.task(SpRead(a), SpPotentialWrite(b), [](const int &param_a, int &param_b) -> bool{
             bool res = false;
             if(param_a == 0) {
                param_b = 1;

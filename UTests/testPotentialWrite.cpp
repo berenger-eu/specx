@@ -6,16 +6,16 @@
 #include "UTester.hpp"
 #include "utestUtils.hpp"
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/SpArrayView.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
-class TestMaybeWrite : public UTester< TestMaybeWrite > {
-    using Parent = UTester< TestMaybeWrite >;
+class TestPotentialWrite : public UTester< TestPotentialWrite > {
+    using Parent = UTester< TestPotentialWrite >;
 
     template <SpSpeculativeModel Spm>
     void TestBasic(){
@@ -40,7 +40,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             values2param = 3;
         });
 
-        runtime.task(SpMaybeWrite(values0), SpMaybeWrite(values1), SpRead(values2),
+        runtime.task(SpPotentialWrite(values0), SpPotentialWrite(values1), SpRead(values2),
                 [this](int& values0param, int& values1param, const int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -48,7 +48,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.task(SpMaybeWrite(values0), SpRead(values1), SpMaybeWrite(values2),
+        runtime.task(SpPotentialWrite(values0), SpRead(values1), SpPotentialWrite(values2),
                 [this](int& values0param, const int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -63,7 +63,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             UASSERTEEQUAL(values2param, 3);
         });
 
-        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpPotentialWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -71,7 +71,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpPotentialWrite(values1), SpPotentialWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -79,7 +79,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return false;
         });
 
-        runtime.task(SpMaybeWrite(values0), SpWrite(values1), SpWrite(values2),
+        runtime.task(SpPotentialWrite(values0), SpWrite(values1), SpWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -87,7 +87,7 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
             return true;
         });
 
-        runtime.task(SpWrite(values0), SpMaybeWrite(values1), SpMaybeWrite(values2),
+        runtime.task(SpWrite(values0), SpPotentialWrite(values1), SpPotentialWrite(values2),
                 [this](int& values0param, int& values1param, int& values2param) -> bool {
             UASSERTEEQUAL(values0param, 1);
             UASSERTEEQUAL(values1param, 2);
@@ -116,13 +116,13 @@ class TestMaybeWrite : public UTester< TestMaybeWrite > {
     void TestBasic3() { TestBasic<SpSpeculativeModel::SP_MODEL_3>(); }
 
     void SetTests() {
-        Parent::AddTest(&TestMaybeWrite::TestBasic1, "Basic test for vec type");
-        Parent::AddTest(&TestMaybeWrite::TestBasic2, "Basic test for vec type");
-        Parent::AddTest(&TestMaybeWrite::TestBasic3, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialWrite::TestBasic1, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialWrite::TestBasic2, "Basic test for vec type");
+        Parent::AddTest(&TestPotentialWrite::TestBasic3, "Basic test for vec type");
     }
 };
 
 // You must do this
-TestClass(TestMaybeWrite)
+TestClass(TestPotentialWrite)
 
 

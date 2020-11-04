@@ -6,9 +6,9 @@
 #include <condition_variable>
 #include <thread>
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Tasks/SpAbstractTask.hpp"
+#include "Task/SpAbstractTask.hpp"
 #include "Utils/small_vector.hpp"
 
 class SpComputeEngine;

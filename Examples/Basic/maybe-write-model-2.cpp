@@ -3,11 +3,11 @@
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 
-#include "Utils/SpModes.hpp"
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Task/SpTask.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 int main(){
     std::cout << "Example 1:" << std::endl;
@@ -36,7 +36,7 @@ int main(){
         const int nbUncertainTasks = 3;
 
         for(int idx = 0 ; idx < nbUncertainTasks ; ++idx){
-            runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+            runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
                 return true;
             }).setTaskName("Uncertain task -- " + std::to_string(idx));
         }
