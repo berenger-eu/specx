@@ -8,7 +8,7 @@
 #include <list>
 
 #include "Task/SpAbstractTask.hpp"
-#include "Utils/SpPriority.hpp"
+#include "Task/SpPriority.hpp"
 
 
 //! The runtime is the main component of spetabaru.

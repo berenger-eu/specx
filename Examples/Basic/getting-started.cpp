@@ -7,8 +7,8 @@
 #include <cassert>
 
 #include "Data/SpDataAccessMode.hpp"
-#include "Utils/SpPriority.hpp"
-#include "Utils/SpProbability.hpp"
+#include "Task/SpPriority.hpp"
+#include "Task/SpProbability.hpp"
 #include "Legacy/SpRuntime.hpp"
 
 [[maybe_unused]] const size_t seedSpeculationSuccess = 42;

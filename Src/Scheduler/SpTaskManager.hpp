@@ -16,7 +16,7 @@
 
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
-#include "Utils/SpPriority.hpp"
+#include "Task/SpPriority.hpp"
 #include "Utils/SpTimePoint.hpp"
 #include "SpSimpleScheduler.hpp"
 #include "SpPrioScheduler.hpp"

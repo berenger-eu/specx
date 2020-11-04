@@ -10,7 +10,7 @@
 #include <utility>
 
 #include "Task/SpAbstractTask.hpp"
-#include "Utils/SpPriority.hpp"
+#include "Task/SpPriority.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 

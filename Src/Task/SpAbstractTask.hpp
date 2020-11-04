@@ -15,8 +15,8 @@
 #include "Utils/SpTimePoint.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Data/SpDataAccessMode.hpp"
-#include "Utils/SpPriority.hpp"
-#include "Utils/SpProbability.hpp"
+#include "Task/SpPriority.hpp"
+#include "Task/SpProbability.hpp"
 #include "Utils/small_vector.hpp"
 
 class SpAbstractTaskGraph;
