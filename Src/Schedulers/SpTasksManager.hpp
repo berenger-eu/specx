@@ -61,7 +61,7 @@ class SpTasksManager{
             aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
                 SpDebugPrint() << "Is waiting to be ready " << aTask->getId();
-                const bool useCommute = aTask->hasMode(SpDataAccessMode::COMMUTE_WRITE);
+                const bool useCommute = aTask->hasMode(SpDataAccessMode::COMMUTATIVE_WRITE);
                 if(useCommute){
                     mutexCommute.lock();
                 }

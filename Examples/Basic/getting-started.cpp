@@ -58,7 +58,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]){
     std::uniform_real_distribution<double> dis01(0,1);
     
     runtime.task(SpPriority(0), SpProbability(0.5), SpRead(b),
-    SpMaybeWrite(a),
+    SpPotentialWrite(a),
     [dis01, mtEngine] (const int &inB, int &inA) mutable -> bool{
         double val = dis01(mtEngine);
         

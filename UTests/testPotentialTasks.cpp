@@ -37,7 +37,7 @@ class TestPotiential : public UTester< TestPotiential > {
         });
         // val is 0
 
-        runtime.task(SpMaybeWrite(val), [](int& /*valParam*/) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& /*valParam*/) -> bool {
             std::cout << "Maybe task will return false" << std::endl;
             std::cout.flush();
             return false;
@@ -58,7 +58,7 @@ class TestPotiential : public UTester< TestPotiential > {
         // val is 1
 
 
-        runtime.task(SpMaybeWrite(val), [](int& valParam) -> bool {
+        runtime.task(SpPotentialWrite(val), [](int& valParam) -> bool {
             // valParam should be 1
             std::cout << "Maybe task 2, valParam is " << valParam << " at " << &valParam << std::endl;
             std::cout.flush();
@@ -117,7 +117,7 @@ class TestPotiential : public UTester< TestPotiential > {
             // val is 0
 
             for(int idx = 0 ; idx < arraySize ; ++idx){
-                runtime.task(SpMaybeWrite(val[idx]),
+                runtime.task(SpPotentialWrite(val[idx]),
                                       SpReadArray(val,SpArrayView(arraySize).removeItem(idx)),
                                       [SleepTime,idx,&counterAccess]
                                       (int& valParam, const SpArrayAccessor<const int>& valArray) -> bool {

@@ -317,7 +317,7 @@ public:
             }
             else if(testMode == SpDataAccessMode::READ && testDep->second == SpDataAccessMode::READ){
             }
-            else if(testMode == SpDataAccessMode::ATOMIC_WRITE && testDep->second == SpDataAccessMode::ATOMIC_WRITE){
+            else if(testMode == SpDataAccessMode::PARALLEL_WRITE && testDep->second == SpDataAccessMode::PARALLEL_WRITE){
             }
             else{
                 return false;
@@ -334,7 +334,7 @@ public:
                 }
                 else if(testMode == SpDataAccessMode::READ && testDep->second == SpDataAccessMode::READ){
                 }
-                else if(testMode == SpDataAccessMode::ATOMIC_WRITE && testDep->second == SpDataAccessMode::ATOMIC_WRITE){
+                else if(testMode == SpDataAccessMode::PARALLEL_WRITE && testDep->second == SpDataAccessMode::PARALLEL_WRITE){
                 }
                 else{
                     return false;                

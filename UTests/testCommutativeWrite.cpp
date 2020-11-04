@@ -13,8 +13,8 @@
 #include "Tasks/SpTask.hpp"
 #include "Runtimes/SpRuntime.hpp"
 
-class TestCommute : public UTester< TestCommute > {
-    using Parent = UTester< TestCommute >;
+class TestCommutativeWrite : public UTester< TestCommutativeWrite > {
+    using Parent = UTester< TestCommutativeWrite >;
 
     void TestBasic(){
         {
@@ -31,14 +31,14 @@ class TestCommute : public UTester< TestCommute > {
             });
             UASSERTETRUE(descr0.isReady() == true);
 
-            auto descr1 = runtime.task(SpRead(dumbVal), SpCommuteWrite(commuteVal),
+            auto descr1 = runtime.task(SpRead(dumbVal), SpCommutativeWrite(commuteVal),
                          [&](const int& dumbValParam, int& commuteValParam){
                 UASSERTETRUE(dumbValParam == 1);
                 UASSERTETRUE(commuteValParam == 1);
             });
             UASSERTETRUE(descr1.isReady() == false);
 
-            auto descr2 = runtime.task(SpCommuteWrite(commuteVal),
+            auto descr2 = runtime.task(SpCommutativeWrite(commuteVal),
                          [&](int& commuteValParam){
                 UASSERTETRUE(commuteValParam == 0);
                 commuteValParam = 1;
@@ -56,7 +56,7 @@ class TestCommute : public UTester< TestCommute > {
             std::atomic<int> initVal(0);
 
             for(int idxThread = 0 ; idxThread < runtime.getNbThreads() ; ++idxThread){
-                runtime.task(SpCommuteWrite(initVal),
+                runtime.task(SpCommutativeWrite(initVal),
                              [&](std::atomic<int>& initValParam){
                     UASSERTETRUE(initValParam == 0);
                     initValParam += 1;
@@ -75,7 +75,7 @@ class TestCommute : public UTester< TestCommute > {
             std::atomic<int> initVal(0);
 
             for(int idxThread = 0 ; idxThread < runtime.getNbThreads() ; ++idxThread){
-                runtime.task(SpCommuteWrite(initVal),
+                runtime.task(SpCommutativeWrite(initVal),
                              [&](std::atomic<int>& initValParam){
                     UASSERTETRUE(initValParam == 0);
                     initValParam += 1;
@@ -90,11 +90,11 @@ class TestCommute : public UTester< TestCommute > {
     }
 
     void SetTests() {
-        Parent::AddTest(&TestCommute::TestBasic, "Basic test for commute access");
+        Parent::AddTest(&TestCommutativeWrite::TestBasic, "Basic test for commutative write access");
     }
 };
 
 // You must do this
-TestClass(TestCommute)
+TestClass(TestCommutativeWrite)
 
 

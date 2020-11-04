@@ -74,18 +74,18 @@ public:
             // Write cannot not be done concurently, so create a new dependence
             dependencesOnData.emplace_back(inTask, inAccessMode);
         }
-        else if(inAccessMode == SpDataAccessMode::MAYBE_WRITE){
-            assert(dependencesOnData.back().getMode() == SpDataAccessMode::MAYBE_WRITE);
+        else if(inAccessMode == SpDataAccessMode::POTENTIAL_WRITE){
+            assert(dependencesOnData.back().getMode() == SpDataAccessMode::POTENTIAL_WRITE);
             // Write cannot not be done concurently, so create a new dependence
             dependencesOnData.emplace_back(inTask, inAccessMode);
         }
-        else if(inAccessMode == SpDataAccessMode::ATOMIC_WRITE){
-            assert(dependencesOnData.back().getMode() == SpDataAccessMode::ATOMIC_WRITE);
+        else if(inAccessMode == SpDataAccessMode::PARALLEL_WRITE){
+            assert(dependencesOnData.back().getMode() == SpDataAccessMode::PARALLEL_WRITE);
             // append to the last dependence, because can be done concurrently
             dependencesOnData.back().addTaskForMultiple(inTask);
         }
-        else if(inAccessMode == SpDataAccessMode::COMMUTE_WRITE){
-            assert(dependencesOnData.back().getMode() == SpDataAccessMode::COMMUTE_WRITE);
+        else if(inAccessMode == SpDataAccessMode::COMMUTATIVE_WRITE){
+            assert(dependencesOnData.back().getMode() == SpDataAccessMode::COMMUTATIVE_WRITE);
             // append to the last dependence, because can be done concurrently
             dependencesOnData.back().addTaskForMultiple(inTask);
         }
@@ -179,7 +179,7 @@ public:
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(afterIdx != static_cast<long int>(dependencesOnData.size()-1)){
             if(dependencesOnData[afterIdx].getMode() != SpDataAccessMode::WRITE
-                    && dependencesOnData[afterIdx].getMode() != SpDataAccessMode::MAYBE_WRITE){
+                    && dependencesOnData[afterIdx].getMode() != SpDataAccessMode::POTENTIAL_WRITE){
                 long int skipConcatDeps = afterIdx;
                 while(skipConcatDeps != static_cast<long int>(dependencesOnData.size()-1)
                       && dependencesOnData[skipConcatDeps].getMode() == dependencesOnData[skipConcatDeps+1].getMode()){
@@ -192,7 +192,7 @@ public:
             else{
                 long int skipConcatDeps = afterIdx+1;
                 bool isCommutativeAccess = dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::WRITE
-                                            && dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::MAYBE_WRITE;
+                                            && dependencesOnData[skipConcatDeps].getMode() != SpDataAccessMode::POTENTIAL_WRITE;
                 do {
                     dependencesOnData[skipConcatDeps].fillWithTaskList(dependences);
                     skipConcatDeps += 1;
@@ -207,7 +207,7 @@ public:
         std::unique_lock<std::mutex> lock(mutexDependences);
         if(beforeIdx != 0){
             if(dependencesOnData[beforeIdx].getMode() != SpDataAccessMode::WRITE
-                    && dependencesOnData[beforeIdx].getMode() != SpDataAccessMode::MAYBE_WRITE){
+                    && dependencesOnData[beforeIdx].getMode() != SpDataAccessMode::POTENTIAL_WRITE){
                 long int skipConcatDeps = beforeIdx-1;
                 while(skipConcatDeps != -1
                       && dependencesOnData[skipConcatDeps].getMode() == dependencesOnData[skipConcatDeps+1].getMode()){

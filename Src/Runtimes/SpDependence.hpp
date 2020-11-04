@@ -35,7 +35,7 @@ public:
     explicit SpDependence(SpAbstractTask* inFirstTaskId, const SpDataAccessMode inMode)
         : accessMode(inMode) ,idTaskWrite(nullptr),  nbTasksInUsed(0) , nbTasksReleased(0){
         SpDebugPrint() << "[SpDependence] => " << inFirstTaskId << " mode " << SpModeToStr(inMode);
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             idTaskWrite = inFirstTaskId;
         }
         else{
@@ -56,7 +56,7 @@ public:
 
     //! Add a task to the list of users
     void addTaskForMultiple(SpAbstractTask* inOtherTaskId){
-        assert(accessMode != SpDataAccessMode::WRITE && accessMode != SpDataAccessMode::MAYBE_WRITE);
+        assert(accessMode != SpDataAccessMode::WRITE && accessMode != SpDataAccessMode::POTENTIAL_WRITE);
         idTasksMultiple.push_back(inOtherTaskId);
     }
 
@@ -64,7 +64,7 @@ public:
     //! the task must be valid and registered
     bool canBeUsedByTask(const SpAbstractTask* useTaskId) const {
         SpDebugPrint() << "[SpDependence]canBeUsedByTask " << useTaskId;
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             // If it is write
             SpDebugPrint() << "[SpDependence]Is in write, next task is " << idTaskWrite;
             // Must not have been already used
@@ -74,7 +74,7 @@ public:
             return true;
         }
         // If it is commute
-        else if(accessMode == SpDataAccessMode::COMMUTE_WRITE){
+        else if(accessMode == SpDataAccessMode::COMMUTATIVE_WRITE){
             // The number of already user tasks must be less than the number of register tasks
             assert(nbTasksInUsed < static_cast<long int>(idTasksMultiple.size()));
             // In commute their must be only 0 or 1 usage at a time
@@ -106,7 +106,7 @@ public:
     }
     
     void fillWithTaskList(small_vector_base<SpAbstractTask*>* potentialReady) const {
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             potentialReady->push_back(idTaskWrite);
         }
         else{
@@ -119,7 +119,7 @@ public:
 
     //! Copy all the tasks related to the dependence into the given vector
     void fillWithListOfPotentiallyReadyTasks(small_vector_base<SpAbstractTask*>* potentialReady) const {
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             if(idTaskWrite->isState(SpTaskState::WAITING_TO_BE_READY)) {
                 potentialReady->push_back(idTaskWrite);
             }
@@ -137,7 +137,7 @@ public:
     //! Marks the dependence as release by the given task
     //! Must be called after setUsedByTask
     bool releaseByTask([[maybe_unused]] SpAbstractTask* useTaskId){
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             assert(nbTasksReleased == 0);
             assert(nbTasksInUsed == 1);
             assert(idTaskWrite == useTaskId);
@@ -155,7 +155,7 @@ public:
             assert(nbTasksReleased < nbTasksInUsed);
             nbTasksReleased += 1;
             assert(nbTasksReleased <= int(idTasksMultiple.size()));
-            if(accessMode == SpDataAccessMode::COMMUTE_WRITE){
+            if(accessMode == SpDataAccessMode::COMMUTATIVE_WRITE){
                 assert(nbTasksReleased == nbTasksInUsed);
                 // Return true if there still are any unfulfilled commutative write access requests
                 // on the data handle. So basically, by returning true in this case we notify the caller
@@ -179,7 +179,7 @@ public:
     //! Return true if all tasks have used the dependence (and finished to use)
     //! Must be called after release
     bool isOver() const{
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             assert(nbTasksReleased == 1);
             assert(nbTasksInUsed == 1);
             return true;
@@ -197,10 +197,10 @@ public:
     bool isAvailable() const {
         assert(isOver() == false);
         assert(nbTasksReleased <= nbTasksInUsed);
-        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::MAYBE_WRITE){
+        if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             return nbTasksInUsed == 0;
         }
-        else if(accessMode == SpDataAccessMode::COMMUTE_WRITE){
+        else if(accessMode == SpDataAccessMode::COMMUTATIVE_WRITE){
             return nbTasksInUsed == nbTasksReleased && (nbTasksReleased < static_cast<long int>(idTasksMultiple.size()));
         }
         else{
