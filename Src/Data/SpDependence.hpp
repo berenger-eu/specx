@@ -73,11 +73,11 @@ public:
             assert(idTaskWrite == useTaskId);
             return true;
         }
-        // If it is commute
+        // If it is commutative
         else if(accessMode == SpDataAccessMode::COMMUTATIVE_WRITE){
             // The number of already user tasks must be less than the number of register tasks
             assert(nbTasksInUsed < static_cast<long int>(idTasksMultiple.size()));
-            // In commute their must be only 0 or 1 usage at a time
+            // In commutative mode there must be only 0 or 1 usage at a time
             assert(nbTasksInUsed-nbTasksReleased >= 0 && nbTasksInUsed-nbTasksReleased <= 1);
             // The given task must exist in the list
             assert(std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
@@ -87,13 +87,13 @@ public:
             // Return true if no task uses the data
             return nbTasksInUsed-nbTasksReleased == 0;
         }
-        // If it is not write and not commute
+        // If it is not write and not commutative
         else {
             // The number of already user tasks must be less than the number of register tasks
             assert(nbTasksInUsed < static_cast<long int>(idTasksMultiple.size()));
             // The given task must exist in the list
             assert(std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
-            SpDebugPrint() << "[SpDependence]Is not in commute and not in write, test existence among " << idTasksMultiple.size() << " tasks";
+            SpDebugPrint() << "[SpDependence]Is not in commutative and not in write, test existence among " << idTasksMultiple.size() << " tasks";
             SpDebugPrint() << "[SpDependence]Found " << (std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
             return true;
         }

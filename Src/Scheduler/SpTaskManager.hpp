@@ -50,8 +50,8 @@ class SpTaskManager{
     //! Number of finished tasks
     std::atomic<int> nbFinishedTasks;
 
-    //! To protect commute locking
-    std::mutex mutexCommute;
+    //! To protect commutative data accesses
+    std::mutex mutexCommutative;
     
     small_vector<SpAbstractTask*> readyTasks;
 
@@ -61,14 +61,14 @@ class SpTaskManager{
             aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
                 SpDebugPrint() << "Is waiting to be ready " << aTask->getId();
-                const bool useCommute = aTask->hasMode(SpDataAccessMode::COMMUTATIVE_WRITE);
-                if(useCommute){
-                    mutexCommute.lock();
+                const bool hasCommutativeAccessMode = aTask->hasMode(SpDataAccessMode::COMMUTATIVE_WRITE);
+                if(hasCommutativeAccessMode){
+                    mutexCommutative.lock();
                 }
                 if(aTask->dependencesAreReady()){
                     aTask->useDependences();
-                    if(useCommute){
-                        mutexCommute.unlock();
+                    if(hasCommutativeAccessMode){
+                        mutexCommutative.unlock();
                     }
                     SpDebugPrint() << "Was not in ready list " << aTask->getId();
 
@@ -92,8 +92,8 @@ class SpTaskManager{
                 else{
                     SpDebugPrint() << " not ready yet " << aTask->getId();
                     aTask->releaseControl();
-                    if(useCommute){
-                       mutexCommute.unlock();
+                    if(hasCommutativeAccessMode){
+                       mutexCommutative.unlock();
                     }
                 }
             }

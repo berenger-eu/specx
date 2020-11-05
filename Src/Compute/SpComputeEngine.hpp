@@ -222,9 +222,11 @@ public:
         addWorkersInternal<true>(std::move(inWorkers));
     }
     
-    void sendWorkersTo(SpComputeEngine* otherCe, const SpWorker::SpWorkerType wt, const size_t maxCount, const bool allowBusyWorkersToBeDetached) {
-        if(otherCe && otherCe != this) {
-            otherCe->addWorkersInternal<false>(sendWorkersToInternal(otherCe, wt, maxCount, allowBusyWorkersToBeDetached));
+    void sendWorkersTo(SpComputeEngine& otherCe, const SpWorker::SpWorkerType wt, const size_t maxCount, const bool allowBusyWorkersToBeDetached) {
+        SpComputeEngine* otherCePtr = std::addressof(otherCe);
+        
+        if(otherCePtr && otherCePtr != this) {
+            otherCePtr->addWorkersInternal<false>(sendWorkersToInternal(otherCePtr, wt, maxCount, allowBusyWorkersToBeDetached));
         }
     }
     

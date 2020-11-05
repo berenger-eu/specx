@@ -179,14 +179,14 @@ constexpr SpScalarDataMode<SpDataAccessMode::PARALLEL_WRITE, DepType&> SpParalle
 
 template <class DepType>
 constexpr SpScalarDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType&> SpCommutativeWrite(DepType& inDep){
-    static_assert(std::is_const<DepType>::value == false, "Commute Write cannot be done on const value");
+    static_assert(std::is_const<DepType>::value == false, "Commutative Write cannot be done on const value");
     return SpScalarDataMode<SpDataAccessMode::COMMUTATIVE_WRITE, DepType&>(inDep);
 }
 
 template <class DepType>
 constexpr SpScalarDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType&> SpPotentialWrite(DepType& inDep){
-    static_assert(std::is_const<DepType>::value == false, "Maybe Write cannot be done on const value");
-    static_assert(SpDataCanBeDuplicate<DepType>::value, "Maybe write data must be duplicatable");
+    static_assert(std::is_const<DepType>::value == false, "Potential write cannot be done on const value");
+    static_assert(SpDataCanBeDuplicate<DepType>::value, "Potentially written to data must be duplicatable");
     return SpScalarDataMode<SpDataAccessMode::POTENTIAL_WRITE, DepType&>(inDep);
 }
 

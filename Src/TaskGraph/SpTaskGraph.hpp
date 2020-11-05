@@ -98,10 +98,10 @@ protected:
     inline static constexpr bool is_data_dependency_v = is_data_dependency<T>::value;
     
     template <class... ParamsTy>
-    using contains_maybe_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::POTENTIAL_WRITE, ParamsTy>...>;
+    using contains_potential_write_dependencies = std::disjunction<access_modes_are_equal<SpDataAccessMode::POTENTIAL_WRITE, ParamsTy>...>;
 
     template <class... ParamsTy>
-    inline static constexpr bool contains_maybe_write_dependencies_v = contains_maybe_write_dependencies<ParamsTy...>::value; 
+    inline static constexpr bool contains_potential_write_dependencies_v = contains_potential_write_dependencies<ParamsTy...>::value; 
 
     template <typename Func, class T0, class T1, class... ParamsTy,
     typename=std::enable_if_t<
@@ -218,9 +218,9 @@ protected:
         static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
                       "SpTaskGraph::task Cpu callable is not invocable with data dependencies.");
 
-        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
+        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>; 
         
-        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given maybe-write data dependencies.");
+        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given potential-write data dependencies.");
         
         static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
                       "SpTaskGraph::task no probability should be specified for normal tasks.");
@@ -255,9 +255,9 @@ protected:
         static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
                       "SpTaskGraph::task callable is not invocable with data dependencies.");
         
-        constexpr bool isPotentialTask = contains_maybe_write_dependencies_v<ParamsTy...>; 
+        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>; 
         
-        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given maybe-write data dependencies.");
+        static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given potential-write data dependencies.");
         
         static_assert(!(probabilityArgWasGivenByUser && !isPotentialTask),
                       "SpTaskGraph::task no probability should be specified for normal tasks.");
@@ -592,13 +592,13 @@ private:
         
         small_vector<const void *> originalAddresses;
         
-        constexpr const unsigned char maybeWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::POTENTIAL_WRITE);
+        constexpr const unsigned char potentialWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::POTENTIAL_WRITE);
         
         constexpr const unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
                                                  | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTATIVE_WRITE)
                                                  | 1 << static_cast<unsigned char>(SpDataAccessMode::PARALLEL_WRITE);
         
-        auto originalAddressesOfMaybeWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<maybeWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
+        auto originalAddressesOfPotentiallyWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<potentialWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         
         if(executionPaths.empty()) {
@@ -685,7 +685,7 @@ private:
                                                            std::forward<DataDependencyTupleTy>(dataDepTuple), std::forward<CallableTupleTy>(callableTuple));
         
         if constexpr(isPotentialTask) {
-            setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfMaybeWrittenHandles);
+            setExecutionPathForOriginalAddressesInHashMap(e, originalAddressesOfPotentiallyWrittenHandles);
         }
         
         if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
@@ -783,7 +783,7 @@ private:
                     if constexpr(isPotentialTask) {
                         specGroupSpecTask->setProbability(inProbability);
                         currentSpecGroup = specGroupSpecTask.get();
-                        l1 = copyIfMaybeWriteAndNotDuplicateOrUsedInRead(std::array<CopyMapPtrTy, 1>{std::addressof(*it)},
+                        l1 = copyIfPotentialWriteAndNotDuplicateOrUsedInRead(std::array<CopyMapPtrTy, 1>{std::addressof(*it)},
                                                                          specGroupSpecTask->getActivationStateForCopyTasks(),
                                                                          inPriority,
                                                                          std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -800,7 +800,7 @@ private:
                     
                     if constexpr(isPotentialTask && SpecModel != SpSpeculativeModel::SP_MODEL_2) {
                         currentSpecGroup = specGroupSpecTask.get();
-                        l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 3>{std::addressof(l1), std::addressof(l2), std::addressof(*it)},
+                        l1p = copyIfPotentialWriteAndDuplicate(std::array<CopyMapPtrTy, 3>{std::addressof(l1), std::addressof(l2), std::addressof(*it)},
                                                            specGroupSpecTask->getActivationStateForCopyTasks(),
                                                            inPriority, std::forward<DataDependencyTupleTy>(dataDepTuple));
                         currentSpecGroup = nullptr;
@@ -876,14 +876,14 @@ private:
                 currentSpecGroup = specGroupNormalTask.get();
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
                     if(speculativeTasks.empty()) {
-                        l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
+                        l1p = copyIfPotentialWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
                                                            specGroupNormalTask->getActivationStateForCopyTasks(),
                                                            inPriority,
                                                            std::forward<DataDependencyTupleTy>(dataDepTuple));
                         it->merge(l1p);
                     }
                 }else{
-                    l1p = copyIfMaybeWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
+                    l1p = copyIfPotentialWriteAndDuplicate(std::array<CopyMapPtrTy, 1>{std::addressof(emptyCopyMap)},
                                                        specGroupNormalTask->getActivationStateForCopyTasks(),
                                                        inPriority,
                                                        std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -1039,7 +1039,7 @@ private:
         using TargetParamType = typename std::remove_reference<ObjectType>::type;
 
         static_assert(std::is_default_constructible<TargetParamType>::value && std::is_copy_assignable<TargetParamType>::value,
-                      "Maybewrite data must be copiable");
+                      "Potentially written to data must be copiable");
 
         TargetParamType* ptr = new TargetParamType();
         const TargetParamType* originPtr = &objectToCopy;
@@ -1154,7 +1154,7 @@ private:
     }
 
     template <class Tuple, std::size_t N>
-    inline auto copyIfMaybeWriteAndNotDuplicateOrUsedInRead(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
+    inline auto copyIfPotentialWriteAndNotDuplicateOrUsedInRead(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                                             const SpTaskActivation initialActivationState,
                                                             const SpPriority& inPriority,
                                                             Tuple& args){
@@ -1162,7 +1162,7 @@ private:
     }
 
     template <class Tuple, std::size_t N>
-    inline auto copyIfMaybeWriteAndDuplicate(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
+    inline auto copyIfPotentialWriteAndDuplicate(const std::array<CopyMapPtrTy, N>& copyMapsToLookInto,
                                              const SpTaskActivation initialActivationState,
                                              const SpPriority& inPriority,
                                              Tuple& args){

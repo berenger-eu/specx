@@ -89,7 +89,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         
         tg2.waitAllTasks();
         
-        ce2.sendWorkersTo(std::addressof(ce1), SpWorker::SpWorkerType::CPU_WORKER, 3, true);
+        ce2.sendWorkersTo(ce1, SpWorker::SpWorkerType::CPU_WORKER, 3, true);
         
         tg1.waitAllTasks();
         
