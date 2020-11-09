@@ -592,11 +592,11 @@ private:
         
         small_vector<const void *> originalAddresses;
         
-        constexpr const unsigned char potentialWriteFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::POTENTIAL_WRITE);
+        constexpr const auto potentialWriteFlags = SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::POTENTIAL_WRITE);
         
-        constexpr const unsigned char writeFlags = 1 << static_cast<unsigned char>(SpDataAccessMode::WRITE)
-                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::COMMUTATIVE_WRITE)
-                                                 | 1 << static_cast<unsigned char>(SpDataAccessMode::PARALLEL_WRITE);
+        constexpr const auto writeFlags =  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::WRITE)
+                                                 |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::COMMUTATIVE_WRITE)
+                                                 |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::PARALLEL_WRITE);
         
         auto originalAddressesOfPotentiallyWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<potentialWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -1242,7 +1242,7 @@ private:
         return res;
     }
 
-    template <unsigned char flags, class Tuple>
+    template <const SpDataAccessModeField flags, class Tuple>
     auto getOriginalAddressesOfHandlesWithAccessModes(Tuple& args) {
        
         small_vector<const void*> res;
@@ -1253,7 +1253,7 @@ private:
                 
                 constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
-                if constexpr((flags & (1 << static_cast<unsigned char>(accessMode))) != 0) {
+                if constexpr((flags & (SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(accessMode))) != 0) {
                     [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
                     assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
                     long int indexHh = 0;
