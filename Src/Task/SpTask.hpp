@@ -8,6 +8,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <typeinfo>
+#include <type_traits>
 
 #include "SpAbstractTask.hpp"
 #include "Data/SpDataHandle.hpp"
@@ -55,25 +56,209 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
     //! Expand the tuple with the index and call getView
     template <class CallableTy, std::size_t... Is>
-    static RetType SpTaskCoreWrapper(CallableTy &callable, DataDependencyTupleTy &dataDep, std::index_sequence<Is...>){
+    static RetType SpTaskCoreWrapper(CallableTy& callable, DataDependencyTupleTy& dataDep, std::index_sequence<Is...>){
         return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getView()...);
     }
 
     //! Dispatch use if RetType is not void (will set parent value with the return from function)
     template <class SRetType, class CallableTy>
-    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, CallableTy &callable, DataDependencyTupleTy &dataDep) {
+    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, CallableTy& callable, DataDependencyTupleTy& dataDep) {
         taskObject->setValue(SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<std::tuple_size<DataDependencyTupleTy>::value>{}));
     }
 
     //! Dispatch use if RetType is void (will not set parent value with the return from function)
     template <class CallableTy>
-    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, CallableTy &callable, DataDependencyTupleTy &dataDep) {
+    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, CallableTy& callable, DataDependencyTupleTy& dataDep) {
         SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<NbParams>{});
+    }
+    
+    void preTaskExecution(SpCallableType ct) final {
+        std::size_t extraHandlesOffset = 0;
+        
+        SpUtils::foreach_in_tuple(
+        [&, this](auto index, auto&& scalarOrContainerData) -> void {
+            using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
+            using TargetParamType = typename ScalarOrContainerType::RawHandleType;
+
+            constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+            
+            long int indexHh = 0;
+            
+            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                SpDataHandle* h = nullptr;
+                
+                if(indexHh == 0) {
+                    h = dataHandles[index];
+                } else {
+                    h = dataHandlesExtra[extraHandlesOffset];
+                    ++extraHandlesOffset;
+                }
+                
+                h->takeControl();
+                
+                switch(ct) {
+                    case SpCallableType::CPU:
+                    {
+                        switch(h->getLocation()) {
+                            case SpDataLocation::HOST:
+                            {
+                                // do nothing
+                            }
+                            break;
+                            case SpDataLocation::DEVICE:
+                            {
+                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
+                                                                                              std::is_destructible<TargetParamType>>;
+                                
+                                if constexpr(isCopyableAndDestructable) {
+                                    // cudaMemcpy Device -> Host
+                                    *reinterpret_cast<TargetParamType*>(h->getDevicePtr()) = *reinterpret_cast<TargetParamType*>(h->getRawPtr());
+                                }
+                                
+                                if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    h->setDataLocation(SpDataLocation::HOST);
+                                }
+                            }
+                            break;
+                            case SpDataLocation::HOST_AND_DEVICE:
+                            {
+                                if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    h->setDataLocation(SpDataLocation::HOST);
+                                }
+                            }
+                            break;
+                            default:
+                            break;
+                        }
+                    }
+                    break;
+                    case SpCallableType::GPU:
+                    {
+                        switch(h->getLocation()) {
+                            case SpDataLocation::HOST:
+                            {
+                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
+                                                                                              std::is_destructible<TargetParamType>>;
+                                
+                                if constexpr(isCopyableAndDestructable) {
+                                    // cudaMemcpy Device -> Host
+                                    auto devicePtr = new TargetParamType(*reinterpret_cast<TargetParamType*>(h->getRawPtr()));
+                                    h->resetDevicePtr(devicePtr);
+                                } else {
+                                    h->resetDevicePtr(reinterpret_cast<TargetParamType*>(h->getRawPtr()));
+                                }
+                                
+                                if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    h->setDataLocation(SpDataLocation::DEVICE);
+                                }
+                            }
+                            break;
+                            case SpDataLocation::DEVICE:
+                            {
+                                // do nothing
+                            }
+                            break;
+                            case SpDataLocation::HOST_AND_DEVICE:
+                            {
+                                if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    h->setDataLocation(SpDataLocation::DEVICE);
+                                }
+                            }
+                            break;
+                            default:
+                            break;
+                        }
+                        
+                        h->incrDeviceDataUseCount();
+                        
+                        scalarOrContainerData.updatePtr(indexHh, reinterpret_cast<TargetParamType*>(h->getDevicePtr()));
+                    }
+                    break;
+                    
+                    default:
+                    break;
+                }
+                
+                h->releaseControl();
+                
+                ++indexHh;
+            }
+        }
+        , this->getDataDependencyTupleRef());
     }
 
     //! Called by parent abstract task class
-    void executeCore([[maybe_unused]] SpCallableType ct) final {
-        executeCore(this, std::get<0>(callables), tupleParams);
+    void executeCore(SpCallableType ct) final {
+        if(ct == SpCallableType::CPU) {
+            executeCore(this, std::get<0>(callables), tupleParams);
+        }
+    }
+    
+    void postTaskExecution(SpCallableType ct) final {
+        // cudaStreamSynchronize(stream);
+        
+        std::size_t extraHandlesOffset = 0;
+        
+        SpUtils::foreach_in_tuple(
+        [&, this](auto index, auto&& scalarOrContainerData) -> void {
+            using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
+            using TargetParamType = typename ScalarOrContainerType::RawHandleType;
+
+            constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+            
+            long int indexHh = 0;
+            
+            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                SpDataHandle* h = nullptr;
+                
+                if(indexHh == 0) {
+                    h = dataHandles[index];
+                } else {
+                    h = dataHandlesExtra[extraHandlesOffset];
+                    ++extraHandlesOffset;
+                }
+                
+                h->takeControl();
+                
+                switch(ct) {
+                    case SpCallableType::CPU:
+                    {
+                        if constexpr(accessMode != SpDataAccessMode::READ) {
+                            if(h->getDevicePtr() != nullptr) {
+                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
+                                                                                              std::is_destructible<TargetParamType>>;
+                                                                                              
+                                if constexpr(isCopyableAndDestructable) {
+                                    h->deallocateDeviceData();
+                                }
+                                
+                                h->resetDevicePtrToNull();
+                            }
+                        }
+                    }
+                    break;
+                    case SpCallableType::GPU:
+                    {
+                        if constexpr(accessMode == SpDataAccessMode::READ) {
+                            h->decrDeviceDataUseCount();
+                            
+                            if(h->getDeviceDataUseCount() == 0) {
+                                // add h to unused handles
+                            }
+                        }
+                    }
+                    break;
+                    
+                    default:
+                    break;
+                }
+                
+                h->releaseControl();
+                
+                ++indexHh;
+            }
+        }
+        , this->getDataDependencyTupleRef());
     }
 
 public:

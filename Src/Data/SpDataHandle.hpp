@@ -15,11 +15,45 @@
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"
 
+enum class SpDataLocation {
+    HOST,
+    DEVICE,
+    HOST_AND_DEVICE
+};
+
 //! This is a register data to apply the
 //! dependences on it.
 class SpDataHandle {
+    
+private:
     //! Generic pointer to the data
-    void* ptrToData;
+    void* const ptrToData;
+    
+    void* devicePtr;
+    
+    long int deviceDataUseCount;
+    
+    SpDataLocation dataLoc;
+    
+    class SpAbstractDeviceDataDeleter {
+        public:
+            virtual ~SpAbstractDeviceDataDeleter() {}
+            virtual void deleteDeviceData(void* ptr) = 0;
+    };
+    
+    template <typename ParamPtrTy>
+    class SpDeviceDataDeleter : public SpAbstractDeviceDataDeleter {
+        public:
+            ~SpDeviceDataDeleter() = default;
+            void deleteDeviceData(void* ptr) final {
+                delete reinterpret_cast<ParamPtrTy>(ptr);
+            }
+    };
+    
+    std::unique_ptr<SpAbstractDeviceDataDeleter> deviceDataDeleter;
+    
+    std::mutex handleMutex;
+    
     //! Original data type name
     const std::string datatypeName;
 
@@ -35,19 +69,69 @@ class SpDataHandle {
 public:
     template <class Datatype>
     explicit SpDataHandle(Datatype* inPtrToData)
-        : ptrToData(inPtrToData), datatypeName(typeid(Datatype).name()),
-          currentDependenceCursor(0){
+        : ptrToData(inPtrToData), devicePtr(nullptr), deviceDataUseCount(0), dataLoc(SpDataLocation::HOST),
+          deviceDataDeleter(nullptr), handleMutex(), datatypeName(typeid(Datatype).name()),
+          dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
-
+    
     //! Cannot be copied or moved
     SpDataHandle(const SpDataHandle&) = delete;
     SpDataHandle(SpDataHandle&&) = delete;
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
     
-    void *getRawPtr() {
+    void takeControl() {
+        handleMutex.lock();
+    }
+    
+    void releaseControl() {
+        handleMutex.unlock();
+    }
+    
+    SpDataLocation getLocation() {
+        return dataLoc;
+    }
+    
+    void setDataLocation(SpDataLocation dl) {
+        dataLoc = dl;
+    }
+    
+    void deallocateDeviceData() {
+        deviceDataDeleter->deleteDeviceData(devicePtr);
+    }
+    
+    void* getRawPtr() {
         return ptrToData;
+    }
+    
+    template <typename ParamTy>
+    void resetDevicePtr(ParamTy* inDevicePtr) {
+        devicePtr = inDevicePtr;
+        deviceDataDeleter = std::make_unique<SpDeviceDataDeleter<ParamTy*>>();
+        deviceDataUseCount = 0;
+    }
+    
+    void resetDevicePtrToNull() {
+        devicePtr = nullptr;
+        deviceDataDeleter = nullptr;
+        deviceDataUseCount = 0;
+    }
+    
+    void* getDevicePtr() {
+        return devicePtr;
+    }
+    
+    void incrDeviceDataUseCount() {
+        ++deviceDataUseCount;
+    }
+    
+    void decrDeviceDataUseCount() {
+        --deviceDataUseCount;
+    }
+    
+    auto getDeviceDataUseCount() {
+        return deviceDataUseCount;
     }
 
     //! Convert to pointer to Datatype

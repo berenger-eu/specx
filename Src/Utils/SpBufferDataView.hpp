@@ -43,12 +43,12 @@ class SpDataBufferCore{
         return false;
     }
 
-    ~SpDataBufferCore(){
-    }
-
 public:
     explicit SpDataBufferCore(SpAbstractBufferManager<TargetType>* inBufferManager = nullptr)
         : bufferManager(inBufferManager), underUsage(true), dataUseLimitCounter(0), dataPtr(nullptr), dataUseCounter(0), nbOfPossibleDeleter(0){
+    }
+    
+    ~SpDataBufferCore(){
     }
 
     SpDataBufferCore(const SpDataBufferCore&) = delete;
