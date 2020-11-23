@@ -22,6 +22,7 @@
 #include "SpPrioScheduler.hpp"
 #include "Utils/small_vector.hpp"
 #include "Compute/SpComputeEngine.hpp"
+#include "Compute/SpWorker.hpp"
 #include "SpTaskManagerListener.hpp"
 
 //! The runtime is the main component of spetabaru.
@@ -175,10 +176,21 @@ public:
         }
     }
     
-    void preTaskExecution(SpAbstractTask* t) {
+    void preTaskExecution(SpAbstractTask* t, SpWorker& w) {
         nbReadyTasks--;
         nbRunningTasks += 1;
         t->takeControl();
+        
+        switch(w.getType()) {
+            case SpWorker::SpWorkerType::CPU_WORKER:
+                t->preTaskExecution(SpCallableType::CPU);
+                break;
+            case SpWorker::SpWorkerType::GPU_WORKER:
+                t->preTaskExecution(SpCallableType::GPU);
+                break;
+            default:
+                assert(false && "Worker is of unknown type.");
+        }
 
         SpDebugPrint() << "Execute task with ID " << t->getId();
         assert(t->isState(SpTaskState::READY));
@@ -186,8 +198,19 @@ public:
         t->setState(SpTaskState::RUNNING);
     }
 
-    void postTaskExecution(SpAbstractTask* t){
+    void postTaskExecution(SpAbstractTask* t, SpWorker& w){
         t->setState(SpTaskState::POST_RUN);
+        
+        switch(w.getType()) {
+            case SpWorker::SpWorkerType::CPU_WORKER:
+                t->postTaskExecution(SpCallableType::CPU);
+                break;
+            case SpWorker::SpWorkerType::GPU_WORKER:
+                t->postTaskExecution(SpCallableType::GPU);
+                break;
+            default:
+                assert(false && "Worker is of unknown type.");
+        }
         
         small_vector<SpAbstractTask*> candidates;
         t->releaseDependences(&candidates);

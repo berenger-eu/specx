@@ -62,11 +62,11 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                 if(task) {
                     SpAbstractTaskGraph* atg = task->getAbstractTaskGraph();
                     
-                    atg->preTaskExecution(task);
+                    atg->preTaskExecution(task, *this);
                     
                     execute(task);
                     
-                    atg->postTaskExecution(task);
+                    atg->postTaskExecution(task, *this);
                     
                     continue;
                 }

@@ -274,11 +274,11 @@ public:
         originalTask = inOriginal;
     }
 
-    bool isEnable() const{
+    bool isEnable() const {
         return isEnabled == SpTaskActivation::ENABLE;
     }
     
-    SpAbstractTaskGraph* getAbstractTaskGraph() {
+    SpAbstractTaskGraph* getAbstractTaskGraph() const {
         return atg;
     }
 };

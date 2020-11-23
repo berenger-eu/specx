@@ -7,6 +7,7 @@
 
 class SpComputeEngine;
 class SpAbstractTask;
+class SpWorker;
 
 class SpAbstractTaskGraph {
 protected:
@@ -18,12 +19,12 @@ protected:
 
 protected:
     
-    void preTaskExecution(SpAbstractTask* t) {
-        scheduler.preTaskExecution(t);
+    void preTaskExecution(SpAbstractTask* t, SpWorker& w) {
+        scheduler.preTaskExecution(t, w);
     }
     
-    void postTaskExecution(SpAbstractTask* t) {
-        scheduler.postTaskExecution(t);
+    void postTaskExecution(SpAbstractTask* t, SpWorker& w) {
+        scheduler.postTaskExecution(t, w);
     }
 
     friend void SpWorker::doLoop(SpAbstractTaskGraph*);
