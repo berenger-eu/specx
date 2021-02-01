@@ -149,6 +149,13 @@ namespace SpUtils{
     static void foreach_in_tuple(CallableTy &&c, TupleTy &&t) {
         foreach_in_tuple_impl(std::forward<CallableTy>(c), std::forward<TupleTy>(t), std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<TupleTy>>>{});
     }
+    
+    template <typename T, template<typename T2> class Test, typename=std::void_t<>>
+    struct detect : std::false_type {};
+    
+    template <typename T, template <typename T2> class Test>
+    struct detect<T, Test, std::void_t<Test<T>>> : std::true_type {};
+    
 }
 
 #define spetabaru_xstr(s) spetabaru_str(s)

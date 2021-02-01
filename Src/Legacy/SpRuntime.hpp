@@ -30,7 +30,7 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) : tg(), ce(SpWorker::createATeamOfNCpuWorkers(inNumThreads)) {
+    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) : tg(), ce(SpWorker::createTeamOfWorkersOfType(inNumThreads, SpWorker::SpWorkerType::CPU_WORKER)) {
         tg.computeOn(ce);
     }
         

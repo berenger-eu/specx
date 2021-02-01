@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <typeinfo>
 #include <type_traits>
+#include <cstdlib>
+#include <utility>
 
 #include "SpAbstractTask.hpp"
 #include "Data/SpDataHandle.hpp"
@@ -46,6 +48,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
     //! DataDependency objects
     DataDependencyTupleTy tupleParams;
+    
+    //! Arguments for gpu callable
+    std::array<std::pair<void*, std::size_t>, std::tuple_size_v<DataDependencyTupleTy>> gpuCallableArgs;
     
     //! Callables
     CallableTupleTy callables;
@@ -94,8 +99,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     ++extraHandlesOffset;
                 }
                 
-                h->takeControl();
-                
                 switch(ct) {
                     case SpCallableType::CPU:
                     {
@@ -107,12 +110,10 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             break;
                             case SpDataLocation::DEVICE:
                             {
-                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
-                                                                                              std::is_destructible<TargetParamType>>;
                                 
-                                if constexpr(isCopyableAndDestructable) {
+                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
                                     // cudaMemcpy Device -> Host
-                                    *reinterpret_cast<TargetParamType*>(h->getDevicePtr()) = *reinterpret_cast<TargetParamType*>(h->getRawPtr());
+                                    std::memcpy(h->getRawPtr(), h->getDevicePtr(), sizeof(TargetParamType));
                                 }
                                 
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
@@ -137,15 +138,15 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         switch(h->getLocation()) {
                             case SpDataLocation::HOST:
                             {
-                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
-                                                                                              std::is_destructible<TargetParamType>>;
-                                
-                                if constexpr(isCopyableAndDestructable) {
-                                    // cudaMemcpy Device -> Host
-                                    auto devicePtr = new TargetParamType(*reinterpret_cast<TargetParamType*>(h->getRawPtr()));
-                                    h->resetDevicePtr(devicePtr);
+                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
+                                    // cudaMemcpy Host -> Device
+                                    void* devicePtr = std::malloc(sizeof(TargetParamType));
+                                    
+                                    std::memcpy(devicePtr, h->getRawPtr(), sizeof(TargetParamType));
+                                    
+                                    h->setDevicePtr(devicePtr);
                                 } else {
-                                    h->resetDevicePtr(reinterpret_cast<TargetParamType*>(h->getRawPtr()));
+                                    h->setDevicePtr(h->getRawPtr());
                                 }
                                 
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
@@ -171,15 +172,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         
                         h->incrDeviceDataUseCount();
                         
-                        scalarOrContainerData.updatePtr(indexHh, reinterpret_cast<TargetParamType*>(h->getDevicePtr()));
+                        gpuCallableArgs[indexHh] = {h->getDevicePtr(), sizeof(TargetParamType)};
                     }
                     break;
                     
                     default:
                     break;
                 }
-                
-                h->releaseControl();
                 
                 ++indexHh;
             }
@@ -218,21 +217,17 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     ++extraHandlesOffset;
                 }
                 
-                h->takeControl();
-                
                 switch(ct) {
                     case SpCallableType::CPU:
                     {
                         if constexpr(accessMode != SpDataAccessMode::READ) {
                             if(h->getDevicePtr() != nullptr) {
-                                constexpr bool isCopyableAndDestructable = std::conjunction_v<std::is_copy_assignable<TargetParamType>,
-                                                                                              std::is_destructible<TargetParamType>>;
                                                                                               
-                                if constexpr(isCopyableAndDestructable) {
-                                    h->deallocateDeviceData();
+                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
+                                    std::free(h->getDevicePtr());
                                 }
                                 
-                                h->resetDevicePtrToNull();
+                                h->setDevicePtr(nullptr);
                             }
                         }
                     }
@@ -252,8 +247,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     default:
                     break;
                 }
-                
-                h->releaseControl();
                 
                 ++indexHh;
             }

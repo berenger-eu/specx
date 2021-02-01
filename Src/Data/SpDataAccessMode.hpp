@@ -14,6 +14,7 @@
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 #include "Utils/small_vector.hpp"
+#include "Utils/SpUtils.hpp"
 
 ////////////////////////////////////////////////////////
 /// All possible data access modes
@@ -47,6 +48,29 @@ inline std::string SpModeToStr(const SpDataAccessMode inMode){
 ////////////////////////////////////////////////////////
 /// Data mode => a mode + a data
 ////////////////////////////////////////////////////////
+
+template <class HandleTypeT, const bool = std::is_trivially_copyable_v<std::remove_reference_t<HandleTypeT>>>
+struct SpGpuTriviallyCopyableTrait {};
+
+template <class HandleTypeT>
+struct SpGpuTriviallyCopyableTrait<HandleTypeT, true> {
+};
+
+template <class HandleTypeT>
+using SpGpuSerializableTraitTy = decltype(std::declval<std::remove_reference_t<HandleTypeT>>().serialize());
+
+template <class HandleTypeT, const bool=SpUtils::detect<HandleTypeT, SpGpuSerializableTraitTy>::value>
+struct SpGpuSerializableTrait {};
+
+template <class HandleTypeT>
+struct SpGpuSerializableTrait<HandleTypeT, true> {};
+
+template <class HandleTypeT, const bool=SpConfig::CompileWithCuda>
+struct SpGpuGetViewTrait {};
+
+template <class HandleTypeT>
+struct SpGpuGetViewTrait<HandleTypeT, true> {
+};
 
 template <SpDataAccessMode AccessModeT, class HandleTypeT>
 struct SpScalarDataMode{

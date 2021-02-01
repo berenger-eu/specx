@@ -156,6 +156,7 @@ if(NOT SPETABARU_JUST_LIB)
     enable_testing()
     add_subdirectory(UTests)
     add_subdirectory(UTests/ShouldNotCompile)
+    add_subdirectory(UTests/Gpu)
 
     #===========================================================================
     # Build examples

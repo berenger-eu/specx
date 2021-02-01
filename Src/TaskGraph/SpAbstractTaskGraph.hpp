@@ -16,15 +16,17 @@ protected:
     
     //! Internal scheduler of tasks
     SpTaskManager scheduler;
+    
+    std::mutex tgDataHandleMutex;
 
 protected:
     
     void preTaskExecution(SpAbstractTask* t, SpWorker& w) {
-        scheduler.preTaskExecution(t, w);
+        scheduler.preTaskExecution(tgDataHandleMutex, t, w);
     }
     
     void postTaskExecution(SpAbstractTask* t, SpWorker& w) {
-        scheduler.postTaskExecution(t, w);
+        scheduler.postTaskExecution(tgDataHandleMutex, t, w);
     }
 
     friend void SpWorker::doLoop(SpAbstractTaskGraph*);

@@ -176,20 +176,26 @@ public:
         }
     }
     
-    void preTaskExecution(SpAbstractTask* t, SpWorker& w) {
+    void preTaskExecution(std::mutex& tgDataHandleMutex, SpAbstractTask* t, SpWorker& w) {
         nbReadyTasks--;
         nbRunningTasks += 1;
         t->takeControl();
         
-        switch(w.getType()) {
-            case SpWorker::SpWorkerType::CPU_WORKER:
-                t->preTaskExecution(SpCallableType::CPU);
-                break;
-            case SpWorker::SpWorkerType::GPU_WORKER:
-                t->preTaskExecution(SpCallableType::GPU);
-                break;
-            default:
-                assert(false && "Worker is of unknown type.");
+        if constexpr(SpConfig::CompileWithCuda) {
+            {
+                std::unique_lock<std::mutex> lock(tgDataHandleMutex);
+                
+                switch(w.getType()) {
+                    case SpWorker::SpWorkerType::CPU_WORKER:
+                        t->preTaskExecution(SpCallableType::CPU);
+                        break;
+                    case SpWorker::SpWorkerType::GPU_WORKER:
+                        t->preTaskExecution(SpCallableType::GPU);
+                        break;
+                    default:
+                        assert(false && "Worker is of unknown type.");
+                }
+            }
         }
 
         SpDebugPrint() << "Execute task with ID " << t->getId();
@@ -198,18 +204,24 @@ public:
         t->setState(SpTaskState::RUNNING);
     }
 
-    void postTaskExecution(SpAbstractTask* t, SpWorker& w){
+    void postTaskExecution(std::mutex& tgDataHandleMutex, SpAbstractTask* t, SpWorker& w){
         t->setState(SpTaskState::POST_RUN);
         
-        switch(w.getType()) {
-            case SpWorker::SpWorkerType::CPU_WORKER:
-                t->postTaskExecution(SpCallableType::CPU);
-                break;
-            case SpWorker::SpWorkerType::GPU_WORKER:
-                t->postTaskExecution(SpCallableType::GPU);
-                break;
-            default:
-                assert(false && "Worker is of unknown type.");
+        if constexpr(SpConfig::CompileWithCuda) {
+            {
+                std::unique_lock<std::mutex> lock(tgDataHandleMutex);
+                
+                switch(w.getType()) {
+                    case SpWorker::SpWorkerType::CPU_WORKER:
+                        t->postTaskExecution(SpCallableType::CPU);
+                        break;
+                    case SpWorker::SpWorkerType::GPU_WORKER:
+                        t->postTaskExecution(SpCallableType::GPU);
+                        break;
+                    default:
+                        assert(false && "Worker is of unknown type.");
+                }
+            }
         }
         
         small_vector<SpAbstractTask*> candidates;

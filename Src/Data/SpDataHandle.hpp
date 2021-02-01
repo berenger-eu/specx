@@ -35,25 +35,6 @@ private:
     
     SpDataLocation dataLoc;
     
-    class SpAbstractDeviceDataDeleter {
-        public:
-            virtual ~SpAbstractDeviceDataDeleter() {}
-            virtual void deleteDeviceData(void* ptr) = 0;
-    };
-    
-    template <typename ParamPtrTy>
-    class SpDeviceDataDeleter : public SpAbstractDeviceDataDeleter {
-        public:
-            ~SpDeviceDataDeleter() = default;
-            void deleteDeviceData(void* ptr) final {
-                delete reinterpret_cast<ParamPtrTy>(ptr);
-            }
-    };
-    
-    std::unique_ptr<SpAbstractDeviceDataDeleter> deviceDataDeleter;
-    
-    std::mutex handleMutex;
-    
     //! Original data type name
     const std::string datatypeName;
 
@@ -70,8 +51,7 @@ public:
     template <class Datatype>
     explicit SpDataHandle(Datatype* inPtrToData)
         : ptrToData(inPtrToData), devicePtr(nullptr), deviceDataUseCount(0), dataLoc(SpDataLocation::HOST),
-          deviceDataDeleter(nullptr), handleMutex(), datatypeName(typeid(Datatype).name()),
-          dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
+          datatypeName(typeid(Datatype).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
     
@@ -81,45 +61,20 @@ public:
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
     
-    void takeControl() {
-        handleMutex.lock();
-    }
-    
-    void releaseControl() {
-        handleMutex.unlock();
-    }
-    
-    SpDataLocation getLocation() {
+    SpDataLocation getLocation() const {
         return dataLoc;
     }
     
-    void setDataLocation(SpDataLocation dl) {
+    void setDataLocation(const SpDataLocation dl) {
         dataLoc = dl;
-    }
-    
-    void deallocateDeviceData() {
-        deviceDataDeleter->deleteDeviceData(devicePtr);
-    }
-    
-    void* getRawPtr() {
-        return ptrToData;
-    }
-    
-    template <typename ParamTy>
-    void resetDevicePtr(ParamTy* inDevicePtr) {
-        devicePtr = inDevicePtr;
-        deviceDataDeleter = std::make_unique<SpDeviceDataDeleter<ParamTy*>>();
-        deviceDataUseCount = 0;
-    }
-    
-    void resetDevicePtrToNull() {
-        devicePtr = nullptr;
-        deviceDataDeleter = nullptr;
-        deviceDataUseCount = 0;
     }
     
     void* getDevicePtr() {
         return devicePtr;
+    }
+    
+    void setDevicePtr(void* inDevicePtr) {
+        devicePtr = inDevicePtr;
     }
     
     void incrDeviceDataUseCount() {
@@ -132,6 +87,10 @@ public:
     
     auto getDeviceDataUseCount() {
         return deviceDataUseCount;
+    }
+    
+    void* getRawPtr() {
+        return ptrToData;
     }
 
     //! Convert to pointer to Datatype

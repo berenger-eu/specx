@@ -23,19 +23,35 @@ public:
     
     static std::atomic<long int> totalNbThreadsCreated;
     
-    static auto createATeamOfNCpuWorkers(const int nbCpuWorkers) {
+    static auto createTeamOfWorkersOfType(const int nbWorkers, const SpWorkerType wt) {
         small_vector<std::unique_ptr<SpWorker>> res;
-        res.reserve(nbCpuWorkers);
+        res.reserve(nbWorkers);
+        
+        for(int i = 0; i < nbWorkers; i++) {
+            res.emplace_back(std::make_unique<SpWorker>(wt));
+        }
+        
+        return res;
+    }
+    
+    static auto createHeterogeneousTeamOfWorkers(const int nbCpuWorkers, const int nbGpuWorkers) {
+        small_vector<std::unique_ptr<SpWorker>> res;
+        // TO DO : watch out for overflow on sum
+        res.reserve(nbCpuWorkers + nbGpuWorkers);
         
         for(int i = 0; i < nbCpuWorkers; i++) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER));
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::CPU_WORKER));
+        }
+        
+        for(int i = 0; i < nbGpuWorkers; i++) {
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::GPU_WORKER));
         }
         
         return res;
     }
     
     static auto createDefaultWorkerTeam() {
-        return createATeamOfNCpuWorkers(SpUtils::DefaultNumThreads());
+        return createTeamOfWorkersOfType(SpUtils::DefaultNumThreads(), SpWorkerType::CPU_WORKER);
     }
     
     static void setWorkerForThread(SpWorker *w);
