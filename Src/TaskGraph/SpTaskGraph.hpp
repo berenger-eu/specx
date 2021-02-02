@@ -205,6 +205,9 @@ protected:
                 std::forward<decltype(c1)>(c1), std::forward<ParamsTy>(params)...);
     }
     
+    template <class T>
+    using hasGetGpuViewTest = decltype(std::declval<std::decay_t<T>>().getGpuView());
+    
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
     typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
@@ -218,7 +221,7 @@ protected:
         static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
                       "SpTaskGraph::task Cpu callable is not invocable with data dependencies.");
 
-        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>; 
+        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>;
         
         static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given potential-write data dependencies.");
         
@@ -229,8 +232,11 @@ protected:
         auto callableTuple = 
         [&](){
             if constexpr(SpConfig::CompileWithCuda) {
-                static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), decltype(params.getView())...>,
-                      "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
+                
+                static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasGetGpuViewTest>...>,
+                                "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
+                static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), decltype(params.getGpuView())...>,
+                                "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
                 return std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
             } else {
                 return std::forward_as_tuple(std::forward<T2>(t2));
@@ -252,10 +258,17 @@ protected:
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
         
-        static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
-                      "SpTaskGraph::task callable is not invocable with data dependencies.");
+        if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
+            static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasGetGpuViewTest>...>,
+                "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
+            static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getGpuView())...>,
+                "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
+        } else {
+            static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
+                        "SpTaskGraph::task callable is not invocable with data dependencies.");
+        }
         
-        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>; 
+        constexpr bool isPotentialTask = contains_potential_write_dependencies_v<ParamsTy...>;
         
         static_assert(isSpeculativeTaskGraph || !isPotentialTask, "SpTaskGraph::task of non speculative task graph should not be given potential-write data dependencies.");
         

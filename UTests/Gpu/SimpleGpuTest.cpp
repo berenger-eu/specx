@@ -2,6 +2,7 @@
 // Spetabaru - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
+#include <utility>
 
 #include "UTester.hpp"
 
@@ -19,6 +20,21 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
     void Test(){
         SpComputeEngine ce(SpWorker::createHeterogeneousTeamOfWorkers(1,1));
         SpTaskGraph tg;
+        int a = 0;
+        
+        tg.computeOn(ce);
+        
+        tg.task(
+        SpRead(a),
+        SpCpu( [](const int& paramA) {
+            
+                }
+            ),
+        SpGpu([](std::pair<void*, std::size_t> paramA) {
+            
+              }
+            )
+        );
     }
 
     void SetTests() {
