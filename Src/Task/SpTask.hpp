@@ -29,7 +29,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     using ParentReturn = SpAbstractTaskWithReturn<RetType>;
 
     //! Number of parameters in the task function prototype
-    static const long int NbParams = std::tuple_size<DataDependencyTupleTy>::value;
+    static constexpr const long int NbParams = std::tuple_size_v<DataDependencyTupleTy>;
 
     //! Internal value for undefined dependences
     static constexpr long int UndefinedKey(){
@@ -50,7 +50,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     DataDependencyTupleTy tupleParams;
     
     //! Arguments for gpu callable
-    std::array<std::pair<void*, std::size_t>, std::tuple_size_v<DataDependencyTupleTy>> gpuCallableArgs;
+    std::array<std::pair<void*, std::size_t>, NbParams> gpuCallableArgs;
     
     //! Callables
     CallableTupleTy callables;
@@ -60,25 +60,25 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     ///////////////////////////////////////////////////////////////////////////////
 
     //! Expand the tuple with the index and call getView
-    template <class CallableTy, std::size_t... Is>
-    static RetType SpTaskCoreWrapper(CallableTy& callable, DataDependencyTupleTy& dataDep, std::index_sequence<Is...>){
+    template <class CallableTy, class ArgCollectionTy, std::size_t... Is>
+    static RetType SpTaskCoreWrapper(CallableTy& callable, ArgCollectionTy& args, std::index_sequence<Is...>){
         if constexpr (is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<CallableTy>, SpCallableType::CPU>) {
-            return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getView()...);
+            return std::invoke(callable.getCallableRef(), std::get<Is>(args).getView()...);
         } else {
-            return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getGpuView()...);
+            return std::invoke(callable.getCallableRef(), std::get<Is>(args)...);
         }
     }
 
     //! Dispatch use if RetType is not void (will set parent value with the return from function)
-    template <class SRetType, class CallableTy>
-    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, CallableTy& callable, DataDependencyTupleTy& dataDep) {
-        taskObject->setValue(SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<std::tuple_size<DataDependencyTupleTy>::value>{}));
+    template <class SRetType, class CallableTy, class ArgCollectionTy>
+    static void executeCore(SpAbstractTaskWithReturn<SRetType>* taskObject, CallableTy& callable, ArgCollectionTy& args) {
+        taskObject->setValue(SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{}));
     }
 
     //! Dispatch use if RetType is void (will not set parent value with the return from function)
-    template <class CallableTy>
-    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, CallableTy& callable, DataDependencyTupleTy& dataDep) {
-        SpTaskCoreWrapper(callable, dataDep, std::make_index_sequence<NbParams>{});
+    template <class CallableTy, class ArgCollectionTy>
+    static void executeCore(SpAbstractTaskWithReturn<void>* /*taskObject*/, CallableTy& callable, ArgCollectionTy& args) {
+        SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{});
     }
     
     void preTaskExecution(SpCallableType ct) final {
@@ -193,12 +193,19 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! Called by parent abstract task class
     void executeCore(SpCallableType ct) final {
         if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
+            using CtTask = std::decay_t<decltype(std::get<0>(callables))>;
+            assert(ct == CtTask::callable_type);
+            
+            if constexpr (is_instantiation_of_callable_wrapper_with_type_v<std::decay_t<decltype(std::get<0>(callables))>, SpCallableType::CPU>) {
                 executeCore(this, std::get<0>(callables), tupleParams);
+            } else {
+                executeCore(this, std::get<0>(callables), gpuCallableArgs);
+            }
         } else {
             if(ct == SpCallableType::CPU) {
                 executeCore(this, std::get<0>(callables), tupleParams);
             } else {
-                executeCore(this, std::get<1>(callables), tupleParams);
+                executeCore(this, std::get<1>(callables), gpuCallableArgs);
             }
         }
     }

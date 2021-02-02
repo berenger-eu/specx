@@ -132,7 +132,7 @@ struct SpScalarDataMode<AccessModeT, HandleTypeT, true> : public SpScalarDataMod
         using typename Parent::RawHandleType;
         using Parent::Parent;
         
-        std::pair<void*, std::size_t> getGpuView() {
+        std::pair<void*, std::size_t> getGpuTarget() {
             if constexpr(SpDataIsSerializable<HandleTypeT>::value) {
                 return this->ptrToData->serialize();
             } else if constexpr(SpDataIsTriviallyCopyable<HandleTypeT>::value) {
