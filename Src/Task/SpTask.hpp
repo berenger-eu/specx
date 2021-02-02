@@ -62,7 +62,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! Expand the tuple with the index and call getView
     template <class CallableTy, std::size_t... Is>
     static RetType SpTaskCoreWrapper(CallableTy& callable, DataDependencyTupleTy& dataDep, std::index_sequence<Is...>){
-        return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getView()...);
+        if constexpr (is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<CallableTy>, SpCallableType::CPU>) {
+            return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getView()...);
+        } else {
+            return std::invoke(callable.getCallableRef(), std::get<Is>(dataDep).getGpuView()...);
+        }
     }
 
     //! Dispatch use if RetType is not void (will set parent value with the return from function)
@@ -188,8 +192,14 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
     //! Called by parent abstract task class
     void executeCore(SpCallableType ct) final {
-        if(ct == SpCallableType::CPU) {
-            executeCore(this, std::get<0>(callables), tupleParams);
+        if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
+                executeCore(this, std::get<0>(callables), tupleParams);
+        } else {
+            if(ct == SpCallableType::CPU) {
+                executeCore(this, std::get<0>(callables), tupleParams);
+            } else {
+                executeCore(this, std::get<1>(callables), tupleParams);
+            }
         }
     }
     

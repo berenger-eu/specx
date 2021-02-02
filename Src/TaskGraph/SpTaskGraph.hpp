@@ -288,7 +288,11 @@ protected:
     template <typename CallableTy, typename TupleTy>
     static auto apply_on_data_dep_tuple(CallableTy&& c, TupleTy&& t) {
         return std::apply([&c](auto&&... elt) {
-                            return std::invoke(std::forward<CallableTy>(c), std::forward<decltype(elt)>(elt).getView()...); 
+                            if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<CallableTy>, SpCallableType::CPU>) {
+                                return std::invoke(std::forward<CallableTy>(c).getCallableRef(), std::forward<decltype(elt)>(elt).getView()...);
+                            } else {
+                                return std::invoke(std::forward<CallableTy>(c).getCallableRef(), std::forward<decltype(elt)>(elt).getGpuView()...);
+                            }
                           }, std::forward<TupleTy>(t));
     }
     
@@ -518,7 +522,7 @@ private:
          
         using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopyFunc())>;    
         using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopyFunc())>;
-        using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple).getCallableRef(), dataDepTuple));
+        using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple), dataDepTuple));
         using RetType = std::remove_reference_t<RetTypeRef>;
         using TaskTy = TaskType<RetType, DataDependencyTupleCopyTy, CallableTupleCopyTy>;
 
@@ -1692,7 +1696,7 @@ private:
          
         using DataDependencyTupleCopyTy = std::remove_reference_t<decltype(dataDependencyTupleCopyFunc())>;    
         using CallableTupleCopyTy = std::remove_reference_t<decltype(callableTupleCopyFunc())>;
-        using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple).getCallableRef(), dataDepTuple));
+        using RetTypeRef = decltype(apply_on_data_dep_tuple(std::get<0>(callableTuple), dataDepTuple));
         using RetType = std::remove_reference_t<RetTypeRef>;
         using TaskTy = SpTask<RetType, DataDependencyTupleCopyTy, CallableTupleCopyTy>;
 

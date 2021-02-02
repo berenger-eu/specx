@@ -25,16 +25,35 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
         
         tg.task(
-        SpRead(a),
-        SpCpu( [](const int& paramA) {
-            
-                }
-            ),
-        SpGpu([](std::pair<void*, std::size_t> paramA) {
-            
-              }
-            )
+        SpWrite(a),
+        SpCpu(
+        [](int& paramA) {
+            paramA++;
+        })
         );
+        
+        tg.task(
+        SpWrite(a),
+        SpCpu(
+        [](int& paramA) {
+            paramA++;
+        }),
+        SpGpu(
+        [](std::pair<void*, std::size_t> paramA) {
+            (*static_cast<int*>(std::get<0>(paramA)))++;
+        })
+        );
+        
+        tg.task(
+        SpWrite(a),
+        SpGpu(
+        [](std::pair<void*, std::size_t> paramA) {
+            (*static_cast<int*>(std::get<0>(paramA)))++;
+        })
+        );
+        
+        tg.waitAllTasks();
+        UASSERTETRUE(a == 3);
     }
 
     void SetTests() {

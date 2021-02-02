@@ -114,11 +114,11 @@ struct SpScalarDataMode : public SpScalarDataModeCommon<AccessModeT, HandleTypeT
     private:
         using Parent = SpScalarDataModeCommon<AccessModeT, HandleTypeT>;
     public:
-        using Parent::HandleTypeRef;
-        using Parent::HandleTypeNoRef;
-        using Parent::HandleTypePtr;
-        using Parent::RawHandleType;
-        using Parent::SpScalarDataModeCommon;
+        using typename Parent::HandleTypeRef;
+        using typename Parent::HandleTypeNoRef;
+        using typename Parent::HandleTypePtr;
+        using typename Parent::RawHandleType;
+        using Parent::Parent;
 };
 
 template <SpDataAccessMode AccessModeT, class HandleTypeT>
@@ -126,11 +126,11 @@ struct SpScalarDataMode<AccessModeT, HandleTypeT, true> : public SpScalarDataMod
     private:
         using Parent = SpScalarDataModeCommon<AccessModeT, HandleTypeT>;
     public:
-        using Parent::HandleTypeRef;
-        using Parent::HandleTypeNoRef;
-        using Parent::HandleTypePtr;
-        using Parent::RawHandleType;
-        using Parent::SpScalarDataModeCommon;
+        using typename Parent::HandleTypeRef;
+        using typename Parent::HandleTypeNoRef;
+        using typename Parent::HandleTypePtr;
+        using typename Parent::RawHandleType;
+        using Parent::Parent;
         
         std::pair<void*, std::size_t> getGpuView() {
             if constexpr(SpDataIsSerializable<HandleTypeT>::value) {
