@@ -24,14 +24,23 @@ enum class SpDataLocation {
 //! This is a register data to apply the
 //! dependences on it.
 class SpDataHandle {
-    
+public:
+    struct Target {
+        void* hostPtr;
+        void* devicePtr;
+        std::size_t size;
+        long int useCount;
+        
+        Target() : hostPtr(nullptr), devicePtr(nullptr), size(0), useCount(0) {}
+        
+        Target(void* inHostPtr, void* inDevicePtr, std::size_t inSize, long int inUseCount) :
+        hostPtr(inHostPtr), devicePtr(inDevicePtr), size(inSize), useCount(inUseCount) {}
+    };
 private:
     //! Generic pointer to the data
     void* const ptrToData;
     
-    void* devicePtr;
-    
-    long int deviceDataUseCount;
+    struct Target target;
     
     SpDataLocation dataLoc;
     
@@ -50,7 +59,7 @@ private:
 public:
     template <class Datatype>
     explicit SpDataHandle(Datatype* inPtrToData)
-        : ptrToData(inPtrToData), devicePtr(nullptr), deviceDataUseCount(0), dataLoc(SpDataLocation::HOST),
+        : ptrToData(inPtrToData), target(), dataLoc(SpDataLocation::HOST),
           datatypeName(typeid(Datatype).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
@@ -69,24 +78,24 @@ public:
         dataLoc = dl;
     }
     
-    void* getDevicePtr() {
-        return devicePtr;
+    void setTarget(struct Target inTarget) {
+        target = inTarget;
     }
     
-    void setDevicePtr(void* inDevicePtr) {
-        devicePtr = inDevicePtr;
+    auto getTarget() const {
+        return target;
     }
     
     void incrDeviceDataUseCount() {
-        ++deviceDataUseCount;
+        ++target.useCount;
     }
     
     void decrDeviceDataUseCount() {
-        --deviceDataUseCount;
+        --target.useCount;
     }
     
     auto getDeviceDataUseCount() {
-        return deviceDataUseCount;
+        return target.useCount;
     }
     
     void* getRawPtr() {

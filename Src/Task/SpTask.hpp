@@ -82,12 +82,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
     
     void preTaskExecution(SpCallableType ct) final {
-        std::size_t extraHandlesOffset = 0;
+       std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
         [&, this](auto index, auto&& scalarOrContainerData) -> void {
             using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
-            using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
             constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
             
@@ -102,7 +101,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     h = dataHandlesExtra[extraHandlesOffset];
                     ++extraHandlesOffset;
                 }
-                
+            
                 switch(ct) {
                     case SpCallableType::CPU:
                     {
@@ -114,14 +113,14 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             break;
                             case SpDataLocation::DEVICE:
                             {
-                                
-                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
-                                    // cudaMemcpy Device -> Host
-                                    std::memcpy(h->getRawPtr(), h->getDevicePtr(), sizeof(TargetParamType));
-                                }
+                                // cudaMemcpy Device -> Host
+                                auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
+                                std::memcpy(hostPtr, devicePtr, size);
                                 
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
                                     h->setDataLocation(SpDataLocation::HOST);
+                                } else {
+                                    h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
                                 }
                             }
                             break;
@@ -139,55 +138,54 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     break;
                     case SpCallableType::GPU:
                     {
-                        switch(h->getLocation()) {
-                            case SpDataLocation::HOST:
-                            {
-                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
-                                    // cudaMemcpy Host -> Device
-                                    void* devicePtr = std::malloc(sizeof(TargetParamType));
+                        if constexpr(std::tuple_size_v<CallableTupleTy> == 2 || is_instantiation_of_callable_wrapper_with_type_v<std::decay_t<decltype(std::get<0>(callables))>, SpCallableType::GPU>) {
+                            switch(h->getLocation()) {
+                                case SpDataLocation::HOST:
+                                {
+                                    auto [targetHostPtr, size] = scalarOrContainerData.serializeForManagedTransferToGpu();
                                     
-                                    std::memcpy(devicePtr, h->getRawPtr(), sizeof(TargetParamType));
+                                    void* targetDevicePtr = std::malloc(size);
+                                        
+                                    std::memcpy(targetDevicePtr, targetHostPtr, size);
+                                        
+                                    h->setTarget(SpDataHandle::Target{targetHostPtr, targetDevicePtr, size, 0});
                                     
-                                    h->setDevicePtr(devicePtr);
-                                } else {
-                                    h->setDevicePtr(h->getRawPtr());
+                                    if constexpr(accessMode != SpDataAccessMode::READ) {
+                                        h->setDataLocation(SpDataLocation::DEVICE);
+                                    } else {
+                                        h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
+                                    }
                                 }
-                                
-                                if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    h->setDataLocation(SpDataLocation::DEVICE);
+                                break;
+                                case SpDataLocation::DEVICE:
+                                {
+                                    // do nothing
                                 }
-                            }
-                            break;
-                            case SpDataLocation::DEVICE:
-                            {
-                                // do nothing
-                            }
-                            break;
-                            case SpDataLocation::HOST_AND_DEVICE:
-                            {
-                                if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    h->setDataLocation(SpDataLocation::DEVICE);
+                                break;
+                                case SpDataLocation::HOST_AND_DEVICE:
+                                {
+                                    if constexpr(accessMode != SpDataAccessMode::READ) {
+                                        h->setDataLocation(SpDataLocation::DEVICE);
+                                    }
                                 }
+                                break;
+                                default:
+                                break;
                             }
-                            break;
-                            default:
-                            break;
+                            
+                            h->incrDeviceDataUseCount();
+                            
+                            auto [targetHostPtr, targetDevicePtr, size, useCount] = h->getTarget();
+                            gpuCallableArgs[index] = {targetDevicePtr, size};
                         }
-                        
-                        h->incrDeviceDataUseCount();
-                        
-                        gpuCallableArgs[indexHh] = {h->getDevicePtr(), sizeof(TargetParamType)};
                     }
                     break;
                     
                     default:
                     break;
                 }
-                
-                ++indexHh;
             }
-        }
-        , this->getDataDependencyTupleRef());
+        }, this->getDataDependencyTupleRef());
     }
 
     //! Called by parent abstract task class
@@ -213,62 +211,29 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     void postTaskExecution(SpCallableType ct) final {
         // cudaStreamSynchronize(stream);
         
-        std::size_t extraHandlesOffset = 0;
-        
-        SpUtils::foreach_in_tuple(
-        [&, this](auto index, auto&& scalarOrContainerData) -> void {
-            using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
-            using TargetParamType = typename ScalarOrContainerType::RawHandleType;
-
-            constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
-            
-            long int indexHh = 0;
-            
-            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                SpDataHandle* h = nullptr;
+        for(long int i = 0; i < NbParams; i++) {
+            auto h = dataHandles[i];
                 
-                if(indexHh == 0) {
-                    h = dataHandles[index];
-                } else {
-                    h = dataHandlesExtra[extraHandlesOffset];
-                    ++extraHandlesOffset;
+            switch(ct) {
+                case SpCallableType::CPU:
+                {
+                    // do nothing
                 }
-                
-                switch(ct) {
-                    case SpCallableType::CPU:
-                    {
-                        if constexpr(accessMode != SpDataAccessMode::READ) {
-                            if(h->getDevicePtr() != nullptr) {
-                                                                                              
-                                if constexpr(std::is_trivially_copyable_v<TargetParamType>) {
-                                    std::free(h->getDevicePtr());
-                                }
-                                
-                                h->setDevicePtr(nullptr);
-                            }
-                        }
+                break;
+                case SpCallableType::GPU:
+                {
+                    h->decrDeviceDataUseCount();
+                        
+                    if(h->getDeviceDataUseCount() == 0) {
+                        // add h to unused handles
                     }
-                    break;
-                    case SpCallableType::GPU:
-                    {
-                        if constexpr(accessMode == SpDataAccessMode::READ) {
-                            h->decrDeviceDataUseCount();
-                            
-                            if(h->getDeviceDataUseCount() == 0) {
-                                // add h to unused handles
-                            }
-                        }
-                    }
-                    break;
-                    
-                    default:
-                    break;
                 }
+                break;
                 
-                ++indexHh;
+                default:
+                break;
             }
         }
-        , this->getDataDependencyTupleRef());
     }
 
 public:

@@ -54,10 +54,13 @@ template <class HandleTypeT>
 using SpDataIsTriviallyCopyable = std::is_trivially_copyable<std::remove_const_t<std::remove_reference_t<HandleTypeT>>>;
 
 template <class HandleTypeT>
-using SpDataIsSerializableTest = decltype(std::declval<std::remove_const_t<std::remove_reference_t<HandleTypeT>>>().serialize());
+using SpDataIsSerializableTest = decltype(std::declval<std::remove_const_t<std::remove_reference_t<HandleTypeT>>>().serializeForManagedTransferToGpu());
 
 template <class HandleTypeT>
 using SpDataIsSerializable = SpUtils::detect<HandleTypeT, SpDataIsSerializableTest>;
+
+template <class T>
+using hasSerializeForManagedTransferToGpuTest = decltype(std::declval<std::decay_t<T>>().serializeForManagedTransferToGpu());
 
 template <SpDataAccessMode AccessModeT, class HandleTypeT>
 struct SpScalarDataModeCommon{
@@ -132,11 +135,11 @@ struct SpScalarDataMode<AccessModeT, HandleTypeT, true> : public SpScalarDataMod
         using typename Parent::RawHandleType;
         using Parent::Parent;
         
-        std::pair<void*, std::size_t> getGpuTarget() {
+        std::pair<void*, std::size_t> serializeForManagedTransferToGpu() {
             if constexpr(SpDataIsSerializable<HandleTypeT>::value) {
-                return this->ptrToData->serialize();
+                return this->ptrToData->SpSerializeForManagedTransferToGpu();
             } else if constexpr(SpDataIsTriviallyCopyable<HandleTypeT>::value) {
-                return std::make_pair(static_cast<void*>(this->ptrToData), sizeof(RawHandleType));
+                return std::make_pair(static_cast<void*>(const_cast<RawHandleType*>(this->ptrToData)), sizeof(RawHandleType));
             }
         }
 };

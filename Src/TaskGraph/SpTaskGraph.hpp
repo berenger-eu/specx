@@ -205,9 +205,6 @@ protected:
                 std::forward<decltype(c1)>(c1), std::forward<ParamsTy>(params)...);
     }
     
-    template <class T>
-    using hasGetGpuTargetTest = decltype(std::declval<std::decay_t<T>>().getGpuTarget());
-    
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class T3, class... ParamsTy,
     typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
@@ -233,7 +230,7 @@ protected:
         [&](){
             if constexpr(SpConfig::CompileWithCuda) {
                 
-                static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasGetGpuTargetTest>...>,
+                static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasSerializeForManagedTransferToGpuTest>...>,
                                 "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
                                 
                 static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), std::conditional_t<false, decltype(params), std::pair<void*, std::size_t>>...>,
@@ -260,7 +257,7 @@ protected:
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
         
         if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
-            static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasGetGpuTargetTest>...>,
+            static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasSerializeForManagedTransferToGpuTest>...>,
                         "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
                                 
             static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), std::conditional_t<false, decltype(params), std::pair<void*, std::size_t>>...>,

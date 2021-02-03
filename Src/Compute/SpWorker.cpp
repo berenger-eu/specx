@@ -56,8 +56,8 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                 }
             }
             
-            if(saveCe->areThereAnyReadyTasks()){
-                SpAbstractTask* task = saveCe->getTask();
+            if(saveCe->areThereAnyReadyTasksForWorkerType(this->getType())){
+                SpAbstractTask* task = saveCe->getTaskForWorkerType(this->getType());
                  
                 if(task) {
                     SpAbstractTaskGraph* atg = task->getAbstractTaskGraph();

@@ -10,7 +10,9 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
+#include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
 #include "Utils/small_vector.hpp"
+#include "Config/SpConfig.hpp"
 
 class SpAbstractTaskGraph;
 
@@ -22,7 +24,7 @@ private:
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
-    SpPrioScheduler prioSched;
+    std::conditional_t<SpConfig::CompileWithCuda, SpPrioScheduler, SpHeterogeneousPrioScheduler> prioSched;
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
     SpWorker::SpWorkerType workerTypeToMigrate;
@@ -129,16 +131,16 @@ private:
         return nbWorkersToMigrate.load(std::memory_order_acquire) > 0;
     }
     
-    bool areThereAnyReadyTasks() const {
-        return prioSched.getNbTasks() > 0;
+    bool areThereAnyReadyTasksForWorkerType(SpWorker::SpWorkerType wt) const {
+        return prioSched.getNbReadyTasksForWorkerType(wt) > 0;
     }
     
     bool areWorkersToMigrateOfType(SpWorker::SpWorkerType inWt) {
         return workerTypeToMigrate == inWt;
     }
     
-    SpAbstractTask* getTask() {
-        return prioSched.pop();
+    SpAbstractTask* getTaskForWorkerType(const SpWorker::SpWorkerType wt) {
+        return prioSched.popForWorkerType(wt);
     }
     
     template <const bool updateTotalCounter, const bool updateAvailableCounter>
