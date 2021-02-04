@@ -118,6 +118,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                                 std::memcpy(hostPtr, devicePtr, size);
                                 
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    std::free(devicePtr);
+                                    h->setTarget(SpDataHandle::Target());
                                     h->setDataLocation(SpDataLocation::HOST);
                                 } else {
                                     h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
@@ -127,6 +129,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             case SpDataLocation::HOST_AND_DEVICE:
                             {
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
+                                    auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
+                                    std::free(devicePtr);
+                                    h->setTarget(SpDataHandle::Target());
                                     h->setDataLocation(SpDataLocation::HOST);
                                 }
                             }
@@ -147,7 +152,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                                     void* targetDevicePtr = std::malloc(size);
                                         
                                     std::memcpy(targetDevicePtr, targetHostPtr, size);
-                                        
+                                    
                                     h->setTarget(SpDataHandle::Target{targetHostPtr, targetDevicePtr, size, 0});
                                     
                                     if constexpr(accessMode != SpDataAccessMode::READ) {

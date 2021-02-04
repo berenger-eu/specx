@@ -26,9 +26,33 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         
         tg.task(
         SpWrite(a),
+        SpGpu(
+        [](std::pair<void*, std::size_t> paramA) {
+            (*static_cast<int*>(std::get<0>(paramA)))++;
+        })
+        );
+        
+        tg.task(
+        SpWrite(a),
         SpCpu(
         [](int& paramA) {
             paramA++;
+        })
+        );
+        
+        tg.task(
+        SpWrite(a),
+        SpGpu(
+        [](std::pair<void*, std::size_t> paramA) {
+            (*static_cast<int*>(std::get<0>(paramA)))++;
+        })
+        );
+        
+        tg.task(
+        SpWrite(a),
+        SpGpu(
+        [](std::pair<void*, std::size_t> paramA) {
+            (*static_cast<int*>(std::get<0>(paramA)))++;
         })
         );
         
@@ -46,14 +70,15 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         
         tg.task(
         SpWrite(a),
-        SpGpu(
-        [](std::pair<void*, std::size_t> paramA) {
-            (*static_cast<int*>(std::get<0>(paramA)))++;
+        SpCpu(
+        [](int& paramA) {
+            paramA++;
         })
         );
         
         tg.waitAllTasks();
-        UASSERTETRUE(a == 3);
+        
+        UASSERTETRUE(a == 6);
     }
 
     void SetTests() {

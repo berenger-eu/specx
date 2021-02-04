@@ -46,7 +46,6 @@ public:
         if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
             return static_cast<int>(cpuTaskQueue.size() + heterogeneousTaskQueue.size());
         }
-        
         return static_cast<int>(gpuTaskQueue.size() + heterogeneousTaskQueue.size());
     }
 
@@ -102,6 +101,8 @@ public:
                 if(ComparePrio()(queue->top(), cpuTask)) {
                     queue = std::addressof(cpuTaskQueue);
                 }
+            } else {
+                queue = std::addressof(cpuTaskQueue);
             }
         } else if(wt == SpWorker::SpWorkerType::GPU_WORKER && gpuTaskQueue.size() > 0) {
             SpAbstractTask* gpuTask = gpuTaskQueue.top();
@@ -110,6 +111,8 @@ public:
                 if(ComparePrio()(queue->top(), gpuTask)) {
                     queue = std::addressof(gpuTaskQueue);
                 }
+            } else {
+                queue = std::addressof(gpuTaskQueue);
             }
         }
         

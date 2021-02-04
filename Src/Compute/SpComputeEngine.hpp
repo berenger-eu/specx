@@ -24,7 +24,7 @@ private:
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
-    std::conditional_t<SpConfig::CompileWithCuda, SpPrioScheduler, SpHeterogeneousPrioScheduler> prioSched;
+    std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
     SpWorker::SpWorkerType workerTypeToMigrate;
@@ -151,7 +151,7 @@ private:
                     totalNbCpuWorkers += addend;
                 }
                 if constexpr(updateAvailableCounter) {
-                    nbAvailableGpuWorkers += addend;
+                    nbAvailableCpuWorkers += addend;
                 }
                 break;
             case SpWorker::SpWorkerType::GPU_WORKER:
