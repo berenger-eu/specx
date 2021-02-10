@@ -51,7 +51,21 @@ private:
 public:
 
 	explicit SpBlockVector(std::array<std::size_t, sizeof...(Blocks)> nbEltsInEachBlock) {
+		using TupleTy = std::tuple<Blocks...>;
 		
+		std::array<std::size_t> offsets;
+		offsets[0] = 0;
+		
+		std::size_t totalSize = 0;
+		
+		SpUtils::foreach_index(
+		[](auto&& index) {
+			using BlockTy = std::tuple_element_t<index, TupleTy>;
+			totalSize += BlockTy::getSize(std::get<index>(nbEltsInEachBlock));
+			if constexpr(index > 0) {
+				offsets[index] = totalSize;
+			}
+		}, std::make_index_sequence<sizeof...(Blocks)>{});
 	}
 	
 private:
