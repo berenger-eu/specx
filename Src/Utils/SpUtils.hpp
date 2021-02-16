@@ -152,7 +152,7 @@ namespace SpUtils{
     
     template <typename Func, std::size_t... Is>
 	static void foreach_index(Func&& f, std::index_sequence<Is...>) {
-		((void)std::invoke(std::forward<Func>(f), std::integral_constant<Is>{}), ...);
+		((void)std::invoke(std::forward<Func>(f), std::integral_constant<std::size_t, Is>{}), ...);
 	}
 
     template <typename T, template<typename T2> class Test, typename=std::void_t<>>
