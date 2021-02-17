@@ -8,32 +8,28 @@
 #include "SpAlignment.hpp"
 #include "SpSimpleTuple.hpp"
 
-template <class... Blocks, const SpAlignment BlockAlignment=SpAlignment{std::max{Blocks::getAlignment()...}}}>
+template <class... Blocks>
 class SpBlockTuple {
 private:
 	static_assert(sizeof...(Blocks) >= 1);
-	static_assert(BlockAlignment.isPowerOf2());
-	static_assert(SpAlignment{alignof(std::size_t)}.isPowerOf2());
 	
-	static constexpr const auto BlockAlignmentAssize_t = static_cast<std::size_t>(BlockAlignment);
-	static constexpr const auto BlockVectorAlignmentAssize_t = static_cast<std::size_t>(SpAlignment{alignof(std::size_t, Blocks::value_type...)});
-	
-	static_assert(std::conjunction_v<std::bool_constant<BlockAlignmentAssize_t >= alignof(Blocks::value_type)>...>);
-	static_assert(std::conjunction_v<std::is_trivially_copyable<Blocks::value_type>...>);
+	static constexpr const auto alignment = std::max{alignof(unsigned long long), Blocks::getAlignment()...})};
 	
 public:
 	static constexpr const auto NbBlocks = sizeof...(Blocks);
 
 private:
 	
+	__host__
 	void allocateBuffer(const std::size_t size) {
-		if constexpr (BlockVectorAlignmentAssize_t <= alignof(std::max_align_t)) {
+		if constexpr (alignment <= alignof(std::max_align_t)) {
 			buffer = std::malloc(size);
 		} else {
 			buffer = std::aligned_alloc(size, BlockVectorAlignmentAssize_t);
 		}
 	}
 	
+	__host__
 	void deallocateBuffer() {
 		if(buffer) {
 			std::free(buffer);
@@ -41,69 +37,89 @@ private:
 		}
 	}
 	
-	auto getTotalSizeNbEltsOffsetsBegin() {
-		return static_cast<std::size_t*>(buffer);
-	}
-	
+	__host__ __device__
 	auto getNbEltsBegin() {
-		return std::addressof(getTotalSizeNbEltsOffsetsBegin()[1]);
+		return &(getTotalSizeNbEltsOffsetsBegin()[1]);
 	}
 	
+	__host__ __device__
 	auto getOffsetsBegin() {
-		return std::addressof(getTotalSizeNbEltsOffsetsBegin()[1+NbBlocks]);
+		return &(getTotalSizeNbEltsOffsetsBegin()[1+NbBlocks]));
 	}
 
 public:
-	
-	explicit SpBlockTuple(std::array<std::size_t, NbBlocks> nbEltsInEachBlock) {
+	__host__
+	explicit SpBlockTuple(std::array<unsigned long long, NbBlocks> nbEltsInEachBlock) {
 		using TupleTy = std::tuple<Blocks...>;
-		using ArrayTy = std::array<std::size_t, 1 + 2 * NbBlocks>;
+		using ArrayTy = std::array<unsigned long long, 2 * NbBlocks>;
 		
 		ArrayTy totalSizeNbEltsAndOffsets;
 		
-		std::copy(std::begin(nbEltsInEachBlock), std::end(nbEltsInEachBlock), std::begin(totalSizeNbEltsAndOffsets) + 1);
+		std::copy(std::begin(nbEltsInEachBlock), std::end(nbEltsInEachBlock), std::begin(totalSizeNbEltsAndOffsets));
 		
-		std::size_t totalSize = (std::tuple_size_v<ArrayTy> * sizeof(std::size_t) + BlockAlignment - 1) & ~(BlockAlignment - 1);
+		unsigned long long totalSize = 0;
 		
 		SpUtils::foreach_index(
 		[](auto&& index) {
-			totalSizeNbEltsAndOffsets[1 + NbBlocks + index] = totalSize;
+			totalSizeNbEltsAndOffsets[NbBlocks + index] = totalSize;
 			
-			if constexpr(index < NbBlocks) {
-				using BlockTy = std::tuple_element_t<index, TupleTy>;
-				totalSize += BlockTy::getSize(std::get<index>(nbEltsInEachBlock));
+			using BlockTy = std::tuple_element_t<index, TupleTy>;
+			
+			if constexpr(index < (NbBlocks - 1)) {
+				using NextBlockTy = std::tuple_element_t<index+1, TupleTy>;
+				
+				totalSize += BlockTy::getSize(std::get<index>(nbEltsInEachBlock), NextBlockTy::getAlignment());
+			} else {
+				totalSize += BlockTy::getSize(std::get<index>(nbEltsInEachBlock), unsigned long long(alignof(unsigned long long)));
 			}
-			
-		}, std::make_index_sequence<NbBlocks+1>{});
+		}, std::make_index_sequence<NbBlocks>{});
 		
 		// TO DO : for posix mem align totalSize should be a multiple of sizeof(void *)
 		// static_assert(sizeof(void*) is a power of 2); 
 		// if (posix)
-		//     totalSize  = (totalSize + sizeof(void*) - 1) & ~(sizeof(void*) - 1);  
+		//     totalSize  = (totalSize + sizeof(void*) - 1) & ~(sizeof(void*) - 1);
 		
-		totalSizeNbEltsAndOffsets[0] = totalSize;
+		auto totalSizeBlocks = totalSize;
+		
+		totalSize += std::tuple_size_v<ArrayTy> * sizeof(unsigned long long);
+		
+		this->totalAllocatedSize = totalSize;
 		
 		this->allocateBuffer(totalSize);
 		
-		std::memcpy(this->buffer, offsetsAndTotalSize.data(), (1 + 2 * NbBlocks) * sizeof(std::size_t));
+		std::memcpy(static_cast<char*>(this->buffer) + totalSizeBlocks, offsetsAndTotalSize.data(),  std::tuple_size_v<ArrayTy> * sizeof(unsigned long long));
 	}
 	
-	std::size_t getTotalAllocatedSize() const {
-		return *(this->getTotalSizeNbEltsOffsetsBegin());
+	__host__ __device__
+	auto getTotalAllocatedSize() const {
+		return totalAllocatedSize;
 	}
 	
-	template <std::size_t index>
-	std::size_t getNbEltsInBlock() const {
-		static_assert(index >= 0 && index < NbBlocks);
-		this->getNbEltsBegin()[index];
+	__host__ __device__
+	template <unsigned long long index>
+	auto getNbEltsInBlock() const {
+		static_assert(index >= 0 && index < unsigned long long(NbBlocks));
+		return this->getNbEltsBegin()[index];
 	}
 	
-	template <std::size_t index>
+	__host__ __device__
+	template <unsigned long long index>
 	auto getBlockBegin() const {
-		static_assert(index >= 0 && index < NbBlocks);
-		static_cast<void*>(static_cast<char*>(this->buffer) + this->getOffsetsBegin()[index]);
+		static_assert(index >= 0 && index < unsigned long long(NbBlocks));
+		return static_cast<void*>(static_cast<char*>(this->buffer) + this->getOffsetsBegin()[index]);
 	}
 	
+	__host__ __device__
+	template <unsigned long long index>
+	auto getBlock() {
+		static_assert(index >= 0 && index < unsigned long long(NbBlocks));
+		using TupleTy = std::tuple<Blocks...>;
+		using BlockTy = std::tuple_element_t<index, TupleTy>;
+		
+		return BlockTy(this->getBlockBegin<index>(), this->getNbEltsInBlock<index>());
+	}
+	
+	__host__ __device__
 	auto getSimpleTuple() const {
 		using TupleTy = std::tuple<Blocks...>;
 		
@@ -123,6 +139,7 @@ public:
 	
 private:
 	void* buffer;
+	unsigned long long totalAllocatedSize;
 };
 
 #endif

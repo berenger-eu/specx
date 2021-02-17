@@ -1,28 +1,27 @@
 #ifndef SPARRAYBLOCK_HPP
 #define SPARRAYBLOCK_HPP
 
-template <typename DataType, const SpAlignment alignment=SpAlignment{alignof(DataType)}>
-class alignas(static_cast<std::size_t>(alignment)) SpArrayBlock {
+template <typename DataType, const SpAlignment alignment=SpAlignment<alignof(DataType)>{}>
+class SpArrayBlock {
 	static_assert(std::is_trivially_copyable_v<DataType>);
-	static_assert(alignment.isPowerOf2());
-	static_assert(static_cast<std::size_t>(alignment) >= alignof(DataType));
+	static_assert(static_cast<unsigned long long>(alignment) >= alignof(DataType));
 	
 private:
 	DataType* data;
-	std::size_t inNbElts;
+	unsigned long long inNbElts;
 	 
 public:
 	using value_type = DataType;
 	
-	SpArrayBlock() : data(nullptr), nbElts(0) {}
-	SpArrayBlock(void* inData, std:size_t nbElts) :data(inData), nbElts(inNbElts) {}
+	SpArrayBlock() : data(nullptr), nbElts(0ULL) {}
+	SpArrayBlock(void* inData, unsigned long nbElts) :data(inData), nbElts(inNbElts) {}
 	
-	static constexpr std::size_t getAlignment() {
-		return static_cast<std::size_t>(alignment);
+	static constexpr auto getAlignment() {
+		return static_cast<unsigned long long>(alignment);
 	}
 	
-	static constexpr std::size_t getSize(std::size_t nbElts, std::size_t alignment) {
-		return (nbElts * sizeof(Datatype) + alignment - 1) & ~(alignment - 1);
+	static constexpr unsigned long long getSize(unsigned long long nbElts, unsigned long long alignment) {
+		return (nbElts * sizeof(Datatype) + alignment - 1ULL) & ~(alignment - 1ULL);
 	}
 	
 	auto begin() {

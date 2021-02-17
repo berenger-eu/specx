@@ -1,23 +1,19 @@
 #ifndef SPALIGNMENT_HPP
 #define SPALIGNMENT_HPP
 
+template <unsigned long long alignment>
 struct SpAlignment {
-public:
-	
-	constexpr explicit SpAlignment(std::size_t inAlignment) {
-		alignment = inAlignment;
-	}
-	
-	constexpr std::size_t operator() const {
+	constexpr unsigned long long operator() const {
 		return alignment;
 	}
 	
 	constexpr bool isPowerOf2() const {
-		return (alignment != 0) && ((alignment & (alignment - 1)) == std::size_t(0));
+		return (alignment != 0ULL) && ((alignment & (alignment - 1)) == 0ULL);
 	}
 	
-private:
-	std::size_t alignment;
+	constexpr SpAlignment() {
+		static_assert(isPowerOf2());
+	}
 };
 
 #endif

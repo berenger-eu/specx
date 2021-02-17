@@ -8,7 +8,7 @@ struct SpSimpleTuple : public SpInternalBlockTuple<Rest...> {
 template<>
 struct SpSimpleTuple<> {};
 
-template <std::size_t index, typename First, typename... Rest>
+template <unsigned long long index, typename First, typename... Rest>
 struct SpSimpleTupleGetImpl {
 	static decltype(auto) value(SpInternalBlockTuple<First, Rest...>* t) {
 		return SpSimpleTupleGetImpl<index-1, Rest...>(t);
@@ -22,9 +22,9 @@ struct SpSimpleTupleGetImpl {
 	}
 };
 
-template <std::size_t index, typename First, typename... Rest>
+template <unsigned long long index, typename First, typename... Rest>
 inline decltype(auto) SpSimpleTupleGet(SpInternalBlockTuple<First, Rest...>& t) {
-	static_assert(index >= 0 && index < (sizeof...(Rest) + 1));
-	return SpSimpleTupleGetImpl<index, First, Rest...>::value(std::addressof(t));
+	static_assert(index >= 0 && index < unsigned long long(sizeof...(Rest) + 1));
+	return SpSimpleTupleGetImpl<index, First, Rest...>::value(&t);
 }
 #endif
