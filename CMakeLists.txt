@@ -6,10 +6,17 @@ cmake_minimum_required (VERSION 2.8.3 FATAL_ERROR)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
+OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
+
+
 #===========================================================================
 # Project Declaration
 #===========================================================================
-project(SPETABARU CXX)
+if(NOT SPETABARU_COMPILE_WITH_CUDA)
+	project(SPETABARU LANGUAGES CXX)
+else()
+	project(SPETABARU LANGUAGES CXX CUDA)
+endif()
 
 # check if compiling into source directories
 string(COMPARE EQUAL "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" insource)
@@ -122,8 +129,6 @@ if(NOT SPETABARU_AS_SUBPROJECT)
         set(SPETABARU_CXX_FLAGS  "${SPETABARU_CXX_FLAGS} -m64")
     endif()
 
-    OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
-
     OPTION( SPETABARU_ATTACHE_SOURCE "Set to on to add -g flag" OFF )
     if( SPETABARU_ATTACHE_SOURCE )
         set(SPETABARU_CXX_FLAGS  "${SPETABARU_CXX_FLAGS} -g")
@@ -156,8 +161,11 @@ if(NOT SPETABARU_JUST_LIB)
     enable_testing()
     add_subdirectory(UTests)
     add_subdirectory(UTests/ShouldNotCompile)
-    add_subdirectory(UTests/Gpu)
-
+    
+    if(SPETABARU_COMPILE_WITH_CUDA)
+		add_subdirectory(UTests/Gpu)
+	endif()
+	
     #===========================================================================
     # Build examples
     #===========================================================================
