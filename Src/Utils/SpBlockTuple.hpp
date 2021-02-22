@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "SpAlignment.hpp"
+#include "Config/SpConfig.hpp"
 
 template <class... Blocks>
 class SpBlockTuple {
@@ -34,14 +35,14 @@ private:
 		}
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	template <std::size_t index>
 	auto getBlockBegin() const {
 		static_assert(index < NbBlocks);
 		return static_cast<void*>(static_cast<char*>(this->buffer) + this->getTotalAllocatedSize() - NbBlocks * sizeof(std::size_t));
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	template <std::size_t index>
 	auto getNbEltsInBlock() const {
 		static_assert(index < NbBlocks);
@@ -49,7 +50,7 @@ private:
 	}
 
 public:
-	//__host__
+	SPHOST
 	explicit SpBlockTuple(std::array<std::size_t, NbBlocks> nbEltsInEachBlock) {
 		using TupleTy = std::tuple<Blocks...>;
 		using ArrayTy = std::array<std::size_t, 2 * NbBlocks>;
@@ -91,29 +92,61 @@ public:
 		std::memcpy(static_cast<char*>(this->buffer) + totalSizeBlocks, totalSizeNbEltsAndOffsets.data(),  std::tuple_size_v<ArrayTy> * sizeof(std::size_t));
 	}
 	
-	SpBlockTuple(const SpBlockTuple& other) = default;
-	SpBlockTuple(SpBlockTuple&& other) = default;
-	SpBlockTuple& operator=(const SpBlockTuple& other) = default;
-	SpBlockTuple& operator=(SpBlockTuple&& other) = default;
-	/*
-	//__device__
-	explicit SpBlockTuple(std::pair<void*, std::size_t> p) : buffer(std::get<0>(p)), totalAllocatedSize(std::get<1>(p)) {}
+	#ifdef SPETABARU_COMPILE_WITH_CUDA
 	
-	//__device__
+	SpBlockTuple(const SpBlockTuple& other) {
+		*this = other;
+	}
+	
+	SpBlockTuple(SpBlockTuple&& other) {
+		*this = std::move(other);
+	}
+	
+	SpBlockTuple& operator=(const SpBlockTuple& other) {
+		if(this == std::addressof(other)) {
+			return *this;
+		}
+		deallocateBuffer();
+		allocateBuffer(other.totalAllocatedSize);
+		totalAllocatedSize = other.totalAllocatedSize;
+	}
+	
+	SpBlockTuple& operator=(SpBlockTuple&& other) {
+		if(this == std::addressof(other)) {
+			return *this;
+		}
+		deallocateBuffer();
+		buffer = other.buffer;
+		totalAllocatedSize = other.totalAllocatedSize;
+		other.buffer = nullptr;
+		other.totalAllocatedSize = 0;
+	}
+	
+	#else
+	
+	SPDEVICE
+	explicit SpBlockTuple(std::pair<void* const, std::size_t> p) : buffer(std::get<0>(p)), totalAllocatedSize(std::get<1>(p)) {}
+	
+	SPDEVICE
 	SpBlockTuple(const SpBlockTuple& other) = delete;
-	//__device__
-	SpBlockTuple(SpBlockTuple&& other) = delete;
-	//__device__
-	SpBlockTuple& operator=(const SpBlockTuple& other) = delete;
-	//__device__
-	SpBlockTuple& operator=(SpBlockTuple&& other) = delete;*/
 	
-	//__host__ __device__
+	SPDEVICE
+	SpBlockTuple(SpBlockTuple&& other) = delete;
+	
+	SPDEVICE
+	SpBlockTuple& operator=(const SpBlockTuple& other) = delete;
+	
+	SPDEVICE
+	SpBlockTuple& operator=(SpBlockTuple&& other) = delete;
+	
+	#endif
+	
+	SPHOST SPDEVICE
 	auto getTotalAllocatedSize() const {
 		return totalAllocatedSize;
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	template <std::size_t index>
 	auto getBlock() {
 		static_assert(index < NbBlocks);
@@ -123,7 +156,7 @@ public:
 		return BlockTy(this->getBlockBegin<index>(), this->getNbEltsInBlock<index>());
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	auto getTuple() const {
 		using TupleTy = std::tuple<Blocks...>;
 		
@@ -142,8 +175,8 @@ public:
 	
 	
 private:
-	void* buffer;
-	unsigned long long totalAllocatedSize;
+	std::conditional_t<SpConfig::CompileWithCuda, void* const, void*> buffer;
+	std::size_t totalAllocatedSize;
 };
 
 #endif
