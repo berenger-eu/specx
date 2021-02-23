@@ -175,7 +175,7 @@ public:
 	
 	
 private:
-	std::conditional_t<SpConfig::CompileWithCuda, void* const, void*> buffer;
+	void* buffer;
 	std::size_t totalAllocatedSize;
 };
 
