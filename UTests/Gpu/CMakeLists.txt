@@ -4,8 +4,6 @@
 ###########################################################################
 project(UTESTS_GPU_SPETABARU LANGUAGES CXX CUDA)
 
-ADD_DEFINITIONS(${SPETABARU_CXX_FLAGS})
-
 # Find all code files (no GLOB_RECURSE)
 file(
 	GLOB	

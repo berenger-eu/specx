@@ -35,15 +35,15 @@ private:
 		}
 	}
 	
-	SPHOST SPDEVICE
 	template <std::size_t index>
+	SPHOST SPDEVICE
 	auto getBlockBegin() const {
 		static_assert(index < NbBlocks);
 		return static_cast<void*>(static_cast<char*>(this->buffer) + this->getTotalAllocatedSize() - NbBlocks * sizeof(std::size_t));
 	}
 	
-	SPHOST SPDEVICE
 	template <std::size_t index>
+	SPHOST SPDEVICE
 	auto getNbEltsInBlock() const {
 		static_assert(index < NbBlocks);
 		return reinterpret_cast<std::size_t*>(static_cast<char*>(buffer) + this->getTotalAllocatedSize() - NbBlocks * 2 * sizeof(std::size_t));
@@ -92,7 +92,7 @@ public:
 		std::memcpy(static_cast<char*>(this->buffer) + totalSizeBlocks, totalSizeNbEltsAndOffsets.data(),  std::tuple_size_v<ArrayTy> * sizeof(std::size_t));
 	}
 	
-	#ifdef SPETABARU_COMPILE_WITH_CUDA
+	#ifndef SPETABARU_COMPILE_WITH_CUDA
 	
 	SpBlockTuple(const SpBlockTuple& other) {
 		*this = other;
@@ -146,8 +146,8 @@ public:
 		return totalAllocatedSize;
 	}
 	
-	SPHOST SPDEVICE
 	template <std::size_t index>
+	SPHOST SPDEVICE
 	auto getBlock() {
 		static_assert(index < NbBlocks);
 		using TupleTy = std::tuple<Blocks...>;

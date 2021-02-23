@@ -6,16 +6,17 @@ cmake_minimum_required (VERSION 2.8.3 FATAL_ERROR)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
-OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
-
-
 #===========================================================================
 # Project Declaration
 #===========================================================================
-if(NOT SPETABARU_COMPILE_WITH_CUDA)
-	project(SPETABARU LANGUAGES CXX)
-else()
-	project(SPETABARU LANGUAGES CXX CUDA)
+project(SPETABARU)
+
+enable_language(CXX)
+
+OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
+
+if(SPETABARU_COMPILE_WITH_CUDA)
+	enable_language(CUDA)
 endif()
 
 # check if compiling into source directories
@@ -37,6 +38,12 @@ INCLUDE(CMakeDependentOption)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(SPETABARU_COMPILE_WITH_CUDA)
+	set(CMAKE_CUDA_STANDARD 17)
+	set(CMAKE_CXX_STANDARD_REQUIRED ON)
+	SET(CMAKE_CUDA_EXTENSIONS OFF)
+endif()
 
 # need pthread
 set(SPETABARU_LIBRARIES pthread)
