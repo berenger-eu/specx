@@ -4,6 +4,7 @@
 #include <type_traits>
 
 #include "SpAlignment.hpp"
+#include "Config/SpConfig.hpp"
 
 template <typename DataType, class AlignmentType=SpAlignment<alignof(DataType)>, std::enable_if_t<is_instantiation_of_sp_alignment<AlignmentType>::value, int> = 0>
 class SpArrayBlock {
@@ -17,10 +18,10 @@ private:
 public:
 	using value_type = DataType;
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	SpArrayBlock() : data(nullptr), nbElts(0) {}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	SpArrayBlock(void* inData, std::size_t inNbElts) :data(inData), nbElts(inNbElts) {}
 	
 	static constexpr auto getAlignment() {
@@ -31,12 +32,12 @@ public:
 		return (nbElts * sizeof(DataType) + inAlignment - 1) & ~(inAlignment - 1);
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	auto begin() {
 		return data;
 	}
 	
-	//__host__ __device__
+	SPHOST SPDEVICE
 	auto end() {
 		return data + nbElts;
 	}
