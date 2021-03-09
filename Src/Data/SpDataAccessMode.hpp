@@ -50,20 +50,8 @@ inline std::string SpModeToStr(const SpDataAccessMode inMode){
 /// Data mode => a mode + a data
 ////////////////////////////////////////////////////////
 
-template <class HandleTypeT>
-using SpDataIsTriviallyCopyable = std::is_trivially_copyable<std::remove_const_t<std::remove_reference_t<HandleTypeT>>>;
-
-template <class HandleTypeT>
-using SpDataIsSerializableTest = decltype(std::declval<std::remove_const_t<std::remove_reference_t<HandleTypeT>>>().serializeForManagedTransferToGpu());
-
-template <class HandleTypeT>
-using SpDataIsSerializable = SpUtils::detect<HandleTypeT, SpDataIsSerializableTest>;
-
-template <class T>
-using hasSerializeForManagedTransferToGpuTest = decltype(std::declval<std::decay_t<T>>().serializeForManagedTransferToGpu());
-
 template <SpDataAccessMode AccessModeT, class HandleTypeT>
-struct SpScalarDataModeCommon{
+struct SpScalarDataMode{
     static_assert(std::is_reference<HandleTypeT>::value,
                   "The given type must be a reference");
 public:
@@ -89,14 +77,14 @@ protected:
 
 public:
     // Simple constructor (simply transfer the handle)
-    constexpr explicit SpScalarDataModeCommon(HandleTypeT& inHandle)
+    constexpr explicit SpScalarDataMode(HandleTypeT& inHandle)
         : ptrToData(std::addressof(inHandle)){
     }
 
-    SpScalarDataModeCommon(const SpScalarDataModeCommon&) = default;
-    SpScalarDataModeCommon(SpScalarDataModeCommon&&) = delete;
-    SpScalarDataModeCommon& operator=(const SpScalarDataModeCommon&) = delete;
-    SpScalarDataModeCommon& operator=(SpScalarDataModeCommon&&) = delete;
+    SpScalarDataMode(const SpScalarDataMode&) = default;
+    SpScalarDataMode(SpScalarDataMode&&) = delete;
+    SpScalarDataMode& operator=(const SpScalarDataMode&) = delete;
+    SpScalarDataMode& operator=(SpScalarDataMode&&) = delete;
 
     constexpr std::array<HandleTypePtr,1> getAllData(){
         return std::array<HandleTypePtr,1>{ptrToData};
@@ -110,38 +98,6 @@ public:
         assert(position < 1);
         ptrToData = ptr;
     }
-};
-
-template <SpDataAccessMode AccessModeT, class HandleTypeT, const bool=std::conjunction_v<std::bool_constant<SpConfig::CompileWithCuda>, std::disjunction<SpDataIsTriviallyCopyable<HandleTypeT>, SpDataIsSerializable<HandleTypeT>>>>
-struct SpScalarDataMode : public SpScalarDataModeCommon<AccessModeT, HandleTypeT>{
-    private:
-        using Parent = SpScalarDataModeCommon<AccessModeT, HandleTypeT>;
-    public:
-        using typename Parent::HandleTypeRef;
-        using typename Parent::HandleTypeNoRef;
-        using typename Parent::HandleTypePtr;
-        using typename Parent::RawHandleType;
-        using Parent::Parent;
-};
-
-template <SpDataAccessMode AccessModeT, class HandleTypeT>
-struct SpScalarDataMode<AccessModeT, HandleTypeT, true> : public SpScalarDataModeCommon<AccessModeT, HandleTypeT> {        
-    private:
-        using Parent = SpScalarDataModeCommon<AccessModeT, HandleTypeT>;
-    public:
-        using typename Parent::HandleTypeRef;
-        using typename Parent::HandleTypeNoRef;
-        using typename Parent::HandleTypePtr;
-        using typename Parent::RawHandleType;
-        using Parent::Parent;
-        
-        std::pair<void*, std::size_t> serializeForManagedTransferToGpu() {
-            if constexpr(SpDataIsSerializable<HandleTypeT>::value) {
-                return this->ptrToData->SpSerializeForManagedTransferToGpu();
-            } else if constexpr(SpDataIsTriviallyCopyable<HandleTypeT>::value) {
-                return std::make_pair(static_cast<void*>(const_cast<RawHandleType*>(this->ptrToData)), sizeof(RawHandleType));
-            }
-        }
 };
 
 template <SpDataAccessMode AccessModeT, class HandleTypeT, class AccessorTypeT>

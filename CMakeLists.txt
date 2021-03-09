@@ -9,14 +9,12 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 #===========================================================================
 # Project Declaration
 #===========================================================================
-project(SPETABARU)
-
-enable_language(CXX)
+project(SPETABARU CXX)
 
 OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
 
 if(SPETABARU_COMPILE_WITH_CUDA)
-	enable_language(CUDA)
+	#enable_language(CUDA)
 endif()
 
 # check if compiling into source directories
@@ -170,9 +168,9 @@ if(NOT SPETABARU_JUST_LIB)
     add_subdirectory(UTests)
     add_subdirectory(UTests/ShouldNotCompile)
     
-    if(SPETABARU_COMPILE_WITH_CUDA)
+    #if(SPETABARU_COMPILE_WITH_CUDA)
 		add_subdirectory(UTests/Gpu)
-	endif()
+	#endif()
 	
     #===========================================================================
     # Build examples

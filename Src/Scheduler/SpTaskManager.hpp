@@ -25,6 +25,8 @@
 #include "Compute/SpWorker.hpp"
 #include "SpTaskManagerListener.hpp"
 
+class SpAbstractTaskGraph;
+
 //! The runtime is the main component of spetabaru.
 class SpTaskManager{
 
@@ -168,99 +170,14 @@ public:
         return nbReadyTasks;
     }
     
+    void preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
+    void postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
+    
     void setComputeEngine(SpComputeEngine* inCe) {
         if(inCe && !ce) {
             ce = inCe;
             ce.load()->pushTasks(readyTasks);
             readyTasks.clear();
-        }
-    }
-    
-    void preTaskExecution(std::mutex& tgDataHandleMutex, SpAbstractTask* t, SpWorker& w) {
-        nbReadyTasks--;
-        nbRunningTasks += 1;
-        t->takeControl();
-        
-        if constexpr(SpConfig::CompileWithCuda) {
-            {
-                std::unique_lock<std::mutex> lock(tgDataHandleMutex);
-                
-                switch(w.getType()) {
-                    case SpWorker::SpWorkerType::CPU_WORKER:
-                        t->preTaskExecution(SpCallableType::CPU);
-                        break;
-                    case SpWorker::SpWorkerType::GPU_WORKER:
-                        t->preTaskExecution(SpCallableType::GPU);
-                        break;
-                    default:
-                        assert(false && "Worker is of unknown type.");
-                }
-            }
-        }
-
-        SpDebugPrint() << "Execute task with ID " << t->getId();
-        assert(t->isState(SpTaskState::READY));
-
-        t->setState(SpTaskState::RUNNING);
-    }
-
-    void postTaskExecution(std::mutex& tgDataHandleMutex, SpAbstractTask* t, SpWorker& w){
-        t->setState(SpTaskState::POST_RUN);
-        
-        if constexpr(SpConfig::CompileWithCuda) {
-            {
-                std::unique_lock<std::mutex> lock(tgDataHandleMutex);
-                
-                switch(w.getType()) {
-                    case SpWorker::SpWorkerType::CPU_WORKER:
-                        t->postTaskExecution(SpCallableType::CPU);
-                        break;
-                    case SpWorker::SpWorkerType::GPU_WORKER:
-                        t->postTaskExecution(SpCallableType::GPU);
-                        break;
-                    default:
-                        assert(false && "Worker is of unknown type.");
-                }
-            }
-        }
-        
-        small_vector<SpAbstractTask*> candidates;
-        t->releaseDependences(&candidates);
-
-        SpDebugPrint() << "Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
-        for(auto otherId : candidates){
-            SpDebugPrint() << "Test " << otherId->getId();
-            insertIfReady<true>(otherId);
-        }
-        
-        t->setState(SpTaskState::FINISHED);
-        t->releaseControl();
-        
-        nbRunningTasks--;
-        
-        // We save all of the following values because the SpTaskManager
-        // instance might get destroyed as soon as the mutex (mutexFinishedTasks)
-        // protected region below has been executed.
-        auto previousCntVal = nbFinishedTasks.fetch_add(1);
-        auto nbPushedTasksVal = nbPushedTasks.load();
-        SpComputeEngine *saveCe = ce.load();
-            
-        {
-            // In this case the lock on mutexFinishedTasks should be held
-            // while doing the notify on conditionAllTasksOver
-            // (conditionAllTasksOver.notify_one()) because we don't want
-            // the condition variable to get destroyed before we were able
-            // to notify.
-            std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-            tasksFinished.emplace_back(t);
-            
-            // We notify conditionAllTasksOver every time because of
-            // waitRemain  
-            conditionAllTasksOver.notify_one();
-        }
-        
-        if(nbPushedTasksVal == (previousCntVal + 1)) {
-            saveCe->wakeUpWaitingWorkers();
         }
     }
     
@@ -273,5 +190,94 @@ public:
     }
 };
 
+#include "TaskGraph/SpAbstractTaskGraph.hpp"
+
+inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
+	nbReadyTasks--;
+	nbRunningTasks += 1;
+	t->takeControl();
+	
+	if constexpr(SpConfig::CompileWithCuda) {
+		{
+			std::unique_lock<std::mutex> lock(atg.tgDataHandleMutex);
+			
+			switch(w.getType()) {
+				case SpWorker::SpWorkerType::CPU_WORKER:
+					t->preTaskExecution(atg, SpCallableType::CPU);
+					break;
+				case SpWorker::SpWorkerType::GPU_WORKER:
+					t->preTaskExecution(atg, SpCallableType::GPU);
+					break;
+				default:
+					assert(false && "Worker is of unknown type.");
+			}
+		}
+	}
+
+	SpDebugPrint() << "Execute task with ID " << t->getId();
+	assert(t->isState(SpTaskState::READY));
+
+	t->setState(SpTaskState::RUNNING);
+}
+
+inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
+	t->setState(SpTaskState::POST_RUN);
+	
+	if constexpr(SpConfig::CompileWithCuda) {
+		{
+			std::unique_lock<std::mutex> lock(atg.tgDataHandleMutex);
+			
+			switch(w.getType()) {
+				case SpWorker::SpWorkerType::CPU_WORKER:
+					t->postTaskExecution(atg, SpCallableType::CPU);
+					break;
+				case SpWorker::SpWorkerType::GPU_WORKER:
+					t->postTaskExecution(atg, SpCallableType::GPU);
+					break;
+				default:
+					assert(false && "Worker is of unknown type.");
+			}
+		}
+	}
+	
+	small_vector<SpAbstractTask*> candidates;
+	t->releaseDependences(&candidates);
+
+	SpDebugPrint() << "Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
+	for(auto otherId : candidates){
+		SpDebugPrint() << "Test " << otherId->getId();
+		insertIfReady<true>(otherId);
+	}
+	
+	t->setState(SpTaskState::FINISHED);
+	t->releaseControl();
+	
+	nbRunningTasks--;
+	
+	// We save all of the following values because the SpTaskManager
+	// instance might get destroyed as soon as the mutex (mutexFinishedTasks)
+	// protected region below has been executed.
+	auto previousCntVal = nbFinishedTasks.fetch_add(1);
+	auto nbPushedTasksVal = nbPushedTasks.load();
+	SpComputeEngine *saveCe = ce.load();
+		
+	{
+		// In this case the lock on mutexFinishedTasks should be held
+		// while doing the notify on conditionAllTasksOver
+		// (conditionAllTasksOver.notify_one()) because we don't want
+		// the condition variable to get destroyed before we were able
+		// to notify.
+		std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+		tasksFinished.emplace_back(t);
+		
+		// We notify conditionAllTasksOver every time because of
+		// waitRemain  
+		conditionAllTasksOver.notify_one();
+	}
+	
+	if(nbPushedTasksVal == (previousCntVal + 1)) {
+		saveCe->wakeUpWaitingWorkers();
+	}
+}
 
 #endif

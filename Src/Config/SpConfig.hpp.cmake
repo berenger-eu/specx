@@ -11,7 +11,7 @@
 
 #cmakedefine SPETABARU_COMPILE_WITH_CUDA
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+/*#ifdef SPETABARU_COMPILE_WITH_CUDA
 
 	#ifndef SPHOST
 		#define SPHOST __host__
@@ -25,7 +25,7 @@
 		#define SPGLOBAL __GLOBAL__
 	#endif
 
-#else
+#else*/
 
 		#ifndef SPHOST
 			#define SPHOST
@@ -39,7 +39,7 @@
 			#define SPGLOBAL
 		#endif
 
-#endif
+//#endif
 
 namespace SpConfig {
     #ifdef SPETABARU_COMPILE_WITH_CUDA

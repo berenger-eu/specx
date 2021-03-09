@@ -229,9 +229,6 @@ protected:
         auto callableTuple = 
         [&](){
             if constexpr(SpConfig::CompileWithCuda) {
-                
-                static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasSerializeForManagedTransferToGpuTest>...>,
-                                "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
                                 
                 static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), std::conditional_t<false, decltype(params), std::pair<void*, std::size_t>>...>,
                                 "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");
@@ -257,8 +254,6 @@ protected:
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
         
         if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
-            static_assert(std::conjunction_v<SpUtils::detect<std::decay_t<ParamsTy>, hasSerializeForManagedTransferToGpuTest>...>,
-                        "SpTaskGraph::task some data dependencies are not trivially copyable or serializable");
                                 
             static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), std::conditional_t<false, decltype(params), std::pair<void*, std::size_t>>...>,
                         "SpTaskGraph::task Gpu callable is not invocable with data dependencies.");

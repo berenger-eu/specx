@@ -2,13 +2,14 @@
 # SPETABARU - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-project(UTESTS_GPU_SPETABARU LANGUAGES CXX CUDA)
+#project(UTESTS_GPU_SPETABARU LANGUAGES CXX CUDA)
+project(UTESTS_GPU_SPETABARU LANGUAGES CXX)
 
 # Find all code files (no GLOB_RECURSE)
 file(
 	GLOB	
 	source_tests_files
-	./*.cu
+	./*.cpp
 	)
 
 

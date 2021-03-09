@@ -81,7 +81,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{});
     }
     
-    void preTaskExecution(SpCallableType ct) final {
+    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atgParam, SpCallableType ct) final {
        std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
@@ -114,12 +114,10 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             case SpDataLocation::DEVICE:
                             {
                                 // cudaMemcpy Device -> Host
-                                auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
-                                std::memcpy(hostPtr, devicePtr, size);
+                                //auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
+                                //std::memcpy(hostPtr, devicePtr, size);
                                 
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    std::free(devicePtr);
-                                    h->setTarget(SpDataHandle::Target());
                                     h->setDataLocation(SpDataLocation::HOST);
                                 } else {
                                     h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
@@ -129,9 +127,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             case SpDataLocation::HOST_AND_DEVICE:
                             {
                                 if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
-                                    std::free(devicePtr);
-                                    h->setTarget(SpDataHandle::Target());
                                     h->setDataLocation(SpDataLocation::HOST);
                                 }
                             }
@@ -147,13 +142,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             switch(h->getLocation()) {
                                 case SpDataLocation::HOST:
                                 {
-                                    auto [targetHostPtr, size] = scalarOrContainerData.serializeForManagedTransferToGpu();
+                                    //auto [targetHostPtr, size] = scalarOrContainerData.serializeForManagedTransferToGpu();
                                     
-                                    void* targetDevicePtr = std::malloc(size);
+                                    //void* targetDevicePtr = std::malloc(size);
                                         
-                                    std::memcpy(targetDevicePtr, targetHostPtr, size);
+                                    //std::memcpy(targetDevicePtr, targetHostPtr, size);
                                     
-                                    h->setTarget(SpDataHandle::Target{targetHostPtr, targetDevicePtr, size, 0});
+                                    //h->setTarget(SpDataHandle::Target{targetHostPtr, targetDevicePtr, size, 0});
                                     
                                     if constexpr(accessMode != SpDataAccessMode::READ) {
                                         h->setDataLocation(SpDataLocation::DEVICE);
@@ -178,10 +173,10 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                                 break;
                             }
                             
-                            h->incrDeviceDataUseCount();
+                            //h->incrDeviceDataUseCount();
                             
-                            auto [targetHostPtr, targetDevicePtr, size, useCount] = h->getTarget();
-                            gpuCallableArgs[index] = {targetDevicePtr, size};
+                            //auto [targetHostPtr, targetDevicePtr, size, useCount] = h->getTarget();
+                            //gpuCallableArgs[index] = {targetDevicePtr, size};
                         }
                     }
                     break;
@@ -213,11 +208,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         }
     }
     
-    void postTaskExecution(SpCallableType ct) final {
+    void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atgParam, SpCallableType ct) final {
         // cudaStreamSynchronize(stream);
         
         for(long int i = 0; i < NbParams; i++) {
-            auto h = dataHandles[i];
+            //auto h = dataHandles[i];
                 
             switch(ct) {
                 case SpCallableType::CPU:
@@ -227,11 +222,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 break;
                 case SpCallableType::GPU:
                 {
-                    h->decrDeviceDataUseCount();
+                    //h->decrDeviceDataUseCount();
                         
-                    if(h->getDeviceDataUseCount() == 0) {
+                    //if(h->getDeviceDataUseCount() == 0) {
                         // add h to unused handles
-                    }
+                    //}
                 }
                 break;
                 

@@ -46,7 +46,7 @@ private:
 	SPHOST SPDEVICE
 	auto getNbEltsInBlock() const {
 		static_assert(index < NbBlocks);
-		return reinterpret_cast<std::size_t*>(static_cast<char*>(buffer) + this->getTotalAllocatedSize() - NbBlocks * 2 * sizeof(std::size_t));
+		return *reinterpret_cast<std::size_t*>(static_cast<char*>(buffer) + this->getTotalAllocatedSize() - NbBlocks * 2 * sizeof(std::size_t));
 	}
 
 public:
@@ -120,6 +120,10 @@ public:
 		totalAllocatedSize = other.totalAllocatedSize;
 		other.buffer = nullptr;
 		other.totalAllocatedSize = 0;
+	}
+	
+	~SpBlockTuple() {
+		deallocateBuffer();
 	}
 	
 	#else

@@ -14,6 +14,7 @@
 #include "Utils/SpUtils.hpp"
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"
+#include "Data/SpDeviceData.hpp"
 
 enum class SpDataLocation {
     HOST,
@@ -24,23 +25,12 @@ enum class SpDataLocation {
 //! This is a register data to apply the
 //! dependences on it.
 class SpDataHandle {
-public:
-    struct Target {
-        void* hostPtr;
-        void* devicePtr;
-        std::size_t size;
-        long int useCount;
-        
-        Target() : hostPtr(nullptr), devicePtr(nullptr), size(0), useCount(0) {}
-        
-        Target(void* inHostPtr, void* inDevicePtr, std::size_t inSize, long int inUseCount) :
-        hostPtr(inHostPtr), devicePtr(inDevicePtr), size(inSize), useCount(inUseCount) {}
-    };
 private:
     //! Generic pointer to the data
     void* const ptrToData;
     
-    struct Target target;
+    SpDeviceData deviceData;
+    SpDeviceDataOp deviceDataOp;
     
     SpDataLocation dataLoc;
     
@@ -59,7 +49,15 @@ private:
 public:
     template <class Datatype>
     explicit SpDataHandle(Datatype* inPtrToData)
-        : ptrToData(inPtrToData), target(), dataLoc(SpDataLocation::HOST),
+        : ptrToData(inPtrToData),
+          deviceData{nullptr, sizeof(Datatype)},
+          deviceDataOp{
+					  []([[maybe_unused]] void* hostPtr) -> void* { return nullptr; }, //SpDeviceDataAlloc(static_cast<Datatype*>(hostPtr));},
+					  []([[maybe_unused]] void* devicePtr, [[maybe_unused]] void* hostPtr) -> void { }, //SpDeviceDataCopyFromHostToDevice(devicePtr, static_cast<Datatype*>(hostPtr));},
+					  []([[maybe_unused]] void* hostPtr, [[maybe_unused]] void* devicePtr) -> void { }, //SpDeviceDataCopyFromDeviceToHost(static_cast<Datatype*>(hostPtr), devicePtr);},
+					  []([[maybe_unused]] void* devicePtr) -> void{ } //SpDeviceDataFree<Datatype>(devicePtr); }
+					  },
+          dataLoc(SpDataLocation::HOST),
           datatypeName(typeid(Datatype).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
@@ -76,26 +74,6 @@ public:
     
     void setDataLocation(const SpDataLocation dl) {
         dataLoc = dl;
-    }
-    
-    void setTarget(struct Target inTarget) {
-        target = inTarget;
-    }
-    
-    auto getTarget() const {
-        return target;
-    }
-    
-    void incrDeviceDataUseCount() {
-        ++target.useCount;
-    }
-    
-    void decrDeviceDataUseCount() {
-        --target.useCount;
-    }
-    
-    auto getDeviceDataUseCount() {
-        return target.useCount;
     }
     
     void* getRawPtr() {
