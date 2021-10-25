@@ -54,6 +54,10 @@ public:
         return createTeamOfWorkersOfType(SpUtils::DefaultNumThreads(), SpWorkerType::CPU_WORKER);
     }
     
+    int getGpuId() {
+		return boundGpuId;
+	}
+    
     static void setWorkerForThread(SpWorker *w);
     static SpWorker* getWorkerForThread();
 
@@ -65,6 +69,7 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
+    int boundGpuId;
     
 private:
     void setStopFlag(const bool inStopFlag) {
@@ -132,7 +137,7 @@ public:
 
     explicit SpWorker(const SpWorkerType inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
-    stopFlag(false), ce(nullptr), threadId(0), t() {
+    stopFlag(false), ce(nullptr), threadId(0), t(), boundGpuId(-1) {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
 

@@ -29,7 +29,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     using ParentReturn = SpAbstractTaskWithReturn<RetType>;
 
     //! Number of parameters in the task function prototype
-    static constexpr const long int NbParams = std::tuple_size_v<DataDependencyTupleTy>;
+    static constexpr long int NbParams = std::tuple_size_v<DataDependencyTupleTy>;
 
     //! Internal value for undefined dependences
     static constexpr long int UndefinedKey(){
@@ -81,14 +81,14 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{});
     }
     
-    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atgParam, SpCallableType ct) final {
+    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, SpCallableType ct) final {
        std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
         [&, this](auto index, auto&& scalarOrContainerData) -> void {
             using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
-            constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+            constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
             
             long int indexHh = 0;
             
@@ -101,6 +101,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     h = dataHandlesExtra[extraHandlesOffset];
                     ++extraHandlesOffset;
                 }
+                
+                h->lock();
+                
+                auto& deviceData = h->getDeviceData(0 /* worker->getGpuId() */);
+                auto& deviceDataOp = h->getDeviceDataOp();
             
                 switch(ct) {
                     case SpCallableType::CPU:
@@ -112,23 +117,25 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                             }
                             break;
                             case SpDataLocation::DEVICE:
-                            {
-                                // cudaMemcpy Device -> Host
-                                //auto [hostPtr, devicePtr, size, useCount] = h->getTarget();
-                                //std::memcpy(hostPtr, devicePtr, size);
-                                
-                                if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    h->setDataLocation(SpDataLocation::HOST);
-                                } else {
-                                    h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
-                                }
+							{
+								
+								deviceDataOp.copyFromHostToDevice(deviceData.ptr, static_cast<typename ScalarOrContainerType::RawHandleType*>(h->getRawPtr()));
+
+								SpHardware::SpGpuUnusedDataStores[0].remove(deviceData.it);
+
+								if constexpr(accessMode != SpDataAccessMode::READ) {
+									h->setDataLocation(SpDataLocation::HOST);
+								} else {
+									h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
+								}
                             }
                             break;
                             case SpDataLocation::HOST_AND_DEVICE:
                             {
-                                if constexpr(accessMode != SpDataAccessMode::READ) {
-                                    h->setDataLocation(SpDataLocation::HOST);
-                                }
+								// possibly wait for Device > to Host Memcpy
+								if constexpr(accessMode != SpDataAccessMode::READ) {
+									h->setDataLocation(SpDataLocation::HOST);
+								}
                             }
                             break;
                             default:
@@ -184,6 +191,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     default:
                     break;
                 }
+                
+                h->unlock();
             }
         }, this->getDataDependencyTupleRef());
     }
@@ -208,7 +217,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         }
     }
     
-    void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atgParam, SpCallableType ct) final {
+    void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, SpCallableType ct) final {
         // cudaStreamSynchronize(stream);
         
         for(long int i = 0; i < NbParams; i++) {

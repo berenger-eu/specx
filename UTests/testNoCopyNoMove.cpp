@@ -20,11 +20,11 @@ class TestCopyMove : public UTester< TestCopyMove > {
         public:
             NotMovableNotCopyableClass() = default;
             NotMovableNotCopyableClass(const NotMovableNotCopyableClass&) = delete;
-            NotMovableNotCopyableClass(const NotMovableNotCopyableClass&&) = delete;
+            NotMovableNotCopyableClass(NotMovableNotCopyableClass&&) = delete;
             NotMovableNotCopyableClass& operator=(const NotMovableNotCopyableClass&) = delete;
-            NotMovableNotCopyableClass& operator=(const NotMovableNotCopyableClass&&) = delete;
+            NotMovableNotCopyableClass& operator=(NotMovableNotCopyableClass&&) = delete;
 
-            NotMovableNotCopyableClass* clone() const{
+            NotMovableNotCopyableClass* clone() const {
                 return nullptr;
             }
         };

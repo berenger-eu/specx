@@ -18,11 +18,8 @@ protected:
     //! Internal scheduler of tasks
     SpTaskManager scheduler;
     
-    std::mutex tgDataHandleMutex;
-    
     std::queue<SpDataHandle*> unusedDataHandles;
     std::mutex unusedDataHandlesMutex;
-    std::condition_variable unusedDataHandlesCondVar; 
 
 protected:
     

@@ -189,9 +189,9 @@ protected:
         auto&& c2 = wrapIfNotAlreadyWrapped(std::forward<T3>(t3));    
 
         if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>) {
-            dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
+            return dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
         } else {
-            dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
+            return dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
         }
     }
     
@@ -419,7 +419,7 @@ private:
 
                 static_assert(!isSpeculative || (std::is_default_constructible_v<TargetParamType> && std::is_copy_assignable_v<TargetParamType>),
                               "They should all be default constructible here");
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
                 auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);
@@ -603,11 +603,11 @@ private:
         
         small_vector<const void *> originalAddresses;
         
-        constexpr const auto potentialWriteFlags = SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::POTENTIAL_WRITE);
+        constexpr auto potentialWriteFlags = SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::POTENTIAL_WRITE);
         
-        constexpr const auto writeFlags =  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::WRITE)
-                                                 |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::COMMUTATIVE_WRITE)
-                                                 |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::PARALLEL_WRITE);
+        constexpr auto writeFlags =  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::WRITE)
+                                     |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::COMMUTATIVE_WRITE)
+                                     |  SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(SpDataAccessMode::PARALLEL_WRITE);
         
         auto originalAddressesOfPotentiallyWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<potentialWriteFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
         auto originalAddressesOfWrittenHandles = getOriginalAddressesOfHandlesWithAccessModes<writeFlags>(std::forward<DataDependencyTupleTy>(dataDepTuple));
@@ -957,7 +957,7 @@ private:
                 static_assert(std::is_default_constructible<TargetParamType>::value && std::is_copy_assignable<TargetParamType>::value,
                               "They should all be default constructible here");
                               
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
                 auto hh = this->getDataHandle(scalarOrContainerData);
                 
@@ -1099,7 +1099,7 @@ private:
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr (accessMode == targetMode){
                     static_assert(std::is_default_constructible<TargetParamType>::value
@@ -1262,7 +1262,7 @@ private:
             [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr((flags & (SpDataAccessModeField(1) << static_cast<SpDataAccessModeField>(accessMode))) != 0) {
                     [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
@@ -1329,7 +1329,7 @@ private:
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr (std::is_destructible<TargetParamType>::value && accessMode != SpDataAccessMode::READ){
                     [[maybe_unused]] auto hh = this->getDataHandle(scalarOrContainerData);
@@ -1404,7 +1404,7 @@ private:
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
                 using TargetParamType = typename ScalarOrContainerType::RawHandleType;
 
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
                 
                 if constexpr (std::is_destructible<TargetParamType>::value && accessMode != SpDataAccessMode::READ){
 
@@ -1623,7 +1623,7 @@ private:
         SpUtils::foreach_in_tuple(
             [&, this, aTask](auto index, auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
-                constexpr const SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
 
                 auto hh = this->getDataHandle(scalarOrContainerData);
                 assert(ScalarOrContainerType::IsScalar == false || std::size(hh) == 1);

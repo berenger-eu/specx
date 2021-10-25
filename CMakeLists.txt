@@ -168,9 +168,9 @@ if(NOT SPETABARU_JUST_LIB)
     add_subdirectory(UTests)
     add_subdirectory(UTests/ShouldNotCompile)
     
-    #if(SPETABARU_COMPILE_WITH_CUDA)
+    if(SPETABARU_COMPILE_WITH_CUDA)
 		add_subdirectory(UTests/Gpu)
-	#endif()
+	endif()
 	
     #===========================================================================
     # Build examples

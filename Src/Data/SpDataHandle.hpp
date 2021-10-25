@@ -15,6 +15,7 @@
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"
 #include "Data/SpDeviceData.hpp"
+#include "Utils/SpHardware.hpp"
 
 enum class SpDataLocation {
     HOST,
@@ -27,12 +28,13 @@ enum class SpDataLocation {
 class SpDataHandle {
 private:
     //! Generic pointer to the data
-    void* const ptrToData;
-    
-    SpDeviceData deviceData;
-    SpDeviceDataOp deviceDataOp;
+    void* ptrToData;
     
     SpDataLocation dataLoc;
+    SpDeviceData deviceData[SpHardware::nbGpus];
+    SpDeviceDataOp deviceDataOp;
+    
+    std::mutex handleLock;
     
     //! Original data type name
     const std::string datatypeName;
@@ -47,18 +49,18 @@ private:
     long int currentDependenceCursor;
 
 public:
-    template <class Datatype>
-    explicit SpDataHandle(Datatype* inPtrToData)
+    template <class DataType>
+    explicit SpDataHandle(DataType* inPtrToData)
         : ptrToData(inPtrToData),
-          deviceData{nullptr, sizeof(Datatype)},
+		  dataLoc(SpDataLocation::HOST),
+          deviceData(),
           deviceDataOp{
-					  []([[maybe_unused]] void* hostPtr) -> void* { return nullptr; }, //SpDeviceDataAlloc(static_cast<Datatype*>(hostPtr));},
-					  []([[maybe_unused]] void* devicePtr, [[maybe_unused]] void* hostPtr) -> void { }, //SpDeviceDataCopyFromHostToDevice(devicePtr, static_cast<Datatype*>(hostPtr));},
-					  []([[maybe_unused]] void* hostPtr, [[maybe_unused]] void* devicePtr) -> void { }, //SpDeviceDataCopyFromDeviceToHost(static_cast<Datatype*>(hostPtr), devicePtr);},
-					  []([[maybe_unused]] void* devicePtr) -> void{ } //SpDeviceDataFree<Datatype>(devicePtr); }
+						[](void* hostPtr) -> void* { return SpDeviceDataAllocInternal(static_cast<DataType*>(hostPtr)); },
+						[](void* devicePtr, void* hostPtr) -> void { SpDeviceDataCopyFromHostToDeviceInternal(devicePtr, static_cast<DataType*>(hostPtr));},
+						[](void* hostPtr, void* devicePtr) -> void { SpDeviceDataCopyFromDeviceToHostInternal(static_cast<DataType*>(hostPtr), devicePtr);},
+						[](void* devicePtr) -> void{ SpDeviceDataFreeInternal<DataType>(devicePtr); }
 					  },
-          dataLoc(SpDataLocation::HOST),
-          datatypeName(typeid(Datatype).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
+          datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
     
@@ -75,6 +77,22 @@ public:
     void setDataLocation(const SpDataLocation dl) {
         dataLoc = dl;
     }
+    
+    SpDeviceData& getDeviceData(const std::size_t gpuId) {
+		return deviceData[gpuId];
+	}
+	
+	SpDeviceDataOp& getDeviceDataOp() {
+		return deviceDataOp;
+	}
+	
+	void lock() {
+		handleLock.lock();
+	}
+    
+    void unlock() {
+		handleLock.unlock();
+	}
     
     void* getRawPtr() {
         return ptrToData;

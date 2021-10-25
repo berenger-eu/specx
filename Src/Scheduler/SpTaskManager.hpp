@@ -166,7 +166,7 @@ public:
         insertIfReady<false>(newTask);
     }
 
-    int getNbReadyTasks() const{
+    int getNbReadyTasks() const {
         return nbReadyTasks;
     }
     
@@ -197,20 +197,16 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 	nbRunningTasks += 1;
 	t->takeControl();
 	
-	if constexpr(SpConfig::CompileWithCuda) {
-		{
-			std::unique_lock<std::mutex> lock(atg.tgDataHandleMutex);
-			
-			switch(w.getType()) {
-				case SpWorker::SpWorkerType::CPU_WORKER:
-					t->preTaskExecution(atg, SpCallableType::CPU);
-					break;
-				case SpWorker::SpWorkerType::GPU_WORKER:
-					t->preTaskExecution(atg, SpCallableType::GPU);
-					break;
-				default:
-					assert(false && "Worker is of unknown type.");
-			}
+	if constexpr(SpConfig::CompileWithCuda) {	
+		switch(w.getType()) {
+			case SpWorker::SpWorkerType::CPU_WORKER:
+				t->preTaskExecution(atg, SpCallableType::CPU);
+				break;
+			case SpWorker::SpWorkerType::GPU_WORKER:
+				t->preTaskExecution(atg, SpCallableType::GPU);
+				break;
+			default:
+				assert(false && "Worker is of unknown type.");
 		}
 	}
 
@@ -223,20 +219,16 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
 	t->setState(SpTaskState::POST_RUN);
 	
-	if constexpr(SpConfig::CompileWithCuda) {
-		{
-			std::unique_lock<std::mutex> lock(atg.tgDataHandleMutex);
-			
-			switch(w.getType()) {
-				case SpWorker::SpWorkerType::CPU_WORKER:
-					t->postTaskExecution(atg, SpCallableType::CPU);
-					break;
-				case SpWorker::SpWorkerType::GPU_WORKER:
-					t->postTaskExecution(atg, SpCallableType::GPU);
-					break;
-				default:
-					assert(false && "Worker is of unknown type.");
-			}
+	if constexpr(SpConfig::CompileWithCuda) {	
+		switch(w.getType()) {
+			case SpWorker::SpWorkerType::CPU_WORKER:
+				t->postTaskExecution(atg, SpCallableType::CPU);
+				break;
+			case SpWorker::SpWorkerType::GPU_WORKER:
+				t->postTaskExecution(atg, SpCallableType::GPU);
+				break;
+			default:
+				assert(false && "Worker is of unknown type.");
 		}
 	}
 	

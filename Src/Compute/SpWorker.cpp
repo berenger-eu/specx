@@ -1,6 +1,7 @@
 #include "Compute/SpWorker.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
+#include "Utils/SpHardware.hpp"
 
 std::atomic<long int> SpWorker::totalNbThreadsCreated = 1;
 
@@ -62,11 +63,16 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                 if(task) {
                     SpAbstractTaskGraph* atg = task->getAbstractTaskGraph();
                     
-                    atg->preTaskExecution(task, *this);
-                    
-                    execute(task);
-                    
-                    atg->postTaskExecution(task, *this);
+                    if(this->getType() == SpWorker::SpWorkerType::GPU_WORKER) {
+						std::unique_lock<std::mutex>(SpHardware::gpuMutexes[0 /* this->getGpuId() */]);
+						atg->preTaskExecution(task, *this);
+						execute(task);
+						atg->postTaskExecution(task, *this);
+					} else {
+						atg->preTaskExecution(task, *this);
+						execute(task);
+						atg->postTaskExecution(task, *this);
+					}
                     
                     continue;
                 }

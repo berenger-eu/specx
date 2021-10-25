@@ -13,10 +13,10 @@ class SpBlockTuple {
 private:
 	static_assert(sizeof...(Blocks) >= 1);
 	
-	static constexpr const auto alignment = std::max({alignof(std::size_t), Blocks::getAlignment()...});
+	static constexpr auto alignment = std::max({alignof(std::size_t), Blocks::getAlignment()...});
 	
 public:
-	static constexpr const auto NbBlocks = sizeof...(Blocks);
+	static constexpr auto NbBlocks = sizeof...(Blocks);
 
 private:
 	
