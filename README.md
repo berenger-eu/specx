@@ -1,5 +1,5 @@
 [![pipeline status](https://gitlab.inria.fr/bramas/spetabaru/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
-[![coverage report](https://gitlab.inria.fr/bramas/spetabaru/badges/master/coverage.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
+[![coverage report](https://gitlab.inria.fr/bramas/spetabaru/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/spetabaru/)
 
 
 # Introduction
