@@ -8,7 +8,7 @@ ADD_DEFINITIONS(${SPETABARU_CXX_FLAGS})
 
 
 if(SPETABARU_BUILD_EXAMPLES)
-    OPTION( SPETABARU_BUILD_CHOLESKY_EXAMPLES  "Set to ON to build cholesky example" OFF )
+    OPTION( SPETABARU_BUILD_CHOLESKY_EXAMPLES  "Set to ON to build cholesky example" ON )
 
     if(SPETABARU_BUILD_CHOLESKY_EXAMPLES)
         if($ENV{VERBOSE})
@@ -26,12 +26,10 @@ if(SPETABARU_BUILD_EXAMPLES)
         # Adding the project sources dir as an include dir
         INCLUDE_DIRECTORIES(
              ${SPETABARU_BINARY_DIR}/Src    
-             ${SPETABARU_SOURCE_DIR}/Src    
-             /home/berenger/Téléchargements/plasma-installer_2.8.0/install/include
+             ${SPETABARU_SOURCE_DIR}/Src
         )
 
         LINK_DIRECTORIES(
-             /home/berenger/Téléchargements/plasma-installer_2.8.0/install/lib
         )
 
         # Add execs - 1 cpp = 1 exec
@@ -50,11 +48,15 @@ if(SPETABARU_BUILD_EXAMPLES)
 			        ${exec}
 		        )
 
+            set_target_properties(
+                ${execname}
+                PROPERTIES COMPILE_FLAGS "-llapack -lblas"
+            )
             target_link_libraries(
                 ${execname}
                 spetabaru
 	            ${SPETABARU_LIBRARIES}
-	            plasma cblas  coreblas  coreblasqw  lapacke lapack refblas  tmg gfortran
+                "-llapack -lblas"
                 ) 
         endforeach(exec)
     endif()
