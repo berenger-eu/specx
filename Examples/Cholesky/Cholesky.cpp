@@ -131,7 +131,7 @@ void printBlocks(const Block blocks[], const int inMatrixDim, const int inBlockD
 //////////////////////////////////////////////////////////////////////////////
 
 void choleskyFactorizationMatrix(double matrix[], const int inMatrixDim){
-    Cholesky::potrf( Cholesky::FillMode::UPR, inMatrixDim, matrix, inMatrixDim );
+    Cholesky::potrf( Cholesky::FillMode::LWPR, inMatrixDim, matrix, inMatrixDim );
 }
 
 void choleskyFactorization(Block blocks[], const int inMatrixDim, const int inBlockDim){
@@ -142,50 +142,55 @@ void choleskyFactorization(Block blocks[], const int inMatrixDim, const int inBl
 
     // Compute the blocks
     for(int k = 0 ; k < nbBlocks ; ++k){
-        // POTRF( A(k,k) )
+        // TODO put for syrk and gemm ? const double rbeta = (j==0) ? beta : 1.0;
+        // POTRF( RW A(k,k) )
         runtime.task(SpPriority(0), SpWrite(blocks[k*nbBlocks+k]),
                 [inBlockDim](Block& block){
-            Cholesky::potrf( Cholesky::FillMode::UPR, inBlockDim, block.values.get(), inBlockDim );
+            Cholesky::potrf( Cholesky::FillMode::LWPR, inBlockDim, block.values.get(), inBlockDim );
         }).setTaskName(std::string("potrf -- (W-")+std::to_string(k)+","+std::to_string(k)+")");
 
         for(int m = k + 1 ; m < nbBlocks ; ++m){
-            // TRSM( A(k,k) A(m, k) )
-            runtime.task(SpPriority(1), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[m*nbBlocks+k]),
+            // TRSM( R A(k,k), RW A(m, k) )
+            runtime.task(SpPriority(1), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[k*nbBlocks+m]),
                     [inBlockDim](const Block& blockA, Block& blockB){
-                Cholesky::trsm( Cholesky::Side::RIGHT, Cholesky::FillMode::UPR,
-                                Cholesky::Transa::NORMAL, Cholesky::DiagUnit::TRIANGULAR,
+                Cholesky::trsm( Cholesky::Side::RIGHT, Cholesky::FillMode::LWPR,
+                                Cholesky::Transa::TRANSPOSE, Cholesky::DiagUnit::NON_UNIT_TRIANGULAR,
                                 inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
                                 blockB.values.get(), inBlockDim );
             }).setTaskName(std::string("TRSM -- (R-")+std::to_string(k)+","+std::to_string(k)+") (W-"+std::to_string(m)+","+std::to_string(k)+")");
         }
 
-        for(int m = k + 1 ; m < nbBlocks ; ++m){
-            // SYRK( A(m,k) A(m, m) )
-            runtime.task(SpPriority(1), SpRead(blocks[m*nbBlocks+k]), SpWrite(blocks[m*nbBlocks+m]),
+        for(int n = k+1 ; n < nbBlocks ; ++n){
+            // SYRK( R A(n,k), RW A(n, n) )
+            runtime.task(SpPriority(1), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+n]),
                     [inBlockDim](const Block& blockA, Block& blockC){
-                Cholesky::syrk( Cholesky::FillMode::UPR,
+                Cholesky::syrk( Cholesky::FillMode::LWPR,
                                 Cholesky::Transa::NORMAL,
-                                inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
+                                inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
                                 1.0, blockC.values.get(), inBlockDim );
-            }).setTaskName(std::string("SYRK -- (R-")+std::to_string(m)+","+std::to_string(k)+") (W-"+std::to_string(m)+","+std::to_string(m)+")");
+            }).setTaskName(std::string("SYRK -- (R-")+std::to_string(n)+","+std::to_string(k)+") (W-"+std::to_string(n)+","+std::to_string(n)+")");
 
-            for(int n = k + 1 ; n < nbBlocks ; ++n){
-                // GEMM( A(m, k) A(n, k) A(m, n))
-                runtime.task(SpPriority(3), SpRead(blocks[m*nbBlocks+k]), SpRead(blocks[n*nbBlocks+k]), SpWrite(blocks[m*nbBlocks+n]),
+            for(int m = k+1 ; m < nbBlocks ; ++m){
+                // GEMM( R A(m, k), R A(n, k), RW A(m, n))
+                runtime.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
                         [inBlockDim](const Block& blockA, const Block& blockB, Block& blockC){
-                    Cholesky::gemm( Cholesky::Transa::NORMAL, Cholesky::Transa::NORMAL,
-                                    inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
+                    Cholesky::gemm( Cholesky::Transa::NORMAL, Cholesky::Transa::TRANSPOSE,
+                                    inBlockDim, inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
                                     blockB.values.get(), inBlockDim,
                                     1.0, blockC.values.get(), inBlockDim );
                 }).setTaskName(std::string("GEMM -- (R-")+std::to_string(m)+","+std::to_string(k)+")(R-"+std::to_string(n)+","+std::to_string(k)+")(W-"+std::to_string(m)+","+std::to_string(n)+")");
             }
         }
     }
+
+    runtime.waitAllTasks();
+    runtime.stopAllThreads();
+    runtime.generateDot("/tmp/graph.dot");
 }
 
 int main(){
-    const int MatrixSize = 8;
-    const int BlockSize = 4;
+    const int MatrixSize = 4;
+    const int BlockSize = 2;
     const bool printValues = (MatrixSize <= 12);
     /////////////////////////////////////////////////////////
     auto matrix = generatePositiveDefinitMatrix(MatrixSize);

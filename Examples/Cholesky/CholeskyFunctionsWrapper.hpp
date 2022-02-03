@@ -70,15 +70,15 @@ inline char SideToChar(Side side){
 }
 
 enum class DiagUnit{
-    TRIANGULAR,
-    NON_TRIANGULAR
+    UNIT_TRIANGULAR,
+    NON_UNIT_TRIANGULAR
 };
 
 inline char DiagUnitToChar(DiagUnit diag){
     switch(diag) {
-    case DiagUnit::TRIANGULAR:
+    case DiagUnit::UNIT_TRIANGULAR:
         return 'U';
-    case DiagUnit::NON_TRIANGULAR:
+    case DiagUnit::NON_UNIT_TRIANGULAR:
         return 'N';
     }
     return '?';
