@@ -6,66 +6,61 @@
 #include "Utils/SpGpuUnusedDataStore.hpp"
 
 struct SpDeviceData {
-	void* ptr;
-	long int useCount;
-	long int cudaEvent;
-	bool isInUnusedList;
-	SpGpuUnusedDataStore::iterator it;
-	
-	SpDeviceData() : ptr(nullptr), useCount(0), cudaEvent(0), isInUnusedList(false), it() {}
+    void* ptr = nullptr;
+    long int useCount = 0;
 };
 
-struct SpDeviceDataOp {
-	void* (* allocate)(void* hostPtr);
-	void  (* copyFromHostToDevice)(void* devicePtr, void* hostPtr);
-	void  (* copyFromDeviceToHost)(void* hostPtr, void* devicePtr);
-	void  (* free)(void* devicePtr);
+class SpAbstractDeviceDataCopier {
+private:
+    template <typename T>
+    using SpDeviceDataTrivialCopyTest = std::conjunction<std::is_trivially_copy_constructible<T>, std::is_trivially_copy_assignable<T>>;
+
+public:
+    virtual ~SpAbstractDeviceDataCopier(){};
+    virtual void  allocate(void* hostPtr) = 0;
+    virtual void  copyFromHostToDevice(void* devicePtr, void* hostPtr) = 0;
+    virtual void  copyFromDeviceToHost(void* hostPtr, void* devicePtr) = 0;
+    virtual void  free(void* devicePtr) = 0;
 };
 
-inline void* SpDeviceDataAlloc([[maybe_unused]] void* hostPtr) { return nullptr; }
-inline void SpDeviceDataCopyFromHostToDevice([[maybe_unused]] void* devicePtr,[[maybe_unused]] void* hostPtr) {}
-inline void SpDeviceDataCopyFromDeviceToHost([[maybe_unused]] void* hostPtr, [[maybe_unused]] void* devicePtr) {}
+template <class DataType>
+class SpDeviceDataCopier : public SpAbstractDeviceDataCopier {
+public:
+    SpDeviceData allocate(void* rawHostPtr) override{
+        DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
+        SpDeviceData copy;
+        copy.ptr = SpDeviceDataAllocInternal(static_cast<DataType*>(hostPtr));
+        if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
+            copy.ptr =  SpDeviceAllocator::allocateOnDevice(sizeof(DataType), alignof(DataType));
+        } else {
+            copy.ptr =  SpDeviceDataAlloc(hostPtr);
+        }
+        return copy;
+    }
+    void  copyFromHostToDevice(void* devicePtr, void* rawHostPtr) override{
+        DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return SpDeviceAllocator::copyHostToDevice(devicePtr, hostPtr,  sizeof(DataType));
+        } else {
+            SpDeviceDataCopyFromHostToDevice(devicePtr, hostPtr);
+        }
+    }
+    void  copyFromDeviceToHost(void* rawHostPtr, void* devicePtr) override{
+        DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return SpDeviceAllocator::copyDeviceToHost(hostPtr, devicePtr,  sizeof(DataType));
+        } else {
+            SpDeviceDataCopyFromDeviceToHost(hostPtr, devicePtr);
+        }
+    }
+    void  free(void* devicePtr) override{
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return SpDeviceAllocator::freeFromDevice(devicePtr);
+        } else {
+            SpDeviceDataFree<DataType>(devicePtr);
+        }
+    }
+};
 
-template<typename T>
-void SpDeviceDataFree([[maybe_unused]] void* devicePtr) {}
-
-template <typename T>
-using SpDeviceDataTrivialCopyTest = std::conjunction<std::is_trivially_copy_constructible<T>, std::is_trivially_copy_assignable<T>>;
-
-template <typename T>
-void* SpDeviceDataAllocInternal([[maybe_unused]] T* hostPtr) {
-	if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
-		return SpDeviceAllocator::allocateOnDevice(sizeof(T), alignof(T));
-	} else {
-		return SpDeviceDataAlloc(hostPtr);
-	}
-}
-
-template <typename T>
-void SpDeviceDataCopyFromHostToDeviceInternal(void* devicePtr, T* hostPtr) {
-	if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
-		return SpDeviceAllocator::copyHostToDevice(devicePtr, hostPtr,  sizeof(T));
-	} else {
-		SpDeviceDataCopyFromHostToDevice(devicePtr, hostPtr);
-	}
-}
-
-template <typename T>
-void SpDeviceDataCopyFromDeviceToHostInternal(T* hostPtr, void* devicePtr) {
-	if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
-		return SpDeviceAllocator::copyDeviceToHost(hostPtr, devicePtr,  sizeof(T));
-	} else {
-		SpDeviceDataCopyFromDeviceToHost(hostPtr, devicePtr);
-	}
-}
-
-template <typename T>
-void SpDeviceDataFreeInternal(void* devicePtr) {
-	if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
-		return SpDeviceAllocator::freeFromDevice(devicePtr);
-	} else {
-		SpDeviceDataFree<T>(devicePtr);
-	}
-}
 
 #endif

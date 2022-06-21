@@ -30,9 +30,8 @@ private:
     //! Generic pointer to the data
     void* ptrToData;
     
-    SpDataLocation dataLoc;
-    SpDeviceData deviceData[SpHardware::nbGpus];
-    SpDeviceDataOp deviceDataOp;
+    small_vec<SpDeviceData> copies;
+    std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     
     std::mutex handleLock;
     
@@ -54,12 +53,7 @@ public:
         : ptrToData(inPtrToData),
 		  dataLoc(SpDataLocation::HOST),
           deviceData(),
-          deviceDataOp{
-						[](void* hostPtr) -> void* { return SpDeviceDataAllocInternal(static_cast<DataType*>(hostPtr)); },
-						[](void* devicePtr, void* hostPtr) -> void { SpDeviceDataCopyFromHostToDeviceInternal(devicePtr, static_cast<DataType*>(hostPtr));},
-						[](void* hostPtr, void* devicePtr) -> void { SpDeviceDataCopyFromDeviceToHostInternal(static_cast<DataType*>(hostPtr), devicePtr);},
-						[](void* devicePtr) -> void{ SpDeviceDataFreeInternal<DataType>(devicePtr); }
-					  },
+          deviceDataOp(new SpDeviceDataCopier<DataType>()),
           datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
