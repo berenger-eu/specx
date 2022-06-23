@@ -17,6 +17,8 @@ public:
     virtual void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize) = 0;
 
     virtual void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize) = 0;
+
+    virtual void copyDeviceToDevice(void* inPtrDeviceDest, const void* inPtrDeviceSrc, const std::size_t inByteSize) = 0;
 };
 
 #endif

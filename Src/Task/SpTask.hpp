@@ -16,6 +16,7 @@
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
+#include "Cuda/SpCudaMemManager.hpp"
 
 #ifdef __GNUG__
 #include <cxxabi.h>
@@ -103,93 +104,24 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 }
                 
                 h->lock();
-                
-                auto& deviceData = h->getDeviceData(0 /* worker->getGpuId() */);
-                auto& deviceDataOp = h->getDeviceDataOp();
-            
-                switch(ct) {
-                    case SpCallableType::CPU:
-                    {
-                        switch(h->getLocation()) {
-                            case SpDataLocation::HOST:
-                            {
-                                // do nothing
-                            }
-                            break;
-                            case SpDataLocation::DEVICE:
-							{
-								
-								deviceDataOp.copyFromHostToDevice(deviceData.ptr, static_cast<typename ScalarOrContainerType::RawHandleType*>(h->getRawPtr()));
 
-								SpHardware::SpGpuUnusedDataStores[0].remove(deviceData.it);
-
-								if constexpr(accessMode != SpDataAccessMode::READ) {
-									h->setDataLocation(SpDataLocation::HOST);
-								} else {
-									h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
-								}
-                            }
-                            break;
-                            case SpDataLocation::HOST_AND_DEVICE:
-                            {
-								// possibly wait for Device > to Host Memcpy
-								if constexpr(accessMode != SpDataAccessMode::READ) {
-									h->setDataLocation(SpDataLocation::HOST);
-								}
-                            }
-                            break;
-                            default:
-                            break;
-                        }
+                if(ct == SpCallableType::CPU){
+                    h->syncCpuDataIfNdeeded(SpCudaMemManager::Managers);
+                    if(accessMode != SpDataAccessMode::SpRead){
+                        h->onlyCpuIsValid(SpCudaMemManager::Managers);
                     }
-                    break;
-                    case SpCallableType::GPU:
-                    {
-                        if constexpr(std::tuple_size_v<CallableTupleTy> == 2 || is_instantiation_of_callable_wrapper_with_type_v<std::decay_t<decltype(std::get<0>(callables))>, SpCallableType::GPU>) {
-                            switch(h->getLocation()) {
-                                case SpDataLocation::HOST:
-                                {
-                                    //auto [targetHostPtr, size] = scalarOrContainerData.serializeForManagedTransferToGpu();
-                                    
-                                    //void* targetDevicePtr = std::malloc(size);
-                                        
-                                    //std::memcpy(targetDevicePtr, targetHostPtr, size);
-                                    
-                                    //h->setTarget(SpDataHandle::Target{targetHostPtr, targetDevicePtr, size, 0});
-                                    
-                                    if constexpr(accessMode != SpDataAccessMode::READ) {
-                                        h->setDataLocation(SpDataLocation::DEVICE);
-                                    } else {
-                                        h->setDataLocation(SpDataLocation::HOST_AND_DEVICE);
-                                    }
-                                }
-                                break;
-                                case SpDataLocation::DEVICE:
-                                {
-                                    // do nothing
-                                }
-                                break;
-                                case SpDataLocation::HOST_AND_DEVICE:
-                                {
-                                    if constexpr(accessMode != SpDataAccessMode::READ) {
-                                        h->setDataLocation(SpDataLocation::DEVICE);
-                                    }
-                                }
-                                break;
-                                default:
-                                break;
-                            }
-                            
-                            //h->incrDeviceDataUseCount();
-                            
-                            //auto [targetHostPtr, targetDevicePtr, size, useCount] = h->getTarget();
-                            //gpuCallableArgs[index] = {targetDevicePtr, size};
-                        }
+                }
+                else if(ct == SpCallableType::GPU){
+                    const int gpuId = TODO;
+                    auto dataObj = h->getDeviceData(SpCudaMemManager::Managers, gpuId);
+                    if(accessMode != SpDataAccessMode::SpRead){
+                        h->onlyGpuIsValid(SpCudaMemManager::Managers, gpuId);
                     }
-                    break;
-                    
-                    default:
-                    break;
+                    SpCudaMemManager::Managers[gpuId].incrDeviceDataUseCount(h);
+                    gpuCallableArgs[index] = {dataObj.ptr, dataObj.size};
+                }
+                else{
+                    assert(0);
                 }
                 
                 h->unlock();
@@ -218,31 +150,38 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
     
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, SpCallableType ct) final {
-        // cudaStreamSynchronize(stream);
+        // TODO cudaStreamSynchronize(stream);
         
-        for(long int i = 0; i < NbParams; i++) {
-            //auto h = dataHandles[i];
-                
-            switch(ct) {
-                case SpCallableType::CPU:
-                {
-                    // do nothing
+        SpUtils::foreach_in_tuple(
+        [&, this](auto index, auto&& scalarOrContainerData) -> void {
+            using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
+
+            long int indexHh = 0;
+
+            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                SpDataHandle* h = nullptr;
+
+                if(indexHh == 0) {
+                    h = dataHandles[index];
+                } else {
+                    h = dataHandlesExtra[extraHandlesOffset];
+                    ++extraHandlesOffset;
                 }
-                break;
-                case SpCallableType::GPU:
-                {
-                    //h->decrDeviceDataUseCount();
-                        
-                    //if(h->getDeviceDataUseCount() == 0) {
-                        // add h to unused handles
-                    //}
+
+                h->lock();
+
+                if(ct == SpCallableType::CPU){
                 }
-                break;
-                
-                default:
-                break;
+                else if(ct == SpCallableType::GPU){
+                    SpCudaMemManager::Managers[gpuId].decrDeviceDataUseCount(h);
+                }
+                else{
+                    assert(0);
+                }
+
+                h->unlock();
             }
-        }
+        });
     }
 
 public:

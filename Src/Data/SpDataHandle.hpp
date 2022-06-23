@@ -17,11 +17,6 @@
 #include "Data/SpDeviceData.hpp"
 #include "Utils/SpHardware.hpp"
 
-enum class SpDataLocation {
-    HOST,
-    DEVICE,
-    HOST_AND_DEVICE
-};
 
 //! This is a register data to apply the
 //! dependences on it.
@@ -30,9 +25,14 @@ private:
     //! Generic pointer to the data
     void* ptrToData;
     
-    small_vec<SpDeviceData> copies;
+    //! Copy of the CPU object on GPUs
+    std::array<SpMaxNbGpus,SpDeviceData> copies;
+    //! Copy builder from/to CPU/GPU
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
+    //! Tell if the CPU version is OK
+    bool cpuDataOk;
     
+    //! Lock the data
     std::mutex handleLock;
     
     //! Original data type name
@@ -54,6 +54,7 @@ public:
 		  dataLoc(SpDataLocation::HOST),
           deviceData(),
           deviceDataOp(new SpDeviceDataCopier<DataType>()),
+          cpuDataOk(true),
           datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
@@ -64,21 +65,69 @@ public:
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
     
-    SpDataLocation getLocation() const {
-        return dataLoc;
+    template <class Allocators>
+    void setCpuOnlyValid(Allocators memManagers) const {
+        assert(cpuDataOk = true);
+        for(int idxGpu = 0 ; idxGpu < int(deviceData.size()) ; ++idxGpu){
+            if(copies[idxGpu].ptr){
+                deviceDataOp.freeGroup(memManagers[idxGpu], this);
+                copies[idxGpu] = SpDeviceData();
+            }
+        }
     }
-    
-    void setDataLocation(const SpDataLocation dl) {
-        dataLoc = dl;
+
+    template <class Allocators>
+    void setGpuOnlyValid(Allocator& memManagers, const int gpuId) {
+        assert(deviceData[gpuId].ptr);
+        cpuDataOk = false;
+        for(int idxGpu = 0 ; idxGpu < int(deviceData.size()) ; ++idxGpu){
+            if(idxGpu != gpuId && copies[idxGpu].ptr){
+                deviceDataOp.freeGroup(memManagers[idxGpu], this);
+                copies[idxGpu] = SpDeviceData();
+            }
+        }
     }
-    
-    SpDeviceData& getDeviceData(const std::size_t gpuId) {
-		return deviceData[gpuId];
-	}
-	
-	SpDeviceDataOp& getDeviceDataOp() {
-		return deviceDataOp;
-	}
+
+    template <class Allocators>
+    void syncCpuDataIfNeeded(Allocator& memManagers){
+        if(cpuDataOk == false){
+            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+                return iter.ptr != nullptr;
+            });
+            assert(idxGpuSrcIter != deviceData.end());
+            deviceDataOp.copyDeviceToHost(copies[*idxGpuSrcIter].ptr, ptrToData);
+        }
+    }
+
+    template <class Allocators>
+    SpDeviceData& getDeviceData(Allocator& memManagers, const int gpuId) {
+        assert(gpuId < SpMaxNbGpus);
+        if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
+            copies[gpuId].ptr = nullptr;
+            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+                return iter.ptr != nullptr;
+            });
+            if(!deviceDataOp.hasEnoughSpace(memManagers[gpuId], ptrToData)){
+                auto candidates = deviceDataOp.candidatesToRemove(memManagers[gpuId], ptrToData);
+                for(auto toRemove : candidates){
+                    assert(toRemove != this);
+                    toRemove->lock();
+                    toRemove->syncCpuDataIfNeeded();
+                    toRemove->setCpuOnlyValid();
+                    toRemove->unlock();
+                }
+            }
+            copies[gpuId] = deviceDataOp.allocate(memManagers[gpuId], ptrToData);
+            if(idxGpuSrcIter != copies.end()){
+                deviceDataOp.copyDeviceToDevice(copies[*idxGpuSrcIter].ptr, copies[gpuId].ptr);
+            }
+            else{
+                assert(cpuDataOk);
+                deviceDataOp.copyHostToDevice(ptrToData, copies[gpuId].ptr);
+            }
+        }
+        return copies[gpuId];
+    }
 	
 	void lock() {
 		handleLock.lock();
