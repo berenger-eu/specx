@@ -1,6 +1,10 @@
 #ifndef SPDEVICEDATA_HPP
 #define SPDEVICEDATA_HPP
 
+#ifndef SPETABARU_USE_CUDA
+#error CUDE MUST BE ON
+#endif
+
 #include <type_traits>
 #include "SpAbstractDeviceAllocator.hpp"
 

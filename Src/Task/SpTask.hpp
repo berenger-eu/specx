@@ -82,7 +82,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{});
     }
     
-    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, SpCallableType ct) final {
+    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]] SpCallableType ct) final {
+#ifdef SPETABARU_USE_CUDA
+        SpCudaMemManager::Lock();
        std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
@@ -127,10 +129,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 h->unlock();
             }
         }, this->getDataDependencyTupleRef());
+        SpCudaMemManager::Unlock();
+#endif // SPETABARU_USE_CUDA
     }
 
     //! Called by parent abstract task class
-    void executeCore(SpCallableType ct) final {
+    void executeCore([[maybe_unused]] SpCallableType ct) final {
+#ifdef SPETABARU_USE_CUDA
         if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
             using CtTask = std::decay_t<decltype(std::get<0>(callables))>;
             assert(ct == CtTask::callable_type);
@@ -147,11 +152,17 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 executeCore(this, std::get<1>(callables), gpuCallableArgs);
             }
         }
+#else // SPETABARU_USE_CUDA
+        executeCore(this, std::get<0>(callables), tupleParams);
+#endif
     }
     
-    void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, SpCallableType ct) final {
+    void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
+#ifdef SPETABARU_USE_CUDA
         // TODO cudaStreamSynchronize(stream);
-        
+
+        SpCudaMemManager::Lock();
+
         SpUtils::foreach_in_tuple(
         [&, this](auto index, auto&& scalarOrContainerData) -> void {
             using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
@@ -168,20 +179,21 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     ++extraHandlesOffset;
                 }
 
-                h->lock();
-
                 if(ct == SpCallableType::CPU){
                 }
                 else if(ct == SpCallableType::GPU){
+                    h->lock();
                     SpCudaMemManager::Managers[gpuId].decrDeviceDataUseCount(h);
+                    h->unlock();
                 }
                 else{
                     assert(0);
                 }
-
-                h->unlock();
             }
         });
+
+        SpCudaMemManager::Unlock();
+#endif // SPETABARU_USE_CUDA
     }
 
 public:

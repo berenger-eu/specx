@@ -12,11 +12,13 @@
 
 #include "SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"
-#include "Data/SpDeviceData.hpp"
 #include "Utils/SpHardware.hpp"
 
+#ifdef SPETABARU_USE_CUDA
+#include "Data/SpDeviceData.hpp"
+#include "Data/SpDataDuplicator.hpp"
+#endif // SPETABARU_USE_CUDA
 
 //! This is a register data to apply the
 //! dependences on it.
@@ -24,14 +26,14 @@ class SpDataHandle {
 private:
     //! Generic pointer to the data
     void* ptrToData;
-    
+#ifdef SPETABARU_USE_CUDA
     //! Copy of the CPU object on GPUs
     std::array<SpMaxNbGpus,SpDeviceData> copies;
     //! Copy builder from/to CPU/GPU
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     //! Tell if the CPU version is OK
     bool cpuDataOk;
-    
+#endif // SPETABARU_USE_CUDA
     //! Lock the data
     std::mutex handleLock;
     
@@ -64,7 +66,8 @@ public:
     SpDataHandle(SpDataHandle&&) = delete;
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
-    
+
+#ifdef SPETABARU_USE_CUDA
     template <class Allocators>
     void setCpuOnlyValid(Allocators memManagers) const {
         assert(cpuDataOk = true);
@@ -100,6 +103,14 @@ public:
     }
 
     template <class Allocators>
+    void removeFromGpu(Allocator& memManagers, const int gpuId){
+        assert(copies[gpuId].ptr);
+        syncCpuDataIfNeeded();
+        deviceDataOp.freeGroup(memManagers[gpuId], this);
+        copies[gpuId] = SpDeviceData();
+    }
+
+    template <class Allocators>
     SpDeviceData& getDeviceData(Allocator& memManagers, const int gpuId) {
         assert(gpuId < SpMaxNbGpus);
         if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
@@ -112,8 +123,7 @@ public:
                 for(auto toRemove : candidates){
                     assert(toRemove != this);
                     toRemove->lock();
-                    toRemove->syncCpuDataIfNeeded();
-                    toRemove->setCpuOnlyValid();
+                    toRemove->removeFromGpu(memManagers, gpuId);
                     toRemove->unlock();
                 }
             }
@@ -128,7 +138,8 @@ public:
         }
         return copies[gpuId];
     }
-	
+#endif // SPETABARU_USE_CUDA
+
 	void lock() {
 		handleLock.lock();
 	}

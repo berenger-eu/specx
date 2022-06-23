@@ -1,6 +1,10 @@
 #ifndef SPABSTRACTDEVICEALLOCATOR_HPP
 #define SPABSTRACTDEVICEALLOCATOR_HPP
 
+#ifndef SPETABARU_USE_CUDA
+#error CUDE MUST BE ON
+#endif
+
 class SpDataHandle;
 
 class SpAbstractDeviceAllocator {
