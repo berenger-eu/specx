@@ -86,7 +86,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     
     void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]] SpCallableType ct) final {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-        SpCudaMemManager::Lock();
+        SpCudaManager::Lock();
        std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
@@ -110,18 +110,18 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 h->lock();
 
                 if(ct == SpCallableType::CPU){
-                    h->syncCpuDataIfNdeeded(SpCudaMemManager::Managers);
-                    if(accessMode != SpDataAccessMode::SpRead){
-                        h->onlyCpuIsValid(SpCudaMemManager::Managers);
+                    h->syncCpuDataIfNeeded(SpCudaManager::Managers);
+                    if(accessMode != SpDataAccessMode::READ){
+                        h->setCpuOnlyValid(SpCudaManager::Managers);
                     }
                 }
                 else if(ct == SpCallableType::GPU){
-                    const int gpuId = TODO;
-                    auto dataObj = h->getDeviceData(SpCudaMemManager::Managers, gpuId);
-                    if(accessMode != SpDataAccessMode::SpRead){
-                        h->onlyGpuIsValid(SpCudaMemManager::Managers, gpuId);
+                    const int gpuId = 0;// TODO
+                    auto dataObj = h->getDeviceData(SpCudaManager::Managers, gpuId);
+                    if(accessMode != SpDataAccessMode::READ){
+                        h->setGpuOnlyValid(SpCudaManager::Managers, gpuId);
                     }
-                    SpCudaMemManager::Managers[gpuId].incrDeviceDataUseCount(h);
+                    SpCudaManager::Managers[gpuId].incrDeviceDataUseCount(h);
                     gpuCallableArgs[index] = {dataObj.ptr, dataObj.size};
                 }
                 else{
@@ -131,7 +131,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 h->unlock();
             }
         }, this->getDataDependencyTupleRef());
-        SpCudaMemManager::Unlock();
+        SpCudaManager::Unlock();
 #endif // SPETABARU_COMPILE_WITH_CUDA
     }
 
@@ -163,7 +163,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
         // TODO cudaStreamSynchronize(stream);
 
-        SpCudaMemManager::Lock();
+        SpCudaManager::Lock();
+        std::size_t extraHandlesOffset = 0;
 
         SpUtils::foreach_in_tuple(
         [&, this](auto index, auto&& scalarOrContainerData) -> void {
@@ -184,17 +185,18 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 if(ct == SpCallableType::CPU){
                 }
                 else if(ct == SpCallableType::GPU){
+                    const int gpuId = 0;// TODO
                     h->lock();
-                    SpCudaMemManager::Managers[gpuId].decrDeviceDataUseCount(h);
+                    SpCudaManager::Managers[gpuId].decrDeviceDataUseCount(h);
                     h->unlock();
                 }
                 else{
                     assert(0);
                 }
             }
-        });
+        }, this->getDataDependencyTupleRef());
 
-        SpCudaMemManager::Unlock();
+        SpCudaManager::Unlock();
 #endif // SPETABARU_COMPILE_WITH_CUDA
     }
 

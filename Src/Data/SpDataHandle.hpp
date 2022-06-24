@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 
+#include "Config/SpConfig.hpp"
 #include "SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
@@ -27,7 +28,7 @@ private:
     void* ptrToData;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
     //! Copy of the CPU object on GPUs
-    std::array<SpMaxNbGpus,SpDeviceData> copies;
+    std::array<SpDeviceData, SpConfig::SpMaxNbGpus> copies;
     //! Copy builder from/to CPU/GPU
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     //! Tell if the CPU version is OK
@@ -69,71 +70,73 @@ public:
 
 #ifdef SPETABARU_COMPILE_WITH_CUDA
     template <class Allocators>
-    void setCpuOnlyValid(Allocators memManagers) const {
+    void setCpuOnlyValid(Allocators memManagers) {
         assert(cpuDataOk = true);
-        for(int idxGpu = 0 ; idxGpu < int(deviceData.size()) ; ++idxGpu){
+        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
             if(copies[idxGpu].ptr){
-                deviceDataOp.freeGroup(memManagers[idxGpu], this);
+                deviceDataOp->freeGroup(memManagers[idxGpu], this);
                 copies[idxGpu] = SpDeviceData();
             }
         }
     }
 
     template <class Allocators>
-    void setGpuOnlyValid(Allocator& memManagers, const int gpuId) {
-        assert(deviceData[gpuId].ptr);
+    void setGpuOnlyValid(Allocators& memManagers, const int gpuId) {
+        assert(copies[gpuId].ptr);
         cpuDataOk = false;
-        for(int idxGpu = 0 ; idxGpu < int(deviceData.size()) ; ++idxGpu){
+        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
             if(idxGpu != gpuId && copies[idxGpu].ptr){
-                deviceDataOp.freeGroup(memManagers[idxGpu], this);
+                deviceDataOp->freeGroup(memManagers[idxGpu], this);
                 copies[idxGpu] = SpDeviceData();
             }
         }
     }
 
     template <class Allocators>
-    void syncCpuDataIfNeeded(Allocator& memManagers){
+    void syncCpuDataIfNeeded(Allocators& memManagers){
         if(cpuDataOk == false){
             auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            assert(idxGpuSrcIter != deviceData.end());
-            deviceDataOp.copyDeviceToHost(copies[*idxGpuSrcIter].ptr, ptrToData);
+            assert(idxGpuSrcIter != copies.end());
+            const long int idxGpu = std::distance(copies.begin(), idxGpuSrcIter);
+            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], copies[idxGpu].ptr, ptrToData);
         }
     }
 
     template <class Allocators>
-    void removeFromGpu(Allocator& memManagers, const int gpuId){
+    void removeFromGpu(Allocators& memManagers, const int gpuId){
         assert(copies[gpuId].ptr);
-        syncCpuDataIfNeeded();
-        deviceDataOp.freeGroup(memManagers[gpuId], this);
+        syncCpuDataIfNeeded(memManagers);
+        deviceDataOp->freeGroup(memManagers[gpuId], this);
         copies[gpuId] = SpDeviceData();
     }
 
     template <class Allocators>
-    SpDeviceData& getDeviceData(Allocator& memManagers, const int gpuId) {
-        assert(gpuId < SpMaxNbGpus);
+    SpDeviceData& getDeviceData(Allocators& memManagers, const int gpuId) {
+        assert(gpuId < SpConfig::SpMaxNbGpus);
         if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
             copies[gpuId].ptr = nullptr;
             auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            if(!deviceDataOp.hasEnoughSpace(memManagers[gpuId], ptrToData)){
-                auto candidates = deviceDataOp.candidatesToRemove(memManagers[gpuId], ptrToData);
+            if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], ptrToData)){
+                auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[gpuId], ptrToData);
                 for(auto toRemove : candidates){
                     assert(toRemove != this);
-                    toRemove->lock();
-                    toRemove->removeFromGpu(memManagers, gpuId);
-                    toRemove->unlock();
+                    reinterpret_cast<SpDataHandle*>(toRemove)->lock();
+                    reinterpret_cast<SpDataHandle*>(toRemove)->removeFromGpu(memManagers, gpuId);
+                    reinterpret_cast<SpDataHandle*>(toRemove)->unlock();
                 }
             }
-            copies[gpuId] = deviceDataOp.allocate(memManagers[gpuId], ptrToData);
+            copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], ptrToData);
             if(idxGpuSrcIter != copies.end()){
-                deviceDataOp.copyDeviceToDevice(copies[*idxGpuSrcIter].ptr, copies[gpuId].ptr);
+                const long int otherGpu = std::distance(copies.begin(), idxGpuSrcIter);
+                deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[otherGpu].ptr, copies[gpuId].ptr);
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp.copyHostToDevice(ptrToData, copies[gpuId].ptr);
+                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], ptrToData, copies[gpuId].ptr);
             }
         }
         return copies[gpuId];

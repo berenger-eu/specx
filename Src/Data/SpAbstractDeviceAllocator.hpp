@@ -5,16 +5,22 @@
 #error CUDE MUST BE ON
 #endif
 
-class SpDataHandle;
-
 class SpAbstractDeviceAllocator {
 public:
     virtual ~SpAbstractDeviceAllocator(){}
 
-    virtual void* allocateWithKey(const SpDataHandle* key, std::size_t inByteSize,
+    virtual void incrDeviceDataUseCount(void* key) = 0;
+
+    virtual void decrDeviceDataUseCount(void* key) = 0;
+
+    virtual bool hasEnoughSpace(std::size_t inByteSize) = 0;
+
+    virtual std::list<void*> candidatesToBeRemoved(const std::size_t inByteSize) = 0;
+
+    virtual void* allocateWithKey(void* key, std::size_t inByteSize,
                           std::size_t alignment) = 0;
 
-    virtual void freeGroup(const SpDataHandle* key) = 0;
+    virtual std::size_t freeGroup(void* key) = 0;
 
     virtual void memset(void* inPtrDev, const int val, const std::size_t inByteSize) = 0;
 

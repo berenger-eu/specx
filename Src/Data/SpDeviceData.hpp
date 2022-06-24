@@ -10,16 +10,19 @@
 
 struct SpDeviceData {
     void* ptr = nullptr;
-    long int useCount = 0;
+    std::size_t size;
 };
 
 class SpAbstractDeviceDataCopier {
 public:
     virtual ~SpAbstractDeviceDataCopier(){};
-    virtual void  allocate(SpAbstractDeviceAllocator& allocator, void* hostPtr) = 0;
+    virtual bool hasEnoughSpace(SpAbstractDeviceAllocator& allocator, void* /*rawHostPtr*/)  = 0;
+    virtual std::list<void*> candidatesToBeRemoved(SpAbstractDeviceAllocator& allocator, void* /*rawHostPtr*/) = 0;
+    virtual SpDeviceData  allocate(SpAbstractDeviceAllocator& allocator, void* hostPtr) = 0;
     virtual void  copyFromHostToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtr, void* hostPtr) = 0;
     virtual void  copyFromDeviceToHost(SpAbstractDeviceAllocator& allocator, void* hostPtr, void* devicePtr) = 0;
-    virtual void  free(SpAbstractDeviceAllocator& allocator, void* devicePtr) = 0;
+    virtual void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDst, void* devicePtrSrc) = 0;
+    virtual void  freeGroup(SpAbstractDeviceAllocator& allocator, void* hostPtr) = 0;
 };
 
 template <class DataType>
@@ -28,14 +31,39 @@ class SpDeviceDataCopier : public SpAbstractDeviceDataCopier {
     using SpDeviceDataTrivialCopyTest = std::conjunction<std::is_trivially_copy_constructible<T>, std::is_trivially_copy_assignable<T>>;
 
 public:
+//    virtual void incrDeviceDataUseCount(void* key) = 0;
+
+//    virtual void decrDeviceDataUseCount(void* key) = 0;
+
+    bool hasEnoughSpace(SpAbstractDeviceAllocator& allocator, void* /*rawHostPtr*/) override{
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return allocator.hasEnoughSpace(sizeof(DataType));
+        }
+        else {
+            return false;// TODO
+        }
+    }
+
+    std::list<void*> candidatesToBeRemoved(SpAbstractDeviceAllocator& allocator, void* /*rawHostPtr*/) override{
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return allocator.candidatesToBeRemoved(sizeof(DataType));
+        }
+        else {
+            return std::list<void*>();// TODO
+        }
+    }
+
+
     SpDeviceData allocate(SpAbstractDeviceAllocator& allocator, void* rawHostPtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         SpDeviceData copy;
-        copy.ptr = SpDeviceDataAllocInternal(static_cast<DataType*>(hostPtr));
-        if constexpr(SpDeviceDataTrivialCopyTest<T>::value) {
-            copy.ptr =  allocator.allocateOnDevice(sizeof(DataType), alignof(DataType));
-        } else {
-            copy.ptr =  SpDeviceDataAlloc(hostPtr);
+        if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            copy.ptr =  allocator.allocateWithKey(rawHostPtr, sizeof(DataType), alignof(DataType));
+            copy.size = sizeof(DataType);
+        }
+        else {
+//            copy.ptr =  SpDeviceDataAlloc(hostPtr);
+//            copy.size = 0;
         }
         return copy;
     }
@@ -43,30 +71,34 @@ public:
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
             return allocator.copyHostToDevice(devicePtr, hostPtr,  sizeof(DataType));
-        } else {
-            SpDeviceDataCopyFromHostToDevice(devicePtr, hostPtr);
+        }
+        else {
+            //SpDeviceDataCopyFromHostToDevice(devicePtr, hostPtr);
         }
     }
     void  copyFromDeviceToHost(SpAbstractDeviceAllocator& allocator, void* rawHostPtr, void* devicePtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
             return allocator.copyDeviceToHost(hostPtr, devicePtr,  sizeof(DataType));
-        } else {
-            SpDeviceDataCopyFromDeviceToHost(hostPtr, devicePtr);
+        }
+        else {
+            //SpDeviceDataCopyFromDeviceToHost(hostPtr, devicePtr);
         }
     }
     void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDest, void* devicePtrSrc) override{
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
             return allocator.copyDeviceToDevice(devicePtrDest, devicePtrSrc,  sizeof(DataType));
-        } else {
-            SpDeviceDataCopyFromDeviceToDevice(devicePtrDest, devicePtrSrc);
+        }
+        else {
+            //SpDeviceDataCopyFromDeviceToDevice(devicePtrDest, devicePtrSrc);
         }
     }
-    void  free(SpAbstractDeviceAllocator& allocator, void* devicePtr) override{
+    void  freeGroup(SpAbstractDeviceAllocator& allocator, void* devicePtr) override{
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
-            return allocator.freeFromDevice(devicePtr);
-        } else {
-            SpDeviceDataFree<DataType>(devicePtr);
+            allocator.freeGroup(devicePtr);
+        }
+        else {
+            //SpDeviceDataFree<DataType>(devicePtr);
         }
     }
 };
