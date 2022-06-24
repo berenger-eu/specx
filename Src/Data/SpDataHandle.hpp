@@ -13,12 +13,11 @@
 #include "SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
-#include "Utils/SpHardware.hpp"
 
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
 #include "Data/SpDeviceData.hpp"
 #include "Data/SpDataDuplicator.hpp"
-#endif // SPETABARU_USE_CUDA
+#endif // SPETABARU_COMPILE_WITH_CUDA
 
 //! This is a register data to apply the
 //! dependences on it.
@@ -26,14 +25,14 @@ class SpDataHandle {
 private:
     //! Generic pointer to the data
     void* ptrToData;
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
     //! Copy of the CPU object on GPUs
     std::array<SpMaxNbGpus,SpDeviceData> copies;
     //! Copy builder from/to CPU/GPU
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     //! Tell if the CPU version is OK
     bool cpuDataOk;
-#endif // SPETABARU_USE_CUDA
+#endif // SPETABARU_COMPILE_WITH_CUDA
     //! Lock the data
     std::mutex handleLock;
     
@@ -53,10 +52,11 @@ public:
     template <class DataType>
     explicit SpDataHandle(DataType* inPtrToData)
         : ptrToData(inPtrToData),
-		  dataLoc(SpDataLocation::HOST),
-          deviceData(),
+      #ifdef SPETABARU_COMPILE_WITH_CUDA
+          copies(),
           deviceDataOp(new SpDeviceDataCopier<DataType>()),
           cpuDataOk(true),
+      #endif
           datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
@@ -67,7 +67,7 @@ public:
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
 
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
     template <class Allocators>
     void setCpuOnlyValid(Allocators memManagers) const {
         assert(cpuDataOk = true);
@@ -138,7 +138,7 @@ public:
         }
         return copies[gpuId];
     }
-#endif // SPETABARU_USE_CUDA
+#endif // SPETABARU_COMPILE_WITH_CUDA
 
 	void lock() {
 		handleLock.lock();

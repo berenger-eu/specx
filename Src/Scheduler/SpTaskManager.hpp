@@ -201,10 +201,12 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 		switch(w.getType()) {
 			case SpWorker::SpWorkerType::CPU_WORKER:
 				t->preTaskExecution(atg, SpCallableType::CPU);
-				break;
+                break;
+#ifdef SPETABARU_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::GPU_WORKER:
 				t->preTaskExecution(atg, SpCallableType::GPU);
 				break;
+#endif
 			default:
 				assert(false && "Worker is of unknown type.");
 		}
@@ -224,9 +226,11 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 			case SpWorker::SpWorkerType::CPU_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CPU);
 				break;
+                #ifdef SPETABARU_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::GPU_WORKER:
 				t->postTaskExecution(atg, SpCallableType::GPU);
 				break;
+#endif
 			default:
 				assert(false && "Worker is of unknown type.");
 		}

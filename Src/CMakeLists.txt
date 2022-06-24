@@ -22,6 +22,11 @@ endif()
 # Searching all cpp file
 file(GLOB_RECURSE source_lib_files ./*.cpp)
 
+if(NOT SPETABARU_COMPILE_WITH_CUDA)
+    list(FILTER source_lib_files EXCLUDE REGEX "/Cuda/")
+endif()
+
+
 # Adding cpp files to project
 add_library(
 	spetabaru

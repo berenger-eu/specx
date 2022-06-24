@@ -10,7 +10,9 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
+#ifdef SPETABARU_COMPILE_WITH_CUDA
 #include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
+#endif
 #include "Utils/small_vector.hpp"
 #include "Config/SpConfig.hpp"
 
@@ -24,15 +26,21 @@ private:
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
+#ifdef SPETABARU_COMPILE_WITH_CUDA
     std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
+#else
+    SpPrioScheduler prioSched;
+#endif
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
     SpWorker::SpWorkerType workerTypeToMigrate;
     SpComputeEngine* ceToMigrateTo;
     long int nbAvailableCpuWorkers;
-    long int nbAvailableGpuWorkers;
     long int totalNbCpuWorkers;
+    #ifdef SPETABARU_COMPILE_WITH_CUDA
+    long int nbAvailableGpuWorkers;
     long int totalNbGpuWorkers;
+#endif
     bool hasBeenStopped;
 
 private:
@@ -54,8 +62,10 @@ private:
             switch(wt) {
                 case SpWorker::SpWorkerType::CPU_WORKER:
                     return compute(totalNbCpuWorkers, nbAvailableCpuWorkers, allowBusyWorkersToBeDetached, maxCount);
+                    #ifdef SPETABARU_COMPILE_WITH_CUDA
                 case SpWorker::SpWorkerType::GPU_WORKER:
                     return compute(totalNbGpuWorkers, nbAvailableGpuWorkers, allowBusyWorkersToBeDetached, maxCount);
+#endif
                 default:
                     return static_cast<long int>(0);
             }
@@ -154,6 +164,7 @@ private:
                     nbAvailableCpuWorkers += addend;
                 }
                 break;
+                #ifdef SPETABARU_COMPILE_WITH_CUDA
             case SpWorker::SpWorkerType::GPU_WORKER:
                 if constexpr(updateTotalCounter) {
                     totalNbGpuWorkers += addend;
@@ -163,6 +174,7 @@ private:
                     nbAvailableGpuWorkers += addend;
                 }
                 break;
+#endif
             default:
                 break;
         }
@@ -196,7 +208,11 @@ public:
     explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers)
     : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorker::SpWorkerType::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
-      nbAvailableGpuWorkers(0), totalNbCpuWorkers(0), totalNbGpuWorkers(0), hasBeenStopped(false) {
+      totalNbCpuWorkers(0),
+      #ifdef SPETABARU_COMPILE_WITH_CUDA
+      nbAvailableGpuWorkers(0), totalNbGpuWorkers(0),
+  #endif
+      hasBeenStopped(false) {
         addWorkers(std::move(inWorkers));
     }
     

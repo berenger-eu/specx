@@ -248,7 +248,7 @@ protected:
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&...params) {
         static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::GPU>),
-                      "SpTaskGraph::task : SPETABARU_USE_CUDA macro is undefined. Unable to compile tasks for which only a GPU callable has been provided.");
+                      "SpTaskGraph::task : SPETABARU_COMPILE_WITH_CUDA macro is undefined. Unable to compile tasks for which only a GPU callable has been provided.");
 
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");

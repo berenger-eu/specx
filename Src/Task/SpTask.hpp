@@ -16,7 +16,9 @@
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
+#ifdef SPETABARU_COMPILE_WITH_CUDA
 #include "Cuda/SpCudaMemManager.hpp"
+#endif
 
 #ifdef __GNUG__
 #include <cxxabi.h>
@@ -83,7 +85,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
     
     void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]] SpCallableType ct) final {
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
         SpCudaMemManager::Lock();
        std::size_t extraHandlesOffset = 0;
         
@@ -130,12 +132,12 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             }
         }, this->getDataDependencyTupleRef());
         SpCudaMemManager::Unlock();
-#endif // SPETABARU_USE_CUDA
+#endif // SPETABARU_COMPILE_WITH_CUDA
     }
 
     //! Called by parent abstract task class
     void executeCore([[maybe_unused]] SpCallableType ct) final {
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
         if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
             using CtTask = std::decay_t<decltype(std::get<0>(callables))>;
             assert(ct == CtTask::callable_type);
@@ -152,13 +154,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 executeCore(this, std::get<1>(callables), gpuCallableArgs);
             }
         }
-#else // SPETABARU_USE_CUDA
+#else // SPETABARU_COMPILE_WITH_CUDA
         executeCore(this, std::get<0>(callables), tupleParams);
 #endif
     }
     
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
-#ifdef SPETABARU_USE_CUDA
+#ifdef SPETABARU_COMPILE_WITH_CUDA
         // TODO cudaStreamSynchronize(stream);
 
         SpCudaMemManager::Lock();
@@ -193,7 +195,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         });
 
         SpCudaMemManager::Unlock();
-#endif // SPETABARU_USE_CUDA
+#endif // SPETABARU_COMPILE_WITH_CUDA
     }
 
 public:

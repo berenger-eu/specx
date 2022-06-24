@@ -5,10 +5,6 @@
 #ifndef SPDATADUPLICATOR_HPP
 #define SPDATADUPLICATOR_HPP
 
-#ifndef SPETABARU_USE_CUDA
-#error CUDE MUST BE ON
-#endif
-
 #include <memory>
 
 class SpAbstractDataDuplicator {

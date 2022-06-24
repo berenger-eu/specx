@@ -1,7 +1,6 @@
 #include "Compute/SpWorker.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
-#include "Utils/SpHardware.hpp"
 
 std::atomic<long int> SpWorker::totalNbThreadsCreated = 1;
 
@@ -62,17 +61,23 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                  
                 if(task) {
                     SpAbstractTaskGraph* atg = task->getAbstractTaskGraph();
-                    
-                    if(this->getType() == SpWorker::SpWorkerType::GPU_WORKER) {
-						std::unique_lock<std::mutex>(SpHardware::gpuMutexes[0 /* this->getGpuId() */]);
+                    auto workerType = this->getType();
+                    if(workerType == SpWorker::SpWorkerType::CPU_WORKER){
+                        atg->preTaskExecution(task, *this);
+                        execute(task);
+                        atg->postTaskExecution(task, *this);
+                    }
+                    #ifdef SPETABARU_COMPILE_WITH_CUDA
+                    else if(workerType == SpWorker::SpWorkerType::GPU_WORKER) {
+                        // TODO to valid std::unique_lock<std::mutex>(SpHardware::gpuMutexes[0 /* this->getGpuId() */]);
 						atg->preTaskExecution(task, *this);
 						execute(task);
 						atg->postTaskExecution(task, *this);
-					} else {
-						atg->preTaskExecution(task, *this);
-						execute(task);
-						atg->postTaskExecution(task, *this);
-					}
+                    }
+#endif
+                    else {
+                        assert(0);
+                    }
                     
                     continue;
                 }

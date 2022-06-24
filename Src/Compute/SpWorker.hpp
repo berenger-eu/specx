@@ -5,8 +5,9 @@
 #include <atomic>
 #include <condition_variable>
 #include <thread>
-
+#ifdef SPETABARU_COMPILE_WITH_CUDA
 #include "Data/SpDataAccessMode.hpp"
+#endif
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
 #include "Utils/small_vector.hpp"
@@ -18,7 +19,10 @@ class SpWorker {
 public:
     enum class SpWorkerType {
         CPU_WORKER,
-        GPU_WORKER
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+        GPU_WORKER,
+#endif
+        NB_WORKER_TYPES
     };
     
     static std::atomic<long int> totalNbThreadsCreated;
@@ -33,7 +37,7 @@ public:
         
         return res;
     }
-    
+    #ifdef SPETABARU_COMPILE_WITH_CUDA
     static auto createHeterogeneousTeamOfWorkers(const int nbCpuWorkers, const int nbGpuWorkers) {
         small_vector<std::unique_ptr<SpWorker>> res;
         // TO DO : watch out for overflow on sum
@@ -49,15 +53,16 @@ public:
         
         return res;
     }
+#endif
     
     static auto createDefaultWorkerTeam() {
         return createTeamOfWorkersOfType(SpUtils::DefaultNumThreads(), SpWorkerType::CPU_WORKER);
     }
-    
+    #ifdef SPETABARU_COMPILE_WITH_CUDA
     int getGpuId() {
 		return boundGpuId;
 	}
-    
+#endif
     static void setWorkerForThread(SpWorker *w);
     static SpWorker* getWorkerForThread();
 
@@ -69,8 +74,10 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
+    #ifdef SPETABARU_COMPILE_WITH_CUDA
     int boundGpuId;
-    
+#endif
+
 private:
     void setStopFlag(const bool inStopFlag) {
         stopFlag.store(inStopFlag, std::memory_order_relaxed);
@@ -89,9 +96,11 @@ private:
             case SpWorkerType::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
+                #ifdef SPETABARU_COMPILE_WITH_CUDA
             case SpWorkerType::GPU_WORKER:
                 task->execute(SpCallableType::GPU);
                 break;
+#endif
             default:
                 assert(false && "Worker is of unknown type.");
         }
@@ -137,7 +146,11 @@ public:
 
     explicit SpWorker(const SpWorkerType inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
-    stopFlag(false), ce(nullptr), threadId(0), t(), boundGpuId(-1) {
+    stopFlag(false), ce(nullptr), threadId(0), t()
+    #ifdef SPETABARU_COMPILE_WITH_CUDA
+    , boundGpuId(-1)
+#endif
+    {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
 
