@@ -11,8 +11,15 @@ void SpWorker::start() {
         t = std::thread([&]() {
             SpUtils::SetThreadId(threadId);
             SpWorker::setWorkerForThread(this);
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+            gpuData.initByWorker();
+#endif
             
             doLoop(nullptr);
+
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+            gpuData.destroyByWorker();
+#endif
         });
     }
 }

@@ -6,8 +6,9 @@
 #include <condition_variable>
 #include <thread>
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-#include "Data/SpDataAccessMode.hpp"
+#include "Cuda/SpCudaMemManager.hpp"
 #endif
+#include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
 #include "Utils/small_vector.hpp"
@@ -27,28 +28,56 @@ public:
     
     static std::atomic<long int> totalNbThreadsCreated;
     
-    static auto createTeamOfWorkersOfType(const int nbWorkers, const SpWorkerType wt) {
+
+    static auto createDefaultTeamOfWorkers() {
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+        return createHeterogeneousTeamOfWorkers();
+#else
+        return createTeamOfCpuWorkers();
+#endif
+    }
+
+    static auto createTeamOfCpuWorkers(const int nbWorkers = SpUtils::DefaultNumThreads()) {
         small_vector<std::unique_ptr<SpWorker>> res;
         res.reserve(nbWorkers);
         
-        for(int i = 0; i < nbWorkers; i++) {
-            res.emplace_back(std::make_unique<SpWorker>(wt));
+        for(int idxWorker = 0; idxWorker < nbWorkers; ++idxWorker) {
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::CPU_WORKER));
         }
         
         return res;
     }
     #ifdef SPETABARU_COMPILE_WITH_CUDA
-    static auto createHeterogeneousTeamOfWorkers(const int nbCpuWorkers, const int nbGpuWorkers) {
+    static auto createTeamOfGpuWorkers(const int nbWorkerPerGpus = SpCudaMemManager::getDefaultNbStreams(),
+                                                 const int nbGpuWorkers = SpCudaMemManager::getNbDevices()) {
         small_vector<std::unique_ptr<SpWorker>> res;
-        // TO DO : watch out for overflow on sum
-        res.reserve(nbCpuWorkers + nbGpuWorkers);
+        res.reserve(nbWorkerPerGpus*nbGpuWorkers);
+
+        for(int idxGpu = 0; idxGpu < nbGpuWorkers; ++idxGpu) {
+            for(int idxWorker = 0; idxWorker < nbWorkerPerGpus; ++idxWorker) {
+                res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::GPU_WORKER));
+                res.back().gpuData.init(idxGpu);
+            }
+        }
+
+        return res;
+    }
+
+    static auto createHeterogeneousTeamOfWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
+                                                 const int nbWorkerPerGpus = SpCudaMemManager::getDefaultNbStreams(),
+                                                 const int nbGpuWorkers = SpCudaMemManager::getNbDevices()) {
+        small_vector<std::unique_ptr<SpWorker>> res;
+        res.reserve(nbCpuWorkers + nbWorkerPerGpus*nbGpuWorkers);
         
-        for(int i = 0; i < nbCpuWorkers; i++) {
+        for(int idxWorker = 0; idxWorker < nbCpuWorkers; ++idxWorker) {
             res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::CPU_WORKER));
         }
-        
-        for(int i = 0; i < nbGpuWorkers; i++) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::GPU_WORKER));
+
+        for(int idxGpu = 0; idxGpu < nbGpuWorkers; ++idxGpu) {
+            for(int idxWorker = 0; idxWorker < nbWorkerPerGpus; ++idxWorker) {
+                res.emplace_back(std::make_unique<SpWorker>(SpWorkerType::GPU_WORKER));
+                res.back().gpuData.init(idxGpu);
+            }
         }
         
         return res;
@@ -58,11 +87,7 @@ public:
     static auto createDefaultWorkerTeam() {
         return createTeamOfWorkersOfType(SpUtils::DefaultNumThreads(), SpWorkerType::CPU_WORKER);
     }
-    #ifdef SPETABARU_COMPILE_WITH_CUDA
-    int getGpuId() {
-		return boundGpuId;
-	}
-#endif
+
     static void setWorkerForThread(SpWorker *w);
     static SpWorker* getWorkerForThread();
 
@@ -74,8 +99,8 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
-    #ifdef SPETABARU_COMPILE_WITH_CUDA
-    int boundGpuId;
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+    SpCudaMemManager::WorkerData gpuData;
 #endif
 
 private:
@@ -147,9 +172,6 @@ public:
     explicit SpWorker(const SpWorkerType inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
     stopFlag(false), ce(nullptr), threadId(0), t()
-    #ifdef SPETABARU_COMPILE_WITH_CUDA
-    , boundGpuId(-1)
-#endif
     {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
@@ -166,6 +188,12 @@ public:
     SpWorkerType getType() const {
         return wt;
     }
+
+#ifdef SPETABARU_COMPILE_WITH_CUDA
+    SpCudaMemManager::WorkerData& getGpuData(){
+        return gpuData;
+    }
+#endif
     
     void start();
     
