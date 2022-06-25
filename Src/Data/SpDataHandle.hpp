@@ -100,7 +100,7 @@ public:
             });
             assert(idxGpuSrcIter != copies.end());
             const long int idxGpu = std::distance(copies.begin(), idxGpuSrcIter);
-            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], copies[idxGpu].ptr, ptrToData);
+            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], ptrToData, copies[idxGpu].ptr);
         }
     }
 
@@ -120,7 +120,7 @@ public:
             auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], ptrToData)){
+            if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], this)){
                 auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[gpuId], ptrToData);
                 for(auto toRemove : candidates){
                     assert(toRemove != this);
@@ -129,14 +129,14 @@ public:
                     reinterpret_cast<SpDataHandle*>(toRemove)->unlock();
                 }
             }
-            copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], ptrToData);
+            copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], this);
             if(idxGpuSrcIter != copies.end()){
                 const long int otherGpu = std::distance(copies.begin(), idxGpuSrcIter);
-                deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[otherGpu].ptr, copies[gpuId].ptr);
+                deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[gpuId].ptr, copies[otherGpu].ptr);
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], ptrToData, copies[gpuId].ptr);
+                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], copies[gpuId].ptr, ptrToData);
             }
         }
         return copies[gpuId];
