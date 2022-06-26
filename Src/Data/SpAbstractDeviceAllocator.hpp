@@ -5,6 +5,8 @@
 #error CUDE MUST BE ON
 #endif
 
+#include <list>
+
 class SpAbstractDeviceAllocator {
 public:
     virtual ~SpAbstractDeviceAllocator(){}

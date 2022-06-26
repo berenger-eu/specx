@@ -31,10 +31,6 @@ class SpDeviceDataCopier : public SpAbstractDeviceDataCopier {
     using SpDeviceDataTrivialCopyTest = std::conjunction<std::is_trivially_copy_constructible<T>, std::is_trivially_copy_assignable<T>>;
 
 public:
-//    virtual void incrDeviceDataUseCount(void* key) = 0;
-
-//    virtual void decrDeviceDataUseCount(void* key) = 0;
-
     bool hasEnoughSpace(SpAbstractDeviceAllocator& allocator, void* /*key*/) override{
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
             return allocator.hasEnoughSpace(sizeof(DataType));

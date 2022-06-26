@@ -9,7 +9,7 @@
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Compute/SpWorker.hpp"
+#include "Compute/SpWorkerTeamBuilder.hpp"
 
 //! The runtime is the main component of spetabaru.
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
@@ -30,7 +30,8 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) : tg(), ce(SpWorker::createTeamOfWorkersOfType(inNumThreads, SpWorker::SpWorkerType::CPU_WORKER)) {
+    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) :
+            tg(), ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(inNumThreads)) {
         tg.computeOn(ce);
     }
         

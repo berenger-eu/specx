@@ -74,7 +74,7 @@ public:
         }
 
         bool hasEnoughSpace(std::size_t inByteSize) override{
-            return inByteSize <= GetFreeMem();
+            return inByteSize <= SpCudaUtils::GetFreeMemOnDevice();
         }
 
         std::list<void*> candidatesToBeRemoved(const std::size_t inByteSize) override{
@@ -99,7 +99,7 @@ public:
             assert(hasEnoughSpace(inByteSize));
             DataObj data;
             data.size = inByteSize;
-            assert(data.size <= GetFreeMem());
+            assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
             // TODO CUDA_ASSERT(cudaMalloc(&data.ptr, inByteSize));
             if(alignment <= alignof(std::max_align_t)) {
                 data.ptr = std::malloc(data.size);
@@ -162,28 +162,10 @@ public:
     };
 
 
-    struct WorkerData {
-        int gpuId;
-        cudaStream_t stream;
-
-        void init(int deviceId){
-            gpuId = deviceId;
-        }
-
-        void initByWorker(){
-            SpCudaUtils::UseDevice(gpuId);
-            cudaStreamCreate(&stream);
-        }
-
-        void destroyByWorker(){
-            cudaStreamDestroy(stream);
-        }
-    }
-
 
     static std::vector<SpCudaMemManager> BuildManagers(){
         std::vector<SpCudaMemManager> managers;
-        const int nbGpus = GetNbCudaDevices();
+        const int nbGpus = SpCudaUtils::GetNbCudaDevices();
         for(int idxGpu = 0 ; idxGpu < nbGpus ; ++idxGpu){
             managers.emplace_back(SpCudaMemManager(idxGpu));
         }

@@ -13,7 +13,7 @@
 #include "Task/SpTask.hpp"
 
 #include "Compute/SpComputeEngine.hpp"
-#include "Compute/SpWorker.hpp"
+#include "Compute/SpWorkerTeamBuilder.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Config/SpConfig.hpp"
 
@@ -21,7 +21,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
     void Test(){
-        SpComputeEngine ce(SpWorker::createHeterogeneousTeamOfWorkers(1,2));
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(1,1,2));
         SpTaskGraph tg;
         int a = 0;
         int b = 0;

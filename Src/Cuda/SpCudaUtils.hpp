@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <cstring>
+#include <vector>
+
 // TODO #include <cuda.h>
 
 #define CUDA_ASSERT(X)\
@@ -12,6 +14,8 @@
     exit(1);\
 }*/
 
+using cudaStream_t = int;// TODO
+
 class SpCudaUtils{
     static std::vector<bool> ConnectDevices(){
         const int nbDevices = GetNbCudaDevices();
@@ -20,21 +24,22 @@ class SpCudaUtils{
             UseDevice(idxGpu1);
             for(int idxGpu2 = 0 ; idxGpu2 < nbDevices ; ++idxGpu2){
                 int is_able;
-                cudaDeviceCanAccessPeer(&is_able, idxGpu1, idxGpu2);
+                // TODO cudaDeviceCanAccessPeer(&is_able, idxGpu1, idxGpu2);
                 if(is_able){
-                    cudaDeviceEnablePeerAccess(idxGpu2, 0);
+                    // TODO cudaDeviceEnablePeerAccess(idxGpu2, 0);
                     connected[idxGpu1*nbDevices + idxGpu2] = true;
                     connected[idxGpu2*nbDevices + idxGpu1] = true;
                 }
             }
         }
+        return connected;
     }
 
     static std::vector<bool> ConnectedDevices;
 
 public:
     static bool DevicesAreConnected(int idxGpu1, int idxGp2){
-        return ConnectDevices[idxGpu1*GetNbCudaDevices() + idxGp2];
+        return ConnectedDevices[idxGpu1*GetNbCudaDevices() + idxGp2];
     }
 
     static int GetNbCudaDevices(){
@@ -67,8 +72,8 @@ public:
         // TODO cudaDeviceSynchronize();
     }
 
-    static void SynchronizeStream(){
-        //cudaStreamSynchronize(stream1);
+    static void SynchronizeStream(cudaStream_t& stream){
+        //cudaStreamSynchronize(stream);
     }
 
     static int GetNbDevices(){
@@ -81,12 +86,16 @@ public:
         return 4;
     }
 
-    static int PrintDeviceName(const int gpuId){
+    static void PrintDeviceName(const int gpuId){
         // TODO cudaDeviceProp prop;
         // cudaGetDeviceProperties(&prop, gpuId);
         // std::cout << "Device id: " << gpuId << std::endl;
         // std::cout << "Device name: " << prop.name << std::endl;
     }
+
+    static cudaStream_t& GetCurrentStream();
+    static bool CurrentWorkerIsGpu();
+    static int CurrentGpuId();
 };
 
 #endif // SPCUDAUTILS_HPP

@@ -11,13 +11,13 @@
 #include "Task/SpTask.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
-#include "Compute/SpWorker.hpp"
+#include "Compute/SpWorkerTeamBuilder.hpp"
 
 class SimpleTestNoSpec : public UTester< SimpleTestNoSpec > {
     using Parent = UTester< SimpleTestNoSpec >;
 
     void TestBasic(){
-        SpComputeEngine ce(SpWorker::createDefaultWorkerTeam());
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         
         tg.computeOn(ce);
