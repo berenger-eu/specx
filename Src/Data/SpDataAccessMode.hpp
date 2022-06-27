@@ -300,7 +300,7 @@ struct access_modes_are_equal<dam1, T, std::void_t<decltype(T::AccessMode)>> : a
        
 enum class SpCallableType {
     CPU=0,
-    GPU        
+    CUDA        
 };
 
 template <bool compileWithCuda, class T, SpCallableType ct>
@@ -332,8 +332,8 @@ auto SpCpu(T &&callable) {
 }
 
 template <class T>
-auto SpGpu(T&& callable) {
-    return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::GPU>(std::forward<T>(callable));
+auto SpCuda(T&& callable) {
+    return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::CUDA>(std::forward<T>(callable));
 }
 
 template <class T0>

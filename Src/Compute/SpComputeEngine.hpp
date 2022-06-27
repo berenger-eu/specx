@@ -38,8 +38,8 @@ private:
     long int nbAvailableCpuWorkers;
     long int totalNbCpuWorkers;
     #ifdef SPETABARU_COMPILE_WITH_CUDA
-    long int nbAvailableGpuWorkers;
-    long int totalNbGpuWorkers;
+    long int nbAvailableCudaWorkers;
+    long int totalNbCudaWorkers;
 #endif
     bool hasBeenStopped;
 
@@ -63,8 +63,8 @@ private:
                 case SpWorker::SpWorkerType::CPU_WORKER:
                     return compute(totalNbCpuWorkers, nbAvailableCpuWorkers, allowBusyWorkersToBeDetached, maxCount);
                     #ifdef SPETABARU_COMPILE_WITH_CUDA
-                case SpWorker::SpWorkerType::GPU_WORKER:
-                    return compute(totalNbGpuWorkers, nbAvailableGpuWorkers, allowBusyWorkersToBeDetached, maxCount);
+                case SpWorker::SpWorkerType::CUDA_WORKER:
+                    return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
 #endif
                 default:
                     return static_cast<long int>(0);
@@ -165,13 +165,13 @@ private:
                 }
                 break;
                 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            case SpWorker::SpWorkerType::GPU_WORKER:
+            case SpWorker::SpWorkerType::CUDA_WORKER:
                 if constexpr(updateTotalCounter) {
-                    totalNbGpuWorkers += addend;
+                    totalNbCudaWorkers += addend;
                 }
                 
                 if constexpr(updateAvailableCounter) {
-                    nbAvailableGpuWorkers += addend;
+                    nbAvailableCudaWorkers += addend;
                 }
                 break;
 #endif
@@ -210,7 +210,7 @@ public:
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorker::SpWorkerType::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
       totalNbCpuWorkers(0),
       #ifdef SPETABARU_COMPILE_WITH_CUDA
-      nbAvailableGpuWorkers(0), totalNbGpuWorkers(0),
+      nbAvailableCudaWorkers(0), totalNbCudaWorkers(0),
   #endif
       hasBeenStopped(false) {
         addWorkers(std::move(inWorkers));

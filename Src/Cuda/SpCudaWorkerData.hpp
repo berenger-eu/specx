@@ -10,15 +10,15 @@
 #endif
 
 struct SpCudaWorkerData {
-    int gpuId;
+    int cudaId;
     cudaStream_t stream;
 
     void init(int deviceId){
-        gpuId = deviceId;
+        cudaId = deviceId;
     }
 
     void initByWorker(){
-        SpCudaUtils::UseDevice(gpuId);
+        SpCudaUtils::UseDevice(cudaId);
         CUDA_ASSERT(cudaStreamCreate(&stream));
     }
 

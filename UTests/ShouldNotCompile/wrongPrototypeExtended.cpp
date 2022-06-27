@@ -32,14 +32,14 @@ int main(){
 
 #ifdef TEST3
     runtime.task(SpRead(initVal),
-            SpGpu([]([[maybe_unused]] const double& initValParam){}),
-            SpGpu([]([[maybe_unused]] const double& initValParam){}));
+            SpCuda([]([[maybe_unused]] const double& initValParam){}),
+            SpCuda([]([[maybe_unused]] const double& initValParam){}));
 #endif
 
 #ifdef TEST4
     if constexpr(!SpConfig::CompileWithCuda) {
         runtime.task(SpRead(initVal),
-                SpGpu([]([[maybe_unused]] const double& initValParam){}));
+                SpCuda([]([[maybe_unused]] const double& initValParam){}));
     } else {
         static_assert(false, "Force wrongPrototypeExtended-4 to fail.");
     } 

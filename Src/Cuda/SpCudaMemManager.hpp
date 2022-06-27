@@ -32,16 +32,16 @@ class SpCudaManager {
         int useCount = 0;
     };
 
-    static std::mutex GpuMutex;
+    static std::mutex CudaMutex;
 
 public:
 
     static void Lock(){// Do finer lock TODO
-        GpuMutex.lock();
+        CudaMutex.lock();
     }
 
     static void Unlock(){
-        GpuMutex.unlock();
+        CudaMutex.unlock();
     }
 
     class SpCudaMemManager : public SpAbstractDeviceAllocator {
@@ -103,7 +103,7 @@ public:
             DataObj data;
             data.size = inByteSize;
             assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
             CUDA_ASSERT(cudaMalloc(&data.ptr, inByteSize));
 #else
             if(alignment <= alignof(std::max_align_t)) {
@@ -129,7 +129,7 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
                 CUDA_ASSERT(cudaFree(data.ptr));
 #else
                 std::free(data.ptr);
@@ -143,7 +143,7 @@ public:
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
             CUDA_ASSERT(cudaMemset(inPtrDev, val, inByteSize));
 #else
             memset(inPtrDev, val, inByteSize);
@@ -153,7 +153,7 @@ public:
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
             CUDA_ASSERT(cudaMemcpy(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice));
 #else
             std::memcpy(inPtrDev, inPtrHost, inByteSize);
@@ -163,7 +163,7 @@ public:
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
             CUDA_ASSERT(cudaMemcpy(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost));
 #else
             std::memcpy(inPtrHost, inPtrDev, inByteSize);
@@ -174,11 +174,11 @@ public:
                                 const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDevDest) != allBlocks.end()
                     && allBlocks[inPtrDevDest].size <= inByteSize);
-            // This is on the other GPU
+            // This is on the other CUDA
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-#ifndef SPETABARU_EMUL_GPU
+#ifndef SPETABARU_EMUL_CUDA
             CUDA_ASSERT(cudaMemcpyPeer(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize));
 #else
             std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
@@ -194,9 +194,9 @@ public:
 
     static std::vector<SpCudaMemManager> BuildManagers(){
         std::vector<SpCudaMemManager> managers;
-        const int nbGpus = SpCudaUtils::GetNbCudaDevices();
-        for(int idxGpu = 0 ; idxGpu < nbGpus ; ++idxGpu){
-            managers.emplace_back(SpCudaMemManager(idxGpu));
+        const int nbCudas = SpCudaUtils::GetNbCudaDevices();
+        for(int idxCuda = 0 ; idxCuda < nbCudas ; ++idxCuda){
+            managers.emplace_back(SpCudaMemManager(idxCuda));
         }
         return managers;
     }

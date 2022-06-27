@@ -53,8 +53,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! DataDependency objects
     DataDependencyTupleTy tupleParams;
     
-    //! Arguments for gpu callable
-    std::array<std::pair<void*, std::size_t>, NbParams> gpuCallableArgs;
+    //! Arguments for cuda callable
+    std::array<std::pair<void*, std::size_t>, NbParams> cudaCallableArgs;
     
     //! Callables
     CallableTupleTy callables;
@@ -116,14 +116,14 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         h->setCpuOnlyValid(SpCudaManager::Managers);
                     }
                 }
-                else if(ct == SpCallableType::GPU){
-                    const int gpuId = SpCudaUtils::CurrentGpuId();
-                    auto dataObj = h->getDeviceData(SpCudaManager::Managers, gpuId);
+                else if(ct == SpCallableType::CUDA){
+                    const int cudaId = SpCudaUtils::CurrentCudaId();
+                    auto dataObj = h->getDeviceData(SpCudaManager::Managers, cudaId);
                     if(accessMode != SpDataAccessMode::READ){
-                        h->setGpuOnlyValid(SpCudaManager::Managers, gpuId);
+                        h->setCudaOnlyValid(SpCudaManager::Managers, cudaId);
                     }
-                    SpCudaManager::Managers[gpuId].incrDeviceDataUseCount(h);
-                    gpuCallableArgs[index] = {dataObj.ptr, dataObj.size};
+                    SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
+                    cudaCallableArgs[index] = {dataObj.ptr, dataObj.size};
                     SpCudaUtils::SyncCurrentStream();
                 }
                 else{
@@ -147,13 +147,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             if constexpr (is_instantiation_of_callable_wrapper_with_type_v<std::decay_t<decltype(std::get<0>(callables))>, SpCallableType::CPU>) {
                 executeCore(this, std::get<0>(callables), tupleParams);
             } else {
-                executeCore(this, std::get<0>(callables), gpuCallableArgs);
+                executeCore(this, std::get<0>(callables), cudaCallableArgs);
             }
         } else {
             if(ct == SpCallableType::CPU) {
                 executeCore(this, std::get<0>(callables), tupleParams);
             } else {
-                executeCore(this, std::get<1>(callables), gpuCallableArgs);
+                executeCore(this, std::get<1>(callables), cudaCallableArgs);
             }
         }
 #else // SPETABARU_COMPILE_WITH_CUDA
@@ -163,7 +163,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-        if(ct == SpCallableType::GPU){
+        if(ct == SpCallableType::CUDA){
             SpCudaUtils::SyncCurrentStream();
         }
 
@@ -188,10 +188,10 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
                 if(ct == SpCallableType::CPU){
                 }
-                else if(ct == SpCallableType::GPU){
-                    const int gpuId = SpCudaUtils::CurrentGpuId();
+                else if(ct == SpCallableType::CUDA){
+                    const int cudaId = SpCudaUtils::CurrentCudaId();
                     h->lock();
-                    SpCudaManager::Managers[gpuId].decrDeviceDataUseCount(h);
+                    SpCudaManager::Managers[cudaId].decrDeviceDataUseCount(h);
                     h->unlock();
                 }
                 else{

@@ -6,22 +6,22 @@ std::vector<bool> SpCudaUtils::ConnectedDevices = SpCudaUtils::ConnectDevices();
 
 cudaStream_t& SpCudaUtils::GetCurrentStream(){
     assert(SpWorker::getWorkerForThread());
-    assert(CurrentWorkerIsGpu());
-    return SpWorker::getWorkerForThread()->getGpuData().stream;
+    assert(CurrentWorkerIsCuda());
+    return SpWorker::getWorkerForThread()->getCudaData().stream;
 }
 
-bool SpCudaUtils::CurrentWorkerIsGpu(){
+bool SpCudaUtils::CurrentWorkerIsCuda(){
     assert(SpWorker::getWorkerForThread());
-    return SpWorker::getWorkerForThread()->getType() == SpWorker::SpWorkerType::GPU_WORKER;
+    return SpWorker::getWorkerForThread()->getType() == SpWorker::SpWorkerType::CUDA_WORKER;
 }
 
-int SpCudaUtils::CurrentGpuId(){
+int SpCudaUtils::CurrentCudaId(){
     assert(SpWorker::getWorkerForThread());
-    return SpWorker::getWorkerForThread()->getGpuData().gpuId;
+    return SpWorker::getWorkerForThread()->getCudaData().cudaId;
 }
 
 void SpCudaUtils::SyncCurrentStream(){
     assert(SpWorker::getWorkerForThread());
-    assert(CurrentWorkerIsGpu());
-    return SpWorker::getWorkerForThread()->getGpuData().synchronize();
+    assert(CurrentWorkerIsCuda());
+    return SpWorker::getWorkerForThread()->getCudaData().synchronize();
 }

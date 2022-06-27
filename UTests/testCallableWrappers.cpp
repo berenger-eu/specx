@@ -39,7 +39,7 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         [](int& param_a){
             param_a++;
         },
-        SpGpu([](std::pair<void*, std::size_t> param_a){
+        SpCuda([](std::pair<void*, std::size_t> param_a){
             (*static_cast<int*>(std::get<0>(param_a)))++;
         }));
         
@@ -47,12 +47,12 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         SpCpu([](int& param_a){
             param_a++;
         }),
-        SpGpu([](std::pair<void*, std::size_t> param_a){
+        SpCuda([](std::pair<void*, std::size_t> param_a){
             (*static_cast<int*>(std::get<0>(param_a)))++;
         }));
 
         runtime.task(SpWrite(a),
-        SpGpu([](std::pair<void*, std::size_t> param_a){
+        SpCuda([](std::pair<void*, std::size_t> param_a){
             (*static_cast<int*>(std::get<0>(param_a)))++;
         }),
         [](int& param_a){
@@ -60,7 +60,7 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         });
         
         runtime.task(SpWrite(a),
-        SpGpu([](std::pair<void*, std::size_t> param_a){
+        SpCuda([](std::pair<void*, std::size_t> param_a){
             (*static_cast<int*>(std::get<0>(param_a)))++;
         }),
         SpCpu([](int& param_a){

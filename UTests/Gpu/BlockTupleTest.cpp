@@ -24,7 +24,7 @@ class BlockTupleTest : public UTester< BlockTupleTest > {
         SpBlockTuple<SpArrayBlock<int>, SpArrayBlock<float>> bt({40, 2});
         SpTaskGraph tg;
         
-        tg.task(SpWrite(bt), SpGpu([](auto btParam) {}));
+        tg.task(SpWrite(bt), SpCuda([](auto btParam) {}));
     }
 
     void SetTests() {

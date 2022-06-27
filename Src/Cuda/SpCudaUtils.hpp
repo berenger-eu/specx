@@ -22,15 +22,15 @@ class SpCudaUtils{
     static std::vector<bool> ConnectDevices(){
         const int nbDevices = GetNbCudaDevices();
         std::vector<bool> connected(nbDevices*nbDevices, false);
-        for(int idxGpu1 = 0 ; idxGpu1 < nbDevices ; ++idxGpu1){
-            UseDevice(idxGpu1);
-            for(int idxGpu2 = 0 ; idxGpu2 < nbDevices ; ++idxGpu2){
+        for(int idxCuda1 = 0 ; idxCuda1 < nbDevices ; ++idxCuda1){
+            UseDevice(idxCuda1);
+            for(int idxCuda2 = 0 ; idxCuda2 < nbDevices ; ++idxCuda2){
                 int is_able;
-                CUDA_ASSERT(cudaDeviceCanAccessPeer(&is_able, idxGpu1, idxGpu2));
+                CUDA_ASSERT(cudaDeviceCanAccessPeer(&is_able, idxCuda1, idxCuda2));
                 if(is_able){
-                    CUDA_ASSERT(cudaDeviceEnablePeerAccess(idxGpu2, 0));
-                    connected[idxGpu1*nbDevices + idxGpu2] = true;
-                    connected[idxGpu2*nbDevices + idxGpu1] = true;
+                    CUDA_ASSERT(cudaDeviceEnablePeerAccess(idxCuda2, 0));
+                    connected[idxCuda1*nbDevices + idxCuda2] = true;
+                    connected[idxCuda2*nbDevices + idxCuda1] = true;
                 }
             }
         }
@@ -40,8 +40,8 @@ class SpCudaUtils{
     static std::vector<bool> ConnectedDevices;
 
 public:
-    static bool DevicesAreConnected(int idxGpu1, int idxGp2){
-        return ConnectedDevices[idxGpu1*GetNbCudaDevices() + idxGp2];
+    static bool DevicesAreConnected(int idxCuda1, int idxGp2){
+        return ConnectedDevices[idxCuda1*GetNbCudaDevices() + idxGp2];
     }
 
     static int GetNbCudaDevices(){
@@ -86,16 +86,16 @@ public:
         return 4;
     }
 
-    static void PrintDeviceName(const int gpuId){
+    static void PrintDeviceName(const int cudaId){
         cudaDeviceProp prop;
-        CUDA_ASSERT(cudaGetDeviceProperties(&prop, gpuId));
-        std::cout << "Device id: " << gpuId << std::endl;
+        CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
+        std::cout << "Device id: " << cudaId << std::endl;
         std::cout << "Device name: " << prop.name << std::endl;
     }
 
     static cudaStream_t& GetCurrentStream();
-    static bool CurrentWorkerIsGpu();
-    static int CurrentGpuId();
+    static bool CurrentWorkerIsCuda();
+    static int CurrentCudaId();
     static void SyncCurrentStream();
 };
 

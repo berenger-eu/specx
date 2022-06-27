@@ -203,8 +203,8 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 				t->preTaskExecution(atg, SpCallableType::CPU);
                 break;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-			case SpWorker::SpWorkerType::GPU_WORKER:
-				t->preTaskExecution(atg, SpCallableType::GPU);
+			case SpWorker::SpWorkerType::CUDA_WORKER:
+				t->preTaskExecution(atg, SpCallableType::CUDA);
 				break;
 #endif
 			default:
@@ -227,8 +227,8 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 				t->postTaskExecution(atg, SpCallableType::CPU);
 				break;
                 #ifdef SPETABARU_COMPILE_WITH_CUDA
-			case SpWorker::SpWorkerType::GPU_WORKER:
-				t->postTaskExecution(atg, SpCallableType::GPU);
+			case SpWorker::SpWorkerType::CUDA_WORKER:
+				t->postTaskExecution(atg, SpCallableType::CUDA);
 				break;
 #endif
 			default:

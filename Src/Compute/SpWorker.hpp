@@ -26,7 +26,7 @@ public:
     enum class SpWorkerType {
         CPU_WORKER,
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-        GPU_WORKER,
+        CUDA_WORKER,
 #endif
         NB_WORKER_TYPES
     };
@@ -45,7 +45,7 @@ private:
     long int threadId;
     std::thread t;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-    SpCudaWorkerData gpuData;
+    SpCudaWorkerData cudaData;
 #endif
 
 private:
@@ -67,8 +67,8 @@ private:
                 task->execute(SpCallableType::CPU);
                 break;
                 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            case SpWorkerType::GPU_WORKER:
-                task->execute(SpCallableType::GPU);
+            case SpWorkerType::CUDA_WORKER:
+                task->execute(SpCallableType::CUDA);
                 break;
 #endif
             default:
@@ -135,8 +135,8 @@ public:
     }
 
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-    SpCudaWorkerData& getGpuData(){
-        return gpuData;
+    SpCudaWorkerData& getCudaData(){
+        return cudaData;
     }
 #endif
     

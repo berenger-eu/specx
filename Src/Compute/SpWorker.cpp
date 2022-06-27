@@ -12,13 +12,13 @@ void SpWorker::start() {
             SpUtils::SetThreadId(threadId);
             SpWorker::setWorkerForThread(this);
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            gpuData.initByWorker();
+            cudaData.initByWorker();
 #endif
             
             doLoop(nullptr);
 
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            gpuData.destroyByWorker();
+            cudaData.destroyByWorker();
 #endif
         });
     }
@@ -75,7 +75,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         atg->postTaskExecution(task, *this);
                     }
                     #ifdef SPETABARU_COMPILE_WITH_CUDA
-                    else if(workerType == SpWorker::SpWorkerType::GPU_WORKER) {
+                    else if(workerType == SpWorker::SpWorkerType::CUDA_WORKER) {
 						atg->preTaskExecution(task, *this);
 						execute(task);
 						atg->postTaskExecution(task, *this);

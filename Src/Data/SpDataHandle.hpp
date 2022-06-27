@@ -27,9 +27,9 @@ private:
     //! Generic pointer to the data
     void* ptrToData;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-    //! Copy of the CPU object on GPUs
-    std::array<SpDeviceData, SpConfig::SpMaxNbGpus> copies;
-    //! Copy builder from/to CPU/GPU
+    //! Copy of the CPU object on CUDAs
+    std::array<SpDeviceData, SpConfig::SpMaxNbCudas> copies;
+    //! Copy builder from/to CPU/CUDA
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     //! Tell if the CPU version is OK
     bool cpuDataOk;
@@ -72,22 +72,22 @@ public:
     template <class Allocators>
     void setCpuOnlyValid(Allocators memManagers) {
         assert(cpuDataOk = true);
-        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
-            if(copies[idxGpu].ptr){
-                deviceDataOp->freeGroup(memManagers[idxGpu], this);
-                copies[idxGpu] = SpDeviceData();
+        for(int idxCuda = 0 ; idxCuda < int(copies.size()) ; ++idxCuda){
+            if(copies[idxCuda].ptr){
+                deviceDataOp->freeGroup(memManagers[idxCuda], this);
+                copies[idxCuda] = SpDeviceData();
             }
         }
     }
 
     template <class Allocators>
-    void setGpuOnlyValid(Allocators& memManagers, const int gpuId) {
-        assert(copies[gpuId].ptr);
+    void setCudaOnlyValid(Allocators& memManagers, const int cudaId) {
+        assert(copies[cudaId].ptr);
         cpuDataOk = false;
-        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
-            if(idxGpu != gpuId && copies[idxGpu].ptr){
-                deviceDataOp->freeGroup(memManagers[idxGpu], this);
-                copies[idxGpu] = SpDeviceData();
+        for(int idxCuda = 0 ; idxCuda < int(copies.size()) ; ++idxCuda){
+            if(idxCuda != cudaId && copies[idxCuda].ptr){
+                deviceDataOp->freeGroup(memManagers[idxCuda], this);
+                copies[idxCuda] = SpDeviceData();
             }
         }
     }
@@ -95,57 +95,57 @@ public:
     template <class Allocators>
     void syncCpuDataIfNeeded(Allocators& memManagers){
         if(cpuDataOk == false){
-            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+            auto idxCudaSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            assert(idxGpuSrcIter != copies.end());
-            const long int idxGpu = std::distance(copies.begin(), idxGpuSrcIter);
-            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], ptrToData, copies[idxGpu].ptr);
+            assert(idxCudaSrcIter != copies.end());
+            const long int idxCuda = std::distance(copies.begin(), idxCudaSrcIter);
+            deviceDataOp->copyFromDeviceToHost(memManagers[idxCuda], ptrToData, copies[idxCuda].ptr);
         }
     }
 
     template <class Allocators>
-    void removeFromGpu(Allocators& memManagers, const int gpuId){
-        assert(copies[gpuId].ptr);
+    void removeFromCuda(Allocators& memManagers, const int cudaId){
+        assert(copies[cudaId].ptr);
         syncCpuDataIfNeeded(memManagers);
-        deviceDataOp->freeGroup(memManagers[gpuId], this);
-        copies[gpuId] = SpDeviceData();
+        deviceDataOp->freeGroup(memManagers[cudaId], this);
+        copies[cudaId] = SpDeviceData();
     }
 
     template <class Allocators>
-    SpDeviceData& getDeviceData(Allocators& memManagers, const int gpuId) {
-        assert(gpuId < SpConfig::SpMaxNbGpus);
-        if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
-            copies[gpuId].ptr = nullptr;
-            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+    SpDeviceData& getDeviceData(Allocators& memManagers, const int cudaId) {
+        assert(cudaId < SpConfig::SpMaxNbCudas);
+        if(copies[cudaId].ptr == nullptr || memManagers[cudaId].hasBeenRemoved(this)){
+            copies[cudaId].ptr = nullptr;
+            auto idxCudaSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], this)){
-                auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[gpuId], ptrToData);
+            if(!deviceDataOp->hasEnoughSpace(memManagers[cudaId], this)){
+                auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[cudaId], ptrToData);
                 for(auto toRemove : candidates){
                     assert(toRemove != this);
                     reinterpret_cast<SpDataHandle*>(toRemove)->lock();
-                    reinterpret_cast<SpDataHandle*>(toRemove)->removeFromGpu(memManagers, gpuId);
+                    reinterpret_cast<SpDataHandle*>(toRemove)->removeFromCuda(memManagers, cudaId);
                     reinterpret_cast<SpDataHandle*>(toRemove)->unlock();
                 }
             }
-            copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], this);
-            if(idxGpuSrcIter != copies.end()){
-                const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
-                if(memManagers[gpuId].isConnectedTo(otherGpu)){
-                    deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[gpuId].ptr, copies[otherGpu].ptr, otherGpu);
+            copies[cudaId] = deviceDataOp->allocate(memManagers[cudaId], this);
+            if(idxCudaSrcIter != copies.end()){
+                const int otherCuda = int(std::distance(copies.begin(), idxCudaSrcIter));
+                if(memManagers[cudaId].isConnectedTo(otherCuda)){
+                    deviceDataOp->copyFromDeviceToDevice(memManagers[cudaId], copies[cudaId].ptr, copies[otherCuda].ptr, otherCuda);
                 }
                 else{
                     syncCpuDataIfNeeded(memManagers);
-                    deviceDataOp->copyFromHostToDevice(memManagers[gpuId], copies[gpuId].ptr, ptrToData);
+                    deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId].ptr, ptrToData);
                 }
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], copies[gpuId].ptr, ptrToData);
+                deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId].ptr, ptrToData);
             }
         }
-        return copies[gpuId];
+        return copies[cudaId];
     }
 #endif // SPETABARU_COMPILE_WITH_CUDA
 
