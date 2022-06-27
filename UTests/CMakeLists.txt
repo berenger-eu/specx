@@ -35,6 +35,9 @@ if(SPETABARU_BUILD_UTESTS)
             MESSAGE(STATUS "UTests -- Add ${execname}")
         endif()
 
+        if(SPETABARU_COMPILE_WITH_CUDA)
+            set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+        endif()
         add_executable(
 			    ${execname}
 			    ${exec}

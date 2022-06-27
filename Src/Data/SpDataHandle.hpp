@@ -131,8 +131,14 @@ public:
             }
             copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], this);
             if(idxGpuSrcIter != copies.end()){
-                const long int otherGpu = std::distance(copies.begin(), idxGpuSrcIter);
-                deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[gpuId].ptr, copies[otherGpu].ptr);
+                const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
+                if(memManagers[gpuId].isConnectedTo(otherGpu)){
+                    deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], copies[gpuId].ptr, copies[otherGpu].ptr, otherGpu);
+                }
+                else{
+                    syncCpuDataIfNeeded(memManagers);
+                    deviceDataOp->copyFromHostToDevice(memManagers[gpuId], copies[gpuId].ptr, ptrToData);
+                }
             }
             else{
                 assert(cpuDataOk);

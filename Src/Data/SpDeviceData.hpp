@@ -21,7 +21,7 @@ public:
     virtual SpDeviceData  allocate(SpAbstractDeviceAllocator& allocator, void* hostPtr) = 0;
     virtual void  copyFromHostToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtr, void* hostPtr) = 0;
     virtual void  copyFromDeviceToHost(SpAbstractDeviceAllocator& allocator, void* hostPtr, void* devicePtr) = 0;
-    virtual void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDst, void* devicePtrSrc) = 0;
+    virtual void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDst, void* devicePtrSrc, int srcId) = 0;
     virtual void  freeGroup(SpAbstractDeviceAllocator& allocator, void* key) = 0;
 };
 
@@ -80,9 +80,9 @@ public:
             //SpDeviceDataCopyFromDeviceToHost(hostPtr, devicePtr);
         }
     }
-    void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDest, void* devicePtrSrc) override{
+    void  copyFromDeviceToDevice(SpAbstractDeviceAllocator& allocator, void* devicePtrDest, void* devicePtrSrc, int srcId) override{
         if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
-            return allocator.copyDeviceToDevice(devicePtrDest, devicePtrSrc,  sizeof(DataType));
+            return allocator.copyDeviceToDevice(devicePtrDest, devicePtrSrc, srcId, sizeof(DataType));
         }
         else {
             //SpDeviceDataCopyFromDeviceToDevice(devicePtrDest, devicePtrSrc);

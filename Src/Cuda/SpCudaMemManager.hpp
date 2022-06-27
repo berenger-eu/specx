@@ -11,7 +11,10 @@
 #include <list>
 #include <set>
 #include <unordered_set>
-#include <cstring> // TODO remove?
+#include <cstring>
+
+#include <cuda_runtime.h>
+#include <cuda.h>
 
 #include <Utils/small_vector.hpp>
 #include <Data/SpAbstractDeviceAllocator.hpp>
@@ -100,12 +103,15 @@ public:
             DataObj data;
             data.size = inByteSize;
             assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
-            // TODO CUDA_ASSERT(cudaMalloc(&data.ptr, inByteSize));
+#ifndef SPETABARU_EMUL_GPU
+            CUDA_ASSERT(cudaMalloc(&data.ptr, inByteSize));
+#else
             if(alignment <= alignof(std::max_align_t)) {
                 data.ptr = std::malloc(data.size);
             } else {
                 data.ptr = std::aligned_alloc(data.size, alignment);
             }
+#endif
             allBlocks[data.ptr] = data;
             if(handles.find(key) == handles.end()){
                 lru.push_front(key);
@@ -123,8 +129,11 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
-                // TODO CUDA_ASSERT(cudaMemFree(data.ptr));
+#ifndef SPETABARU_EMUL_GPU
+                CUDA_ASSERT(cudaFree(data.ptr));
+#else
                 std::free(data.ptr);
+#endif
             }
 
             handles.erase(key);
@@ -134,34 +143,54 @@ public:
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-            // TODO CUDA_ASSERT(cudaMemset(inPtrDev, val, inByteSize));
+#ifndef SPETABARU_EMUL_GPU
+            CUDA_ASSERT(cudaMemset(inPtrDev, val, inByteSize));
+#else
             memset(inPtrDev, val, inByteSize);
+#endif
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-            std::memcpy(inPtrDev, inPtrHost, inByteSize);// TODO
+#ifndef SPETABARU_EMUL_GPU
+            CUDA_ASSERT(cudaMemcpy(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice));
+#else
+            std::memcpy(inPtrDev, inPtrHost, inByteSize);
+#endif
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-            std::memcpy(inPtrHost, inPtrDev, inByteSize);// TODO
+#ifndef SPETABARU_EMUL_GPU
+            CUDA_ASSERT(cudaMemcpy(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost));
+#else
+            std::memcpy(inPtrHost, inPtrDev, inByteSize);
+#endif
         }
 
-        void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const std::size_t inByteSize)  override{
+        void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
+                                const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDevDest) != allBlocks.end()
                     && allBlocks[inPtrDevDest].size <= inByteSize);
-            assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
-                    && allBlocks[inPtrDevSrc].size <= inByteSize);// TODO NO!!
-            std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);// TODO
+            // This is on the other GPU
+            // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
+            //        && allBlocks[inPtrDevSrc].size <= inByteSize);
+            assert(isConnectedTo(srcId));
+#ifndef SPETABARU_EMUL_GPU
+            CUDA_ASSERT(cudaMemcpyPeer(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize));
+#else
+            std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
+#endif
+        }
+
+        bool isConnectedTo(const int otherId){
+            return SpCudaUtils::DevicesAreConnected(id, otherId);
         }
 
         friend SpCudaManager;
     };
-
-
 
     static std::vector<SpCudaMemManager> BuildManagers(){
         std::vector<SpCudaMemManager> managers;

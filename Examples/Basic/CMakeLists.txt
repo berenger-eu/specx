@@ -38,6 +38,9 @@ if(SPETABARU_BUILD_EXAMPLES)
             MESSAGE(STATUS "Patterns -- Add ${execname}")
         endif()
 
+        if(SPETABARU_COMPILE_WITH_CUDA)
+            set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+        endif()
         add_executable(
 			    ${execname}
 			    ${exec}

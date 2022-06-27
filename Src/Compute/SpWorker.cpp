@@ -76,7 +76,6 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                     }
                     #ifdef SPETABARU_COMPILE_WITH_CUDA
                     else if(workerType == SpWorker::SpWorkerType::GPU_WORKER) {
-                        // TODO to valid std::unique_lock<std::mutex>(SpHardware::gpuMutexes[0 /* this->getGpuId() */]);
 						atg->preTaskExecution(task, *this);
 						execute(task);
 						atg->postTaskExecution(task, *this);

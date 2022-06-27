@@ -6,6 +6,7 @@ std::vector<bool> SpCudaUtils::ConnectedDevices = SpCudaUtils::ConnectDevices();
 
 cudaStream_t& SpCudaUtils::GetCurrentStream(){
     assert(SpWorker::getWorkerForThread());
+    assert(CurrentWorkerIsGpu());
     return SpWorker::getWorkerForThread()->getGpuData().stream;
 }
 
@@ -17,4 +18,10 @@ bool SpCudaUtils::CurrentWorkerIsGpu(){
 int SpCudaUtils::CurrentGpuId(){
     assert(SpWorker::getWorkerForThread());
     return SpWorker::getWorkerForThread()->getGpuData().gpuId;
+}
+
+void SpCudaUtils::SyncCurrentStream(){
+    assert(SpWorker::getWorkerForThread());
+    assert(CurrentWorkerIsGpu());
+    return SpWorker::getWorkerForThread()->getGpuData().synchronize();
 }

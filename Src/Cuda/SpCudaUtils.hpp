@@ -5,16 +5,18 @@
 #include <cstring>
 #include <vector>
 
-// TODO #include <cuda.h>
+
+#include <cuda_runtime.h>
+#include <cuda.h>
 
 #define CUDA_ASSERT(X)\
-    (X)
-/*if ( cudaSuccess != (X) ){\
-    printf("Error: fails, %s (%s line %d)\n", cudaGetErrorString(cuda_status), __FILE__, __LINE__ );\
-    exit(1);\
-}*/
-
-using cudaStream_t = int;// TODO
+{\
+    cudaError_t ___resCuda = (X);\
+    if ( cudaSuccess != ___resCuda ){\
+        printf("Error: fails, %s (%s line %d)\n", cudaGetErrorString(___resCuda), __FILE__, __LINE__ );\
+        exit(1);\
+    }\
+}
 
 class SpCudaUtils{
     static std::vector<bool> ConnectDevices(){
@@ -24,9 +26,9 @@ class SpCudaUtils{
             UseDevice(idxGpu1);
             for(int idxGpu2 = 0 ; idxGpu2 < nbDevices ; ++idxGpu2){
                 int is_able;
-                // TODO cudaDeviceCanAccessPeer(&is_able, idxGpu1, idxGpu2);
+                CUDA_ASSERT(cudaDeviceCanAccessPeer(&is_able, idxGpu1, idxGpu2));
                 if(is_able){
-                    // TODO cudaDeviceEnablePeerAccess(idxGpu2, 0);
+                    CUDA_ASSERT(cudaDeviceEnablePeerAccess(idxGpu2, 0));
                     connected[idxGpu1*nbDevices + idxGpu2] = true;
                     connected[idxGpu2*nbDevices + idxGpu1] = true;
                 }
@@ -44,41 +46,39 @@ public:
 
     static int GetNbCudaDevices(){
         int nbDevices;
-        nbDevices = 2;//CUDA_ASSERT(cudaGetDeviceCount(nbDevices));// TODO Ask CUDA
+        CUDA_ASSERT(cudaGetDeviceCount(&nbDevices));
         return nbDevices;
     }
 
     static std::size_t GetTotalMemOnDevice(){
         size_t free_byte ;
         size_t total_byte ;
-        // TODO CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
-        total_byte = 16 * 1024L * 1024L * 1024L;
+        CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
         return total_byte;
     }
 
     static std::size_t GetFreeMemOnDevice(){
         size_t free_byte ;
         size_t total_byte ;
-        // TODO CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
-        free_byte = 16 * 1024L * 1024L * 1024L;
+        CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
         return free_byte;
     }
 
     static void UseDevice(const int deviceId){
-        // TODO cudaSetDevice (deviceId);
+        CUDA_ASSERT(cudaSetDevice (deviceId));
     }
 
     static void SynchronizeDevice(){
-        // TODO cudaDeviceSynchronize();
+        CUDA_ASSERT(cudaDeviceSynchronize());
     }
 
     static void SynchronizeStream(cudaStream_t& stream){
-        //cudaStreamSynchronize(stream);
+        CUDA_ASSERT(cudaStreamSynchronize(stream));
     }
 
     static int GetNbDevices(){
         int num;
-        //cudaGetDeviceCount(&num);
+        CUDA_ASSERT(cudaGetDeviceCount(&num));
         return num;
     }
 
@@ -87,15 +87,16 @@ public:
     }
 
     static void PrintDeviceName(const int gpuId){
-        // TODO cudaDeviceProp prop;
-        // cudaGetDeviceProperties(&prop, gpuId);
-        // std::cout << "Device id: " << gpuId << std::endl;
-        // std::cout << "Device name: " << prop.name << std::endl;
+        cudaDeviceProp prop;
+        CUDA_ASSERT(cudaGetDeviceProperties(&prop, gpuId));
+        std::cout << "Device id: " << gpuId << std::endl;
+        std::cout << "Device name: " << prop.name << std::endl;
     }
 
     static cudaStream_t& GetCurrentStream();
     static bool CurrentWorkerIsGpu();
     static int CurrentGpuId();
+    static void SyncCurrentStream();
 };
 
 #endif // SPCUDAUTILS_HPP

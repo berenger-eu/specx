@@ -430,3 +430,9 @@ By default the task will be named as the demangled string of the typeid name of 
 Retrieves the name of the task.  
 Speculative versions of tasks will have an apostrophe appended to their name.
 
+# GPU/CUDA
+
+The CMake variable `SPETABARU_COMPILE_WITH_CUDA` must be set to ON, for example with the command `cmake .. -DSPETABARU_COMPILE_WITH_CUDA=ON`.
+If CMake is not able to find nvcc, one must set `CUDACXX` env variable or the CMake variable `CMAKE_CUDA_COMPILER` to the path to nvcc.
+On can set `CMAKE_CUDA_ARCHITECTURES` to select the CUDA sm to compile for.
+

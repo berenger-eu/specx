@@ -11,10 +11,18 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 #===========================================================================
 project(SPETABARU CXX)
 
-OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" OFF)
+include(CheckLanguage)
+check_language(CUDA)
+
+OPTION(SPETABARU_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" ${CMAKE_CUDA_COMPILER})
 
 if(SPETABARU_COMPILE_WITH_CUDA)
-	#enable_language(CUDA)
+	enable_language(CUDA)
+		
+	if(NOT CMAKE_CUDA_ARCHITECTURES)
+      set(CMAKE_CUDA_ARCHITECTURES "75" CACHE STRING
+          "Set CUDA target architecture" FORCE)
+    endif()
 endif()
 
 # check if compiling into source directories
@@ -32,20 +40,25 @@ endif(insource)
 
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
+set(SPETABARU_LIBRARIES "")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# TODO https://stackoverflow.com/questions/68950463/cmake-cuda-compiler-flag-is-false-despite-cuda-being-found
 if(SPETABARU_COMPILE_WITH_CUDA)
-	set(CMAKE_CUDA_FLAGS "-std=c++17")
-	#set(CMAKE_CUDA_STANDARD 17)
-	#set(CMAKE_CXX_STANDARD_REQUIRED ON)
-	#SET(CMAKE_CUDA_EXTENSIONS OFF)
+	#set(CMAKE_CUDA_FLAGS "-std=c++17")
+	set(CMAKE_CUDA_STANDARD 17)
+	set(CMAKE_CXX_STANDARD_REQUIRED ON)
+	SET(CMAKE_CUDA_EXTENSIONS OFF)
+	include(FindCUDA)
+	include_directories(${CUDA_INCLUDE_DIRS})
+    list(APPEND SPETABARU_LIBRARIES ${CUDA_LIBRARIES})
 endif()
 
 # need pthread
-set(SPETABARU_LIBRARIES pthread)
+list(APPEND SPETABARU_LIBRARIES pthread)
 
 # Release by default
 if(NOT CMAKE_BUILD_TYPE)
