@@ -2,7 +2,7 @@
 # SPETABARU - Berenger Bramas MPCDF - 2017
 # Under MIT Licence, please you must read the LICENCE file.
 ###########################################################################
-cmake_minimum_required (VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.18 FATAL_ERROR)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
