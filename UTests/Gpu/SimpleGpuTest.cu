@@ -27,7 +27,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
     void Test(){
-        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(1,1,2));
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
         SpTaskGraph tg;
         int a = 0;
         int b = 0;
@@ -35,7 +35,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-                    SpGpu([](std::pair<void*, std::size_t> paramA) {
+                    SpCuda([](std::pair<void*, std::size_t> paramA) {
             #ifndef SPETABARU_EMUL_GPU
                         inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
             #else
@@ -46,7 +46,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         );
 
         tg.task(SpWrite(b),
-                    SpGpu([](std::pair<void*, std::size_t> paramB) {
+                    SpCuda([](std::pair<void*, std::size_t> paramB) {
             #ifndef SPETABARU_EMUL_GPU
                         inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramB)));
             #else
@@ -65,7 +65,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     SpCpu([](int& paramA) {
                         paramA++;
                     }),
-                    SpGpu(
+                    SpCuda(
                         [](std::pair<void*, std::size_t> paramA) {
             #ifndef SPETABARU_EMUL_GPU
                         inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
