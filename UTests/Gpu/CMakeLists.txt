@@ -10,6 +10,7 @@ file(
 	GLOB	
 	source_tests_files
 	./*.cpp
+	./*.cu
 	)
 
 

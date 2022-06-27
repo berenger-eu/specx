@@ -17,6 +17,12 @@
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Config/SpConfig.hpp"
 
+__global__ void inc_var(int* ptr){
+    if(blockIdx.x == 0 && threadIdx.x == 0){
+        (*ptr)++;
+    }
+}
+
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
@@ -30,14 +36,22 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.task(SpWrite(a),
                     SpGpu([](std::pair<void*, std::size_t> paramA) {
+            #ifndef SPETABARU_EMUL_GPU
+                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
+            #else
                         (*static_cast<int*>(std::get<0>(paramA)))++;
+            #endif
                         std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
 
         tg.task(SpWrite(b),
                     SpGpu([](std::pair<void*, std::size_t> paramB) {
+            #ifndef SPETABARU_EMUL_GPU
+                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramB)));
+            #else
                         (*static_cast<int*>(std::get<0>(paramB)))++;
+            #endif
                     })
         );
 
@@ -53,7 +67,11 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     }),
                     SpGpu(
                         [](std::pair<void*, std::size_t> paramA) {
+            #ifndef SPETABARU_EMUL_GPU
+                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
+            #else
                         (*static_cast<int*>(std::get<0>(paramA)))++;
+            #endif
                     })
         );
 

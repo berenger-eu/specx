@@ -124,6 +124,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpCudaManager::Managers[gpuId].incrDeviceDataUseCount(h);
                     gpuCallableArgs[index] = {dataObj.ptr, dataObj.size};
+                    SpCudaUtils::SyncCurrentStream();
                 }
                 else{
                     assert(0);
