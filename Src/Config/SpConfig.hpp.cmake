@@ -45,7 +45,7 @@
 namespace SpConfig {
     #ifdef SPETABARU_COMPILE_WITH_CUDA
         inline constexpr bool CompileWithCuda = true;
-        inline constexpr int SpMaxNbGpus = 16;
+        inline constexpr int SpMaxNbCudas = 16;
     #else
         inline constexpr bool CompileWithCuda = false;    
     #endif
