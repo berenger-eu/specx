@@ -10,7 +10,7 @@
 #endif
 
 struct SpCudaWorkerData {
-    int cudaId;
+    int cudaId = -1;
     cudaStream_t stream;
 
     void init(int deviceId){
@@ -18,6 +18,7 @@ struct SpCudaWorkerData {
     }
 
     void initByWorker(){
+        assert(cudaId != -1);
         SpCudaUtils::UseDevice(cudaId);
         CUDA_ASSERT(cudaStreamCreate(&stream));
     }
