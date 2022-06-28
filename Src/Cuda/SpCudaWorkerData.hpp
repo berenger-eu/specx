@@ -1,6 +1,8 @@
 #ifndef SPCUDAWORKERDATA_HPP
 #define SPCUDAWORKERDATA_HPP
 
+#include <cassert>
+
 #include <Config/SpConfig.hpp>
 
 #include "SpCudaUtils.hpp"
