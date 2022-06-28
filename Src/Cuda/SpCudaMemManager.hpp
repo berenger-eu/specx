@@ -18,6 +18,7 @@
 
 #include <Utils/small_vector.hpp>
 #include <Data/SpAbstractDeviceAllocator.hpp>
+#include <Utils/SpConsumerThread.hpp>
 #include "SpCudaUtils.hpp"
 
 class SpCudaManager {
@@ -52,11 +53,31 @@ public:
 
         std::list<void*> lru;
 
-        explicit SpCudaMemManager(const int inId)
-            : id(inId){
-        }
+        cudaStream_t extraStream;
+        std::unique_ptr<SpConsumerThread> deferCopier;
 
     public:
+        explicit SpCudaMemManager(const int inId)
+            : id(inId), deferCopier(new SpConsumerThread){
+
+            deferCopier->submitJobAndWait([this]{
+                SpCudaUtils::UseDevice(id);
+                CUDA_ASSERT(cudaStreamCreate(&extraStream));
+            });
+        }
+
+        ~SpCudaMemManager(){
+            deferCopier->submitJobAndWait([this]{
+                CUDA_ASSERT(cudaStreamDestroy(extraStream));
+            });
+        }
+
+        SpCudaMemManager(const SpCudaMemManager&) = delete;
+        SpCudaMemManager(SpCudaMemManager&&) = default;
+
+        SpCudaMemManager& operator=(const SpCudaMemManager&) = delete;
+        SpCudaMemManager& operator=(SpCudaMemManager&&) = default;
+
         void incrDeviceDataUseCount(void* key){
             assert(handles.find(key) != handles.end());
             handles[key].useCount += 1;
@@ -104,7 +125,14 @@ public:
             data.size = inByteSize;
             assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
+            if(SpCudaUtils::CurrentWorkerIsCuda()){
+                CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, extraStream));
+                });
+            }
 #else
             if(alignment <= alignof(std::max_align_t)) {
                 data.ptr = std::malloc(data.size);
@@ -130,7 +158,14 @@ public:
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
 #ifndef SPETABARU_EMUL_CUDA
-                CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+                if(SpCudaUtils::CurrentWorkerIsCuda()){
+                    CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+                }
+                else{
+                    deferCopier->submitJobAndWait([&,this]{
+                        CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+                    });
+                }
 #else
                 std::free(data.ptr);
 #endif
@@ -144,7 +179,14 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
+            if(SpCudaUtils::CurrentWorkerIsCuda()){
+                CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
+                });
+            }
 #else
             memset(inPtrDev, val, inByteSize);
 #endif
@@ -154,8 +196,16 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
+            if(SpCudaUtils::CurrentWorkerIsCuda()){
+                CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
                                         SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
+                                            SpCudaUtils::GetCurrentStream()));
+                });
+            }
 #else
             std::memcpy(inPtrDev, inPtrHost, inByteSize);
 #endif
@@ -165,8 +215,16 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
+            if(SpCudaUtils::CurrentWorkerIsCuda()){
+                CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                         SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
+                                            SpCudaUtils::GetCurrentStream()));
+                });
+            }
 #else
             std::memcpy(inPtrHost, inPtrDev, inByteSize);
 #endif
@@ -181,8 +239,16 @@ public:
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
+            if(SpCudaUtils::CurrentWorkerIsCuda()){
+                CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                             SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
+                                                SpCudaUtils::GetCurrentStream()));
+                });
+            }
 #else
             std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
 #endif
@@ -192,14 +258,18 @@ public:
             return SpCudaUtils::DevicesAreConnected(id, otherId);
         }
 
-        friend SpCudaManager;
+        void syncExtraStream(){
+            deferCopier->submitJobAndWait([this]{
+                SpCudaUtils::SynchronizeStream(extraStream);
+            });
+        }
     };
 
     static std::vector<SpCudaMemManager> BuildManagers(){
         std::vector<SpCudaMemManager> managers;
         const int nbCudas = SpCudaUtils::GetNbCudaDevices();
         for(int idxCuda = 0 ; idxCuda < nbCudas ; ++idxCuda){
-            managers.emplace_back(SpCudaMemManager(idxCuda));
+            managers.push_back(SpCudaMemManager(idxCuda));
         }
         return managers;
     }

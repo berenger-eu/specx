@@ -111,7 +111,10 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 h->lock();
 
                 if(ct == SpCallableType::CPU){
-                    h->syncCpuDataIfNeeded(SpCudaManager::Managers);
+                    const int cudaSrc = h->syncCpuDataIfNeeded(SpCudaManager::Managers);
+                    if(cudaSrc != -1){
+                        SpCudaManager::Managers[cudaSrc].syncExtraStream();
+                    }
                     if(accessMode != SpDataAccessMode::READ){
                         h->setCpuOnlyValid(SpCudaManager::Managers);
                     }
@@ -121,6 +124,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     auto dataObj = h->getDeviceData(SpCudaManager::Managers, cudaId);
                     if(accessMode != SpDataAccessMode::READ){
                         h->setCudaOnlyValid(SpCudaManager::Managers, cudaId);
+                    }
+                    else{
+                        SpCudaUtils::SyncCurrentStream();
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
                     cudaCallableArgs[index] = {dataObj.ptr, dataObj.size};
@@ -133,7 +139,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             }
         }, this->getDataDependencyTupleRef());
 
-        SpCudaUtils::SyncCurrentStream();
         SpCudaManager::Unlock();
 #endif // SPETABARU_COMPILE_WITH_CUDA
     }
@@ -165,6 +170,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
         if(ct == SpCallableType::CUDA){
+            // Syn only if we the task was on GPU
             SpCudaUtils::SyncCurrentStream();
         }
 

@@ -70,7 +70,7 @@ public:
 
 #ifdef SPETABARU_COMPILE_WITH_CUDA
     template <class Allocators>
-    void setCpuOnlyValid(Allocators memManagers) {
+    void setCpuOnlyValid(Allocators& memManagers) {
         assert(cpuDataOk = true);
         for(int idxCuda = 0 ; idxCuda < int(copies.size()) ; ++idxCuda){
             if(copies[idxCuda].ptr){
@@ -93,15 +93,17 @@ public:
     }
 
     template <class Allocators>
-    void syncCpuDataIfNeeded(Allocators& memManagers){
+    int syncCpuDataIfNeeded(Allocators& memManagers){
         if(cpuDataOk == false){
             auto idxCudaSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
             assert(idxCudaSrcIter != copies.end());
-            const long int idxCuda = std::distance(copies.begin(), idxCudaSrcIter);
+            const int idxCuda = int(std::distance(copies.begin(), idxCudaSrcIter));
             deviceDataOp->copyFromDeviceToHost(memManagers[idxCuda], ptrToData, copies[idxCuda].ptr);
+            return idxCuda;
         }
+        return -1;
     }
 
     template <class Allocators>
