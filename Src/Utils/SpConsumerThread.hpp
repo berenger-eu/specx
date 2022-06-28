@@ -38,6 +38,11 @@ public:
 
     }
 
+    SpConsumerThread(const SpConsumerThread&) = delete;
+    SpConsumerThread(SpConsumerThread&&) = delete;
+    SpConsumerThread& operator=(const SpConsumerThread&) = delete;
+    SpConsumerThread& operator=(SpConsumerThread&&) = delete;
+
     ~SpConsumerThread(){
         if(shouldTerminate == false){
             stop();
