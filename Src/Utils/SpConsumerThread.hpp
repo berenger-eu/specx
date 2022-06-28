@@ -15,7 +15,7 @@ class SpConsumerThread {
                 data->mutexCondition.wait(lock, [data] {
                     return !data->queueJobs.empty() || data->shouldTerminate;
                 });
-                if (data->shouldTerminate) {
+                if (data->queueJobs.empty() && data->shouldTerminate) {
                     return;
                 }
                 job = data->queueJobs.front();
