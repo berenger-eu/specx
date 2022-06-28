@@ -58,7 +58,7 @@ static auto DefaultTeamOfWorkers() {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
     return TeamOfCpuCudaWorkers();
 #else
-    return createTeamOfCpuWorkers();
+    return TeamOfCpuWorkers();
 #endif
 }
 
