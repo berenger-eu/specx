@@ -67,9 +67,11 @@ public:
         }
 
         ~SpCudaMemManager(){
-            deferCopier->submitJobAndWait([this]{
-                CUDA_ASSERT(cudaStreamDestroy(extraStream));
-            });
+            if(deferCopier){
+                deferCopier->submitJobAndWait([this]{
+                    CUDA_ASSERT(cudaStreamDestroy(extraStream));
+                });
+            }
         }
 
         SpCudaMemManager(const SpCudaMemManager&) = delete;
