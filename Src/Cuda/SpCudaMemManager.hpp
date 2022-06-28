@@ -98,13 +98,13 @@ public:
         }
 
         void* allocateWithKey(void* key, std::size_t inByteSize,
-                              std::size_t alignment) override{
+                              std::size_t /*alignment*/) override{
             assert(hasEnoughSpace(inByteSize));
             DataObj data;
             data.size = inByteSize;
             assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMalloc(&data.ptr, inByteSize));
+            CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
 #else
             if(alignment <= alignof(std::max_align_t)) {
                 data.ptr = std::malloc(data.size);
@@ -130,7 +130,7 @@ public:
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
 #ifndef SPETABARU_EMUL_CUDA
-                CUDA_ASSERT(cudaFree(data.ptr));
+                CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
 #else
                 std::free(data.ptr);
 #endif
@@ -144,7 +144,7 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemset(inPtrDev, val, inByteSize));
+            CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
 #else
             memset(inPtrDev, val, inByteSize);
 #endif
@@ -154,7 +154,8 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpy(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice));
+            CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
+                                        SpCudaUtils::GetCurrentStream()));
 #else
             std::memcpy(inPtrDev, inPtrHost, inByteSize);
 #endif
@@ -164,7 +165,8 @@ public:
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpy(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
+                                        SpCudaUtils::GetCurrentStream()));
 #else
             std::memcpy(inPtrHost, inPtrDev, inByteSize);
 #endif
@@ -179,7 +181,8 @@ public:
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
 #ifndef SPETABARU_EMUL_CUDA
-            CUDA_ASSERT(cudaMemcpyPeer(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize));
+            CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
+                                            SpCudaUtils::GetCurrentStream()));
 #else
             std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
 #endif

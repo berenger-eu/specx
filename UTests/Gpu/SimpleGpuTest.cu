@@ -37,7 +37,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.task(SpWrite(a),
                     SpCuda([](std::pair<void*, std::size_t> paramA) {
             #ifndef SPETABARU_EMUL_GPU
-                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)));
             #else
                         (*static_cast<int*>(std::get<0>(paramA)))++;
             #endif
@@ -48,7 +48,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.task(SpWrite(b),
                     SpCuda([](std::pair<void*, std::size_t> paramB) {
             #ifndef SPETABARU_EMUL_GPU
-                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramB)));
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramB)));
             #else
                         (*static_cast<int*>(std::get<0>(paramB)))++;
             #endif
@@ -68,7 +68,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     SpCuda(
                         [](std::pair<void*, std::size_t> paramA) {
             #ifndef SPETABARU_EMUL_GPU
-                        inc_var<<<1,1>>>(static_cast<int*>(std::get<0>(paramA)));
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)));
             #else
                         (*static_cast<int*>(std::get<0>(paramA)))++;
             #endif

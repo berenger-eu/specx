@@ -124,7 +124,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
                     cudaCallableArgs[index] = {dataObj.ptr, dataObj.size};
-                    SpCudaUtils::SyncCurrentStream();
                 }
                 else{
                     assert(0);
@@ -133,6 +132,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 h->unlock();
             }
         }, this->getDataDependencyTupleRef());
+
+        SpCudaUtils::SyncCurrentStream();
         SpCudaManager::Unlock();
 #endif // SPETABARU_COMPILE_WITH_CUDA
     }
