@@ -12,13 +12,17 @@ void SpWorker::start() {
             SpUtils::SetThreadId(threadId);
             SpWorker::setWorkerForThread(this);
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            cudaData.initByWorker();
+            if(this->getType() == SpWorkerType::CUDA_WORKER){
+                cudaData.initByWorker();
+            }
 #endif
             
             doLoop(nullptr);
 
 #ifdef SPETABARU_COMPILE_WITH_CUDA
-            cudaData.destroyByWorker();
+            if(this->getType() == SpWorkerType::CUDA_WORKER){
+                cudaData.destroyByWorker();
+            }
 #endif
         });
     }
