@@ -165,7 +165,7 @@ public:
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
-                        CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+                        CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
                     });
                 }
 #else
@@ -182,11 +182,11 @@ public:
                     && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPETABARU_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
+                CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize));
+                    CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, extraStream));
                 });
             }
 #else
@@ -205,7 +205,7 @@ public:
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
-                                            SpCudaUtils::GetCurrentStream()));
+                                            extraStream));
                 });
             }
 #else
@@ -224,7 +224,7 @@ public:
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
-                                            SpCudaUtils::GetCurrentStream()));
+                                            extraStream));
                 });
             }
 #else
@@ -248,7 +248,7 @@ public:
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
-                                                SpCudaUtils::GetCurrentStream()));
+                                                extraStream));
                 });
             }
 #else
