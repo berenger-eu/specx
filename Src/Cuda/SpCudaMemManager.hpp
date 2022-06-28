@@ -269,7 +269,7 @@ public:
 
     static std::vector<SpCudaMemManager> BuildManagers(){
         std::vector<SpCudaMemManager> managers;
-        const int nbCudas = SpCudaUtils::GetNbCudaDevices();
+        const int nbCudas = SpCudaUtils::GetNbDevices();
         for(int idxCuda = 0 ; idxCuda < nbCudas ; ++idxCuda){
             managers.push_back(SpCudaMemManager(idxCuda));
         }

@@ -27,6 +27,8 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
     void Test(){
+        SpCudaUtils::PrintInfo();
+
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
         SpTaskGraph tg;
         int a = 0;

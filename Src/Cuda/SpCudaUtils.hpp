@@ -20,7 +20,7 @@
 
 class SpCudaUtils{
     static std::vector<bool> ConnectDevices(){
-        const int nbDevices = GetNbCudaDevices();
+        const int nbDevices = GetNbDevices();
         std::vector<bool> connected(nbDevices*nbDevices, false);
         for(int idxCuda1 = 0 ; idxCuda1 < nbDevices ; ++idxCuda1){
             UseDevice(idxCuda1);
@@ -40,14 +40,8 @@ class SpCudaUtils{
     static std::vector<bool> ConnectedDevices;
 
 public:
-    static bool DevicesAreConnected(int idxCuda1, int idxGp2){
-        return ConnectedDevices[idxCuda1*GetNbCudaDevices() + idxGp2];
-    }
-
-    static int GetNbCudaDevices(){
-        int nbDevices;
-        CUDA_ASSERT(cudaGetDeviceCount(&nbDevices));
-        return nbDevices;
+    static bool DevicesAreConnected(int idxCuda1, int idxCuda2){
+        return ConnectedDevices[idxCuda1*GetNbDevices() + idxCuda2];
     }
 
     static std::size_t GetTotalMemOnDevice(){
@@ -65,6 +59,10 @@ public:
     }
 
     static void UseDevice(const int deviceId){
+        if(deviceId >= GetNbDevices()){
+            std::cerr << "[SPETABARU] Ask to use gpu " << deviceId
+                      << " but there are only " << GetNbDevices() << " gpus" << std::endl;
+        }
         CUDA_ASSERT(cudaSetDevice (deviceId));
     }
 
@@ -89,8 +87,16 @@ public:
     static void PrintDeviceName(const int cudaId){
         cudaDeviceProp prop;
         CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
-        std::cout << "Device id: " << cudaId << std::endl;
-        std::cout << "Device name: " << prop.name << std::endl;
+        std::cout << "[SPETABARU] - Device id: " << cudaId << std::endl;
+        std::cout << "[SPETABARU]   Device name: " << prop.name << std::endl;
+    }
+
+    static void PrintInfo(){
+        const int nbGpus = GetNbDevices();
+        std::cout << "[SPETABARU] There are " << nbGpus << " gpus" << std::endl;
+        for(int idxGpu = 0 ; idxGpu < nbGpus ; ++idxGpu){
+            PrintDeviceName(idxGpu);
+        }
     }
 
     static cudaStream_t& GetCurrentStream();
