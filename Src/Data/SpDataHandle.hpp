@@ -74,7 +74,7 @@ public:
         assert(cpuDataOk = true);
         for(int idxCuda = 0 ; idxCuda < int(copies.size()) ; ++idxCuda){
             if(copies[idxCuda].ptr){
-                deviceDataOp->freeGroup(memManagers[idxCuda], this);
+                deviceDataOp->freeGroup(memManagers[idxCuda], ptrToData);
                 copies[idxCuda] = SpDeviceData();
             }
         }
@@ -86,7 +86,7 @@ public:
         cpuDataOk = false;
         for(int idxCuda = 0 ; idxCuda < int(copies.size()) ; ++idxCuda){
             if(idxCuda != cudaId && copies[idxCuda].ptr){
-                deviceDataOp->freeGroup(memManagers[idxCuda], this);
+                deviceDataOp->freeGroup(memManagers[idxCuda], ptrToData);
                 copies[idxCuda] = SpDeviceData();
             }
         }
@@ -100,7 +100,7 @@ public:
             });
             assert(idxCudaSrcIter != copies.end());
             const int idxCuda = int(std::distance(copies.begin(), idxCudaSrcIter));
-            deviceDataOp->copyFromDeviceToHost(memManagers[idxCuda], ptrToData, copies[idxCuda].ptr);
+            deviceDataOp->copyFromDeviceToHost(memManagers[idxCuda], ptrToData, copies[idxCuda]);
             return idxCuda;
         }
         return -1;
@@ -110,7 +110,7 @@ public:
     void removeFromCuda(Allocators& memManagers, const int cudaId){
         assert(copies[cudaId].ptr);
         syncCpuDataIfNeeded(memManagers);
-        deviceDataOp->freeGroup(memManagers[cudaId], this);
+        deviceDataOp->freeGroup(memManagers[cudaId], ptrToData);
         copies[cudaId] = SpDeviceData();
     }
 
@@ -122,7 +122,7 @@ public:
             auto idxCudaSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
-            if(!deviceDataOp->hasEnoughSpace(memManagers[cudaId], this)){
+            if(!deviceDataOp->hasEnoughSpace(memManagers[cudaId], ptrToData)){
                 auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[cudaId], ptrToData);
                 for(auto toRemove : candidates){
                     assert(toRemove != this);
@@ -131,20 +131,20 @@ public:
                     reinterpret_cast<SpDataHandle*>(toRemove)->unlock();
                 }
             }
-            copies[cudaId] = deviceDataOp->allocate(memManagers[cudaId], this);
+            copies[cudaId] = deviceDataOp->allocate(memManagers[cudaId], ptrToData);
             if(idxCudaSrcIter != copies.end()){
                 const int otherCuda = int(std::distance(copies.begin(), idxCudaSrcIter));
                 if(memManagers[cudaId].isConnectedTo(otherCuda)){
-                    deviceDataOp->copyFromDeviceToDevice(memManagers[cudaId], copies[cudaId].ptr, copies[otherCuda].ptr, otherCuda);
+                    deviceDataOp->copyFromDeviceToDevice(memManagers[cudaId], copies[cudaId], copies[otherCuda], otherCuda);
                 }
                 else{
                     syncCpuDataIfNeeded(memManagers);
-                    deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId].ptr, ptrToData);
+                    deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId], ptrToData);
                 }
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId].ptr, ptrToData);
+                deviceDataOp->copyFromHostToDevice(memManagers[cudaId], copies[cudaId], ptrToData);
             }
         }
         return copies[cudaId];
