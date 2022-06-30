@@ -101,52 +101,54 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-                    SpCuda([](std::pair<void*, std::size_t> paramA) {
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)),
-                                                                           std::get<1>(paramA)/sizeof(int));
+            SpCuda([](std::pair<void*, std::size_t> paramA) {
+                int* arrayA = static_cast<int*>(std::get<0>(paramA));
+                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
 
-                        std::this_thread::sleep_for(std::chrono::seconds(2));
-                    })
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+            })
         );
 
         tg.task(SpWrite(b),
-                    SpCuda([](std::pair<void*, std::size_t> paramB) {
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramB)),
-                                                                            std::get<1>(paramB)/sizeof(int));
-                    })
+            SpCuda([](std::pair<void*, std::size_t> paramB) {
+                int* arrayB = static_cast<int*>(std::get<0>(paramB));
+                const int nbElementsB = std::get<1>(paramB)/sizeof(int);
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayB, nbElementsB);
+            })
         );
 
         tg.task(SpRead(a), SpWrite(b),
-                    SpCpu([](const std::vector<int>& paramA, std::vector<int>& paramB) {
-                        assert(paramA.size() == paramB.size());
-                        for(int idx = 0 ; idx < int(paramA.size()) ; ++idx){
-                            paramB[idx] = paramA[idx] + paramB[idx];
-                        }
-                    })
+            SpCpu([](const std::vector<int>& paramA, std::vector<int>& paramB) {
+                assert(paramA.size() == paramB.size());
+                for(int idx = 0 ; idx < int(paramA.size()) ; ++idx){
+                    paramB[idx] = paramA[idx] + paramB[idx];
+                }
+            })
         );
 
         tg.task(SpWrite(a),
-                    SpCpu([](std::vector<int>& paramA) {
-                        for(auto& va : paramA){
-                            va++;
-                        }
-                    }),
-                    SpCuda(
-                        [](std::pair<void*, std::size_t> paramA) {
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)),
-                                                                           std::get<1>(paramA)/sizeof(int));
-                    })
+            SpCpu([](std::vector<int>& paramA) {
+                for(auto& va : paramA){
+                    va++;
+                }
+            }),
+            SpCuda([](std::pair<void*, std::size_t> paramA) {
+                int* arrayA = static_cast<int*>(std::get<0>(paramA));
+                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
+            })
         );
 
         tg.task(SpWrite(a), SpWrite(b),
-                    SpCpu([](std::vector<int>& paramA, std::vector<int>& paramB) {
-                        for(auto& va : paramA){
-                            va++;
-                        }
-                        for(auto& vb : paramB){
-                            vb++;
-                        }
-                    })
+            SpCpu([](std::vector<int>& paramA, std::vector<int>& paramB) {
+                for(auto& va : paramA){
+                    va++;
+                }
+                for(auto& vb : paramB){
+                    vb++;
+                }
+            })
         );
 
         tg.waitAllTasks();
