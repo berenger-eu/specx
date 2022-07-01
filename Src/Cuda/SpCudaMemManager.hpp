@@ -109,13 +109,13 @@ public:
             const auto iterend = lru.rend();
             for(auto iter = lru.rbegin() ; iter != iterend && toBeReleased < inByteSize ; ){
                 void* handleToRemove = (*iter);
-                ++iter;
                 if(handles[handleToRemove].useCount == 0){
                     for(auto block : handles[handleToRemove].groupOfBlocks){
                         toBeReleased += block.size;
                     }
                     candidates.push_back(*iter);
                 }
+                ++iter;
             }
             return candidates;
         }
