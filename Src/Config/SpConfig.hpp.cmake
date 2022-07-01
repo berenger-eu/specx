@@ -11,37 +11,6 @@
 
 #cmakedefine SPETABARU_COMPILE_WITH_CUDA
 
-/*#ifdef SPETABARU_COMPILE_WITH_CUDA
-
-	#ifndef SPHOST
-		#define SPHOST __host__
-	#endif
-
-	#ifndef SPDEVICE
-		#define SPDEVICE __device__
-	#endif
-
-	#ifndef SPGLOBAL
-		#define SPGLOBAL __GLOBAL__
-	#endif
-
-
-#else*/
-
-		#ifndef SPHOST
-			#define SPHOST
-		#endif
-		
-		#ifndef SPDEVICE
-			#define SPDEVICE
-		#endif
-		
-		#ifndef SPGLOBAL
-			#define SPGLOBAL
-		#endif
-
-//#endif
-
 namespace SpConfig {
     #ifdef SPETABARU_COMPILE_WITH_CUDA
         inline constexpr bool CompileWithCuda = true;
