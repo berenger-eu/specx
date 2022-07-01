@@ -113,7 +113,7 @@ public:
                     for(auto block : handles[handleToRemove].groupOfBlocks){
                         toBeReleased += block.size;
                     }
-                    candidates.push_back(*iter);
+                    candidates.push_back(handleToRemove);
                 }
                 ++iter;
             }
