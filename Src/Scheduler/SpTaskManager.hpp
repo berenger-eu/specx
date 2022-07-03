@@ -276,4 +276,49 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 	}
 }
 
+#ifdef SPETABARU_COMPILE_WITH_MPI
+inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t) {
+    t->setState(SpTaskState::POST_RUN);
+
+    small_vector<SpAbstractTask*> candidates;
+    t->releaseDependences(&candidates);
+
+    SpDebugPrint() << "Proceed candidates from after MPI " << t->getId() << ", they are " << candidates.size();
+    for(auto otherId : candidates){
+        SpDebugPrint() << "Test " << otherId->getId();
+        insertIfReady<true>(otherId);
+    }
+
+    t->setState(SpTaskState::FINISHED);
+    t->releaseControl();
+
+    nbRunningTasks--;
+
+    // We save all of the following values because the SpTaskManager
+    // instance might get destroyed as soon as the mutex (mutexFinishedTasks)
+    // protected region below has been executed.
+    auto previousCntVal = nbFinishedTasks.fetch_add(1);
+    auto nbPushedTasksVal = nbPushedTasks.load();
+    SpComputeEngine *saveCe = ce.load();
+
+    {
+        // In this case the lock on mutexFinishedTasks should be held
+        // while doing the notify on conditionAllTasksOver
+        // (conditionAllTasksOver.notify_one()) because we don't want
+        // the condition variable to get destroyed before we were able
+        // to notify.
+        std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+        tasksFinished.emplace_back(t);
+
+        // We notify conditionAllTasksOver every time because of
+        // waitRemain
+        conditionAllTasksOver.notify_one();
+    }
+
+    if(nbPushedTasksVal == (previousCntVal + 1)) {
+        saveCe->wakeUpWaitingWorkers();
+    }
+}
+#endif
+
 #endif
