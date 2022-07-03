@@ -89,6 +89,10 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
+    #ifdef SPETABARU_COMPILE_WITH_MPI
+    bool isCom;
+#endif
+
 public:
     explicit SpAbstractTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
@@ -97,7 +101,11 @@ public:
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
-                               atg(inAtg) {
+                               atg(inAtg)
+                         #ifdef SPETABARU_COMPILE_WITH_MPI
+                             ,isCom(false)
+    #endif
+    {
     }
 
     virtual ~SpAbstractTask(){}
@@ -281,6 +289,15 @@ public:
     SpAbstractTaskGraph* getAbstractTaskGraph() const {
         return atg;
     }
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    bool isMpiCom() const{
+        return isMpiCom;
+    }
+    void setIsMpiCom(const boo inIsMpiCom){
+        isCom = inIsMpiCom;
+    }
+#endif
 };
 
 

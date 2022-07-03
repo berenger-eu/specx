@@ -79,18 +79,27 @@ class SpTaskManager{
 
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
-                    
-                    auto l = listener.load();
-                    
-                    if(l) {
-                        l->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+                    if(aTask->isMpiCom()){
+                        aTask->executeCore(SpCallableType::CPU);
                     }
-                    
-                    if(!ce) {
-                        readyTasks.push_back(aTask);
-                    } else {
-                        ce.load()->pushTask(aTask);
+                    else{
+#endif
+                        auto l = listener.load();
+
+                        if(l) {
+                            l->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
+                        }
+
+                        if(!ce) {
+                            readyTasks.push_back(aTask);
+                        } else {
+                            ce.load()->pushTask(aTask);
+                        }
+#ifdef SPETABARU_COMPILE_WITH_MPI
                     }
+#endif
                 }
                 else{
                     SpDebugPrint() << " not ready yet " << aTask->getId();

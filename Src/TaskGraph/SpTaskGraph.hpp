@@ -1665,6 +1665,9 @@ private:
                                      std::forward<TupleTy>(t),
                                      std::make_index_sequence<std::tuple_size_v<TupleTyWithoutRef>>{});
     }
+#ifdef SPETABARU_COMPILE_WITH_MPI
+   bool currentTaskIsMpiCom;
+#endif
     
     template <class DataDependencyTupleTy, class CallableTupleTy>
     auto coreTaskCreation(const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple, CallableTupleTy& callableTuple) {
@@ -1713,11 +1716,15 @@ private:
         auto descriptor = aTask->getViewer();
 
         aTask->setState(SpTaskState::WAITING_TO_BE_READY);
-        
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+        aTask->setIsMpiCom(currentTaskIsMpiCom);
+#endif
+
         aTask->releaseControl();
 
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-        
+
         // Push to the scheduler
         this->scheduler.addNewTask(aTask);
         
@@ -1733,7 +1740,11 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpTaskGraph() {}
+    explicit SpTaskGraph()
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    currentTaskIsMpiCom(false)
+#endif
+    {}
         
     ///////////////////////////////////////////////////////////////////////////
     /// Destructor
@@ -1761,6 +1772,35 @@ public:
         };
         return this->callWithPartitionedArgs(f, std::forward<ParamsTy>(params)...);
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    /// MPI method
+    ///////////////////////////////////////////////////////////////////////////
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    template <class... Param>
+    auto mpiSend(Param& param, const int destProc, const int tag) {
+        currentTaskIsMpiCom = true;
+        return task(SpRead(param), [this, =]{
+            SpMpiBackgroundWorker::GetWorker().addSend(destProc, tag,
+                    getCurrentTask(),
+                    this->tm,
+                    this->atg);
+        });
+        currentTaskIsMpiCom = false;
+    }
+
+    template <class... Param>
+    auto mpiRecv(Param& param, const int srcProc, const int tag) {
+        currentTaskIsMpiCom = true;
+        return task(SpWrite(param), [this, =]{
+            SpMpiBackgroundWorker::GetWorker().addRecv(srcProc, tag,
+                    getCurrentTask(),
+                    this->tm,
+                    this->atg);
+        });
+        currentTaskIsMpiCom = false;
+    }
+#endif
 };
 
 #endif
