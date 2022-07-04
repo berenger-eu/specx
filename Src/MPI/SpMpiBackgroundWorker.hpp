@@ -125,6 +125,10 @@ class SpMpiBackgroundWorker {
 
     static void Consume(SpMpiBackgroundWorker* data);
 
+    static bool Init(){
+        SpAssertMpi(MPI_Init(nullptr, nullptr));
+        return true;
+    }
 
     bool shouldTerminate = false;
     std::mutex queueMutex;
@@ -132,12 +136,13 @@ class SpMpiBackgroundWorker {
     std::vector<std::function<SpMpiSendTransaction()>> newSends;
     std::vector<std::function<SpMpiRecvTransaction()>> newRecvs;
 
+    const bool isInit;
     MPI_Comm mpiCom;
 
     std::thread thread;
 
     SpMpiBackgroundWorker()
-        : mpiCom(MPI_COMM_WORLD), thread(Consume, this){
+        : isInit(Init()), mpiCom(MPI_COMM_WORLD), thread(Consume, this){
 
     }
     static SpMpiBackgroundWorker MainWorker;
@@ -156,6 +161,7 @@ public:
         if(shouldTerminate == false){
             stop();
         }
+        SpAssertMpi(MPI_Finalize());
     }
 
     template <class ObjectType>

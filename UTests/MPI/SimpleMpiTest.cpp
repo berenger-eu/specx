@@ -22,6 +22,8 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
     using Parent = UTester< SimpleMpiTest >;
 
     void Test(){
+        //SpAssertMpi(MPI_Init(nullptr, nullptr));
+
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         int a = 1;
