@@ -38,7 +38,7 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
             );
 
             tg.mpiSend(b, 1, 0);
-            tg.mpiRecv(b, 0, 0);
+            tg.mpiRecv(b, 1, 1);
         }
         else{
             tg.mpiRecv(b, 0, 0);
@@ -49,7 +49,7 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
                         })
             );
 
-            tg.mpiSend(b, 1, 0);
+            tg.mpiSend(b, 0, 1);
         }
 
         tg.waitAllTasks();
