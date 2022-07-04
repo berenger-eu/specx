@@ -7,7 +7,7 @@
 class SpAbstractMpiSerializer {
 public:
     virtual ~SpAbstractMpiSerializer(){}
-    virtual unsigned char* getBuffer() = 0;
+    virtual const unsigned char* getBuffer() = 0;
     virtual int getBufferSize() = 0;
 };
 
@@ -18,8 +18,8 @@ public:
 
     SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){}
 
-    virtual unsigned char* getBuffer() override{
-        return reinterpret_cast<unsigned char*>(&obj);
+    virtual const unsigned char* getBuffer() override{
+        return reinterpret_cast<const unsigned char*>(&obj);
     }
     virtual int getBufferSize() override{
         return int(sizeof (ObjectClass));

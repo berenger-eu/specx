@@ -169,7 +169,7 @@ public:
             transaction.tm = tm;
             transaction.atg = atg;
 
-            // TODO transaction.serializer(new Serializer<ObjectType>(obj));
+            transaction.serializer.reset(new SpMpiSerializer<ObjectType>(obj));
 
             transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
@@ -200,7 +200,7 @@ public:
             transaction.srcProc = srcProc;
             transaction.tag = tag;
 
-            //transaction.deserializer(new Deserializer<ObjectType>(obj));
+            transaction.deserializer.reset(new SpMpiDeSerializer<ObjectType>(obj));
 
             transaction.requestBufferSize = DpIrecv(transaction.bufferSize.get(),
                                           1, srcProc, tag, mpiCom);
