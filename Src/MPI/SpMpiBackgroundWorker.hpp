@@ -9,6 +9,8 @@
 
 #include "SpMPIUtils.hpp"
 
+#include "SpMpiSerializer.hpp"
+
 #include <thread>
 #include <functional>
 #include <future>
@@ -45,24 +47,6 @@ class SpMpiBackgroundWorker {
 
     //////////////////////////////////////////////////////////////////
 
-    class SpAbstractMpiSerializer {
-    public:
-        virtual ~SpAbstractMpiSerializer(){}
-        virtual unsigned char* getBuffer() = 0;
-        virtual int getBufferSize() = 0;
-    };
-
-    template <class SerializerClass>
-    struct SpMpiSerializer : public SpAbstractMpiSerializer {
-        SerializerClass serializer;
-
-        virtual unsigned char* getBuffer() override{
-            return serializer.getBuffer();
-        }
-        virtual int getBufferSize() override{
-            return serializer.getBufferSize();
-        }
-    };
 
     struct SpMpiSendTransaction {
         SpTaskManager* tm;
@@ -96,20 +80,6 @@ class SpMpiBackgroundWorker {
 
     //////////////////////////////////////////////////////////////////
 
-    class SpAbstractMpiDeSerializer {
-    public:
-        virtual ~SpAbstractMpiDeSerializer(){}
-        virtual void deserialize(unsigned char* buffer, int bufferSize) = 0;
-    };
-
-    template <class DeserializerClass>
-    struct SpMpiDeSerializer : public SpAbstractMpiDeSerializer {
-        DeserializerClass deserializer;
-
-        void deserialize(unsigned char* buffer, int bufferSize) override{
-            deserializer.deserialize(buffer, bufferSize);
-        }
-    };
 
     struct SpMpiRecvTransaction {
         SpTaskManager* tm;

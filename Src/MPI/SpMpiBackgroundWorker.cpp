@@ -6,6 +6,8 @@ SpMpiBackgroundWorker SpMpiBackgroundWorker::MainWorker;
 
 
 void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
+    SpAssertMpi(MPI_Init(nullptr, nullptr));
+
     std::vector<MPI_Request> allRequests;
     std::vector<SpRequestType> allRequestsTypes;
 
@@ -27,7 +29,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                        && data->newRecvs.empty()
                        && sendTransactions.empty()
                        && recvTransactions.empty());
-                return;
+                break;
             }
             while(!data->newSends.empty()){
                 auto func = std::move(data->newSends.back());
@@ -97,4 +99,5 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
             }
         } while(flagDone && allRequests.size());
     }
+    SpAssertMpi(MPI_Finalize());
 }
