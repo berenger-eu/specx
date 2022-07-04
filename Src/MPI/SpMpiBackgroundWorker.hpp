@@ -10,6 +10,7 @@
 #include "SpMPIUtils.hpp"
 
 #include "SpMpiSerializer.hpp"
+#include "Utils/SpDebug.hpp"
 
 #include <thread>
 #include <functional>
@@ -29,6 +30,9 @@ class SpMpiBackgroundWorker {
 
     template <class ObjectType>
     static MPI_Request DpIsend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
+        SpDebugPrint() << "[DpIsend] => nbElements " << nbElements << " dest " << dest
+                       << " tag " << tag;
+
         MPI_Request request;
         SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, DpGetMpiType<ObjectType>::type, dest,
                               tag,
@@ -37,9 +41,12 @@ class SpMpiBackgroundWorker {
     }
 
     template <class ObjectType>
-    static MPI_Request DpIrecv(ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
+    static MPI_Request DpIrecv(ObjectType data[], const int nbElements, const int src, const int tag, const MPI_Comm inCom){
+        SpDebugPrint() << "[DpIrecv] => nbElements " << nbElements << " src " << src
+                       << " tag " << tag;
+
         MPI_Request request;
-        SpAssertMpi(MPI_Irecv(data, nbElements, DpGetMpiType<ObjectType>::type, dest,
+        SpAssertMpi(MPI_Irecv(data, nbElements, DpGetMpiType<ObjectType>::type, src,
                               tag,
                               inCom, &request));
         return request;
