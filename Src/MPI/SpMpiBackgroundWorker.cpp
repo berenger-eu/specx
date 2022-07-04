@@ -74,6 +74,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                         sendTransactions.erase(rt.idxTransaction);
                         // Post back task
                         transaction.tm->postMPITaskExecution(*transaction.atg, transaction.task);
+                        transaction.releaseRequest();
                     }
                 }
                 else{
@@ -96,6 +97,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                                                               int(transaction.buffer.size()));
                         // Post back task
                         transaction.tm->postMPITaskExecution(*transaction.atg, transaction.task);
+                        transaction.releaseRequest();
                     }
                 }
             }

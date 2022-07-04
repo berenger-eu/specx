@@ -72,17 +72,18 @@ class SpMpiBackgroundWorker {
             tm = nullptr;
             atg = nullptr;
             memset(&request, 0, sizeof(request));
-        }
-
-        virtual ~SpMpiSendTransaction(){
-            SpAssertMpi(MPI_Request_free(&request));
-            SpAssertMpi(MPI_Request_free(&requestBufferSize));
+            memset(&requestBufferSize, 0, sizeof(requestBufferSize));
         }
 
         SpMpiSendTransaction(const SpMpiSendTransaction&) = delete;
         SpMpiSendTransaction(SpMpiSendTransaction&&) = default;
         SpMpiSendTransaction& operator=(const SpMpiSendTransaction&) = delete;
         SpMpiSendTransaction& operator=(SpMpiSendTransaction&&) = default;
+
+        void releaseRequest(){
+            SpAssertMpi(MPI_Request_free(&request));
+            SpAssertMpi(MPI_Request_free(&requestBufferSize));
+        }
     };
 
     //////////////////////////////////////////////////////////////////
@@ -107,19 +108,20 @@ class SpMpiBackgroundWorker {
             tm = nullptr;
             atg = nullptr;
             memset(&request, 0, sizeof(request));
+            memset(&requestBufferSize, 0, sizeof(requestBufferSize));
             srcProc = 0;
             tag = 0;
-        }
-
-        virtual ~SpMpiRecvTransaction(){
-            SpAssertMpi(MPI_Request_free(&request));
-            SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
 
         SpMpiRecvTransaction(const SpMpiRecvTransaction&) = delete;
         SpMpiRecvTransaction(SpMpiRecvTransaction&&) = default;
         SpMpiRecvTransaction& operator=(const SpMpiRecvTransaction&) = delete;
         SpMpiRecvTransaction& operator=(SpMpiRecvTransaction&&) = default;
+
+        void releaseRequest(){
+            SpAssertMpi(MPI_Request_free(&request));
+            SpAssertMpi(MPI_Request_free(&requestBufferSize));
+        }
     };
 
     //////////////////////////////////////////////////////////////////
