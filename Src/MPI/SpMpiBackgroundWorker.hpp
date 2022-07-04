@@ -184,7 +184,7 @@ public:
 
             transaction.serializer.reset(new SpMpiSerializer<ObjectType>(obj));
 
-            transaction.bufferSize.reset(new int(0));
+            transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
             transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
                                             1, destProc, tag, mpiCom);
 
@@ -215,6 +215,7 @@ public:
 
             transaction.deserializer.reset(new SpMpiDeSerializer<ObjectType>(obj));
 
+            transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = DpIrecv(transaction.bufferSize.get(),
                                           1, srcProc, tag, mpiCom);
             return transaction;

@@ -30,7 +30,7 @@ public:
 class SpAbstractMpiDeSerializer {
 public:
     virtual ~SpAbstractMpiDeSerializer(){}
-    virtual void deserialize(unsigned char* buffer, int bufferSize) = 0;
+    virtual void deserialize(const unsigned char* buffer, int bufferSize) = 0;
 };
 
 template <class ObjectClass>
@@ -39,7 +39,7 @@ class SpMpiDeSerializer : public SpAbstractMpiDeSerializer {
 public:
     SpMpiDeSerializer(ObjectClass& inObj) : obj(inObj){}
 
-    void deserialize(unsigned char* buffer, int bufferSize) override{
+    void deserialize(const unsigned char* buffer, int bufferSize) override{
         assert(bufferSize == sizeof(ObjectClass));
         memcpy(&obj, buffer, bufferSize);
     }
