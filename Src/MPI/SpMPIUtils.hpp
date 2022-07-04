@@ -13,13 +13,13 @@
 
 #define SpAssertMpi(X) if(MPI_SUCCESS != (X)) { std::cerr << "MPI Error at line " << __LINE__ << std::endl; std::cerr.flush() ; throw std::runtime_error("Stop from from mpi error"); }
 
-int DpGetMpiSize(MPI_Comm comm = MPI_COMM_WORLD){
+inline int DpGetMpiSize(MPI_Comm comm = MPI_COMM_WORLD){
     int comm_size;
     SpAssertMpi(MPI_Comm_size( comm, &comm_size ));
     return comm_size;
 }
 
-int DpGetMpiRank(MPI_Comm comm = MPI_COMM_WORLD){
+inline int DpGetMpiRank(MPI_Comm comm = MPI_COMM_WORLD){
     int my_rank;
     SpAssertMpi(MPI_Comm_rank( comm, &my_rank ));
     return my_rank;

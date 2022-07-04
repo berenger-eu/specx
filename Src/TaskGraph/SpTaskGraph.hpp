@@ -1787,8 +1787,8 @@ public:
         return task(SpRead(param), [=](const Param& param){
             SpMpiBackgroundWorker::GetWorker().addSend(param, destProc, tag,
                     SpAbstractTask::GetCurrentTask(),
-                    this,
-                    &scheduler);
+                    &scheduler,
+                    this);
         });
         currentTaskIsMpiCom = false;
     }
@@ -1799,8 +1799,8 @@ public:
         return task(SpWrite(param), [=](Param& param){
             SpMpiBackgroundWorker::GetWorker().addRecv(param,srcProc, tag,
                     SpAbstractTask::GetCurrentTask(),
-                    this,
-                    &scheduler);
+                                                       &scheduler,
+                    this);
         });
         currentTaskIsMpiCom = false;
     }

@@ -171,7 +171,7 @@ public:
 
             // TODO transaction.serializer(new Serializer<ObjectType>(obj));
 
-            transaction.bufferSize(new int(transaction.serializer->getBufferSize()));
+            transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
                                             1, destProc, tag, mpiCom);
 
