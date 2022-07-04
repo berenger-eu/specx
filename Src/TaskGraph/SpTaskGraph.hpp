@@ -30,6 +30,10 @@
 #include "Compute/SpComputeEngine.hpp"
 #include "Scheduler/SpTaskManagerListener.hpp"
 
+#ifdef SPETABARU_COMPILE_WITH_MPI
+#include "MPI/SpMpiBackgroundWorker.hpp"
+#endif
+
 template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {
 protected:
@@ -1742,7 +1746,7 @@ public:
 
     explicit SpTaskGraph()
 #ifdef SPETABARU_COMPILE_WITH_MPI
-    currentTaskIsMpiCom(false)
+        : currentTaskIsMpiCom(false)
 #endif
     {}
         
@@ -1777,26 +1781,26 @@ public:
     /// MPI method
     ///////////////////////////////////////////////////////////////////////////
 #ifdef SPETABARU_COMPILE_WITH_MPI
-    template <class... Param>
+    template <class Param>
     auto mpiSend(Param& param, const int destProc, const int tag) {
         currentTaskIsMpiCom = true;
-        return task(SpRead(param), [this, =]{
+        return task(SpRead(param), [=](Param& param){
             SpMpiBackgroundWorker::GetWorker().addSend(destProc, tag,
                     getCurrentTask(),
-                    this->tm,
-                    this->atg);
+                    this,
+                    &scheduler);
         });
         currentTaskIsMpiCom = false;
     }
 
-    template <class... Param>
+    template <class Param>
     auto mpiRecv(Param& param, const int srcProc, const int tag) {
         currentTaskIsMpiCom = true;
-        return task(SpWrite(param), [this, =]{
+        return task(SpWrite(param), [=](Param& param){
             SpMpiBackgroundWorker::GetWorker().addRecv(srcProc, tag,
                     getCurrentTask(),
-                    this->tm,
-                    this->atg);
+                    this,
+                    &scheduler);
         });
         currentTaskIsMpiCom = false;
     }

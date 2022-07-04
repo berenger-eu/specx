@@ -192,6 +192,10 @@ if(NOT SPETABARU_JUST_LIB)
 		add_subdirectory(UTests/Gpu)
 	endif()
 	
+    if(SPETABARU_COMPILE_WITH_MPI)
+		add_subdirectory(UTests/MPI)
+	endif()
+	
     #===========================================================================
     # Build examples
     #===========================================================================

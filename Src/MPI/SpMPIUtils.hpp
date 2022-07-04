@@ -9,6 +9,7 @@
 
 #include <mpi.h>
 #include <iostream>
+#include <vector>
 
 #define SpAssertMpi(X) if(MPI_SUCCESS != (X)) { std::cerr << "MPI Error at line " << __LINE__ << std::endl; std::cerr.flush() ; throw std::runtime_error("Stop from from mpi error"); }
 

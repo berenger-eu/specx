@@ -181,6 +181,9 @@ public:
     
     void preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
     void postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    void postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t);
+#endif
     
     void setComputeEngine(SpComputeEngine* inCe) {
         if(inCe && !ce) {
@@ -286,7 +289,7 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 }
 
 #ifdef SPETABARU_COMPILE_WITH_MPI
-inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t) {
+inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& /*atg*/, SpAbstractTask* t) {
     t->setState(SpTaskState::POST_RUN);
 
     small_vector<SpAbstractTask*> candidates;

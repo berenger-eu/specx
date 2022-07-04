@@ -7,12 +7,19 @@
 #error MPI but be enable to use this file.
 #endif
 
+#include "SpMPIUtils.hpp"
+#include "Task/SpAbstractTask.hpp"
+
 #include <thread>
 #include <functional>
 #include <future>
 #include <queue>
 
 #include <mpi.h>
+
+
+class SpTaskManager;
+class SpAbstractTaskGraph;
 
 class SpMpiBackgroundWorker {
 
@@ -21,7 +28,7 @@ class SpMpiBackgroundWorker {
     template <class ObjectType>
     static MPI_Request DpIsend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
         MPI_Request request;
-        DpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, DpGetMpiType<ObjectType>::type, dest,
+        SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, DpGetMpiType<ObjectType>::type, dest,
                               tag,
                               inCom, &request));
         return request;
@@ -30,7 +37,7 @@ class SpMpiBackgroundWorker {
     template <class ObjectType>
     static MPI_Request DpIrecv(ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
         MPI_Request request;
-        DpAssertMpi(MPI_Irecv(data, nbElements, DpGetMpiType<ObjectType>::type, dest,
+        SpAssertMpi(MPI_Irecv(data, nbElements, DpGetMpiType<ObjectType>::type, dest,
                               tag,
                               inCom, &request));
         return request;
@@ -73,14 +80,18 @@ class SpMpiBackgroundWorker {
             task = nullptr;
             tm = nullptr;
             atg = nullptr;
-            memset(request, 0, sizeof(request));
-            memset(bufferSize, 0, sizeof(bufferSize));
+            memset(&request, 0, sizeof(request));
         }
 
         virtual ~SpMpiSendTransaction(){
-            DpAssertMpi(MPI_Request_free(&request));
-            DpAssertMpi(MPI_Request_free(&requestBufferSize));
+            SpAssertMpi(MPI_Request_free(&request));
+            SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
+
+        SpMpiSendTransaction(const SpMpiSendTransaction&) = delete;
+        SpMpiSendTransaction(SpMpiSendTransaction&&) = default;
+        SpMpiSendTransaction& operator=(const SpMpiSendTransaction&) = delete;
+        SpMpiSendTransaction& operator=(SpMpiSendTransaction&&) = default;
     };
 
     //////////////////////////////////////////////////////////////////
@@ -111,18 +122,27 @@ class SpMpiBackgroundWorker {
         std::vector<unsigned char> buffer;
         std::unique_ptr<SpAbstractMpiDeSerializer> deserializer;
 
+        int srcProc;
+        int tag;
+
         SpMpiRecvTransaction(){
             task = nullptr;
             tm = nullptr;
             atg = nullptr;
-            memset(request, 0, sizeof(request));
-            memset(bufferSize, 0, sizeof(bufferSize));
+            memset(&request, 0, sizeof(request));
+            srcProc = 0;
+            tag = 0;
         }
 
         virtual ~SpMpiRecvTransaction(){
-            DpAssertMpi(MPI_Request_free(&request));
-            DpAssertMpi(MPI_Request_free(&requestBufferSize));
+            SpAssertMpi(MPI_Request_free(&request));
+            SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
+
+        SpMpiRecvTransaction(const SpMpiRecvTransaction&) = delete;
+        SpMpiRecvTransaction(SpMpiRecvTransaction&&) = default;
+        SpMpiRecvTransaction& operator=(const SpMpiRecvTransaction&) = delete;
+        SpMpiRecvTransaction& operator=(SpMpiRecvTransaction&&) = default;
     };
 
     //////////////////////////////////////////////////////////////////
@@ -133,85 +153,7 @@ class SpMpiBackgroundWorker {
         int idxTransaction = -1;
     };
 
-    static void consume(SpMpiBackgroundWorker* data) {
-        while (true) {
-            {
-                std::unique_lock<std::mutex> lock(data->queueMutex);
-                data->mutexCondition.wait(lock, [data] {
-                    return !data->newSends.empty()
-                            || !data->newRecvs.empty()
-                            || data->shouldTerminate;
-                });
-                if (data->shouldTerminate) {
-                    assert(data->newSends.empty()
-                           && data->newRecvs.empty()
-                           && data->sendTransactions.empty()
-                           && data->recvTransactions.empty());
-                    return;
-                }
-                while(!data->newSends.empty()){
-                    sendTransactions[counterTransactions++] = (data->newSends.back()());
-                    data->newSends.pop_back();
-
-                    SpMpiSendTransaction& tr = sendTransactions.back();
-                    allRequestsTypes.emplace_back(SpRequestType{true, 0, int(sendTransactions.size()-1)});
-                    allRequests.emplace_back(tr.requestBufferSize);
-                    allRequestsTypes.emplace_back(SpRequestType{true, 1, int(sendTransactions.size()-1)});
-                    allRequests.emplace_back(tr.request);
-                }
-                while(!data->newRecvs.empty()){
-                    recvTransactions[counterTransactions++] = (data->newRecvs.back()());
-                    data->newRecvs.pop_back();
-
-                    SpMpiSendTransaction& tr = recvTransactions.back();
-                    allRequestsTypes.emplace_back(SpRequestType{false, 0, int(sendTransactions.size()-1)});
-                    allRequests.emplace_back(tr.requestBufferSize);
-                }
-            }
-            int idxDone = MPI_UNDEFINED;
-            do{
-                SpAssertMpi(MPI_Testany(static_cast<int>(allRequests.size()), allRequests.data(), &idxDone, MPI_STATUSES_IGNORE));
-                if(idxDone != MPI_UNDEFINED){
-                    SpRequestType rt = allRequestsTypes[idxDone];
-                    std::swap(allRequestsTypes[idxDone], allRequestsTypes.back());
-                    allRequestsTypes.push_back();
-                    std::swap(allRequests[idxDone], allRequests.back());
-                    allRequests.push_back();
-
-                    if(rt.isSend){
-                        if(rt.state == 1){
-                            // Send done
-                            SpMpiRecvTransaction transaction = std::move(sendTransactions[rt.idxTransaction]);
-                            sendTransactions.erase(rt.idxTransaction);
-                            // Post back task
-                            transaction.tm->postMPITaskExecution(*transaction.atg, transaction.task);
-                        }
-                    }
-                    else{
-                        if(rt.state == 0){
-                            // Size recv
-                            SpMpiRecvTransaction& transaction = recvTransactions[rt.idxTransaction];
-                            transaction.buffer.resize(transaction.buffer.size());
-                            transaction.request = DpIrecv(transaction.buffer.data(),
-                                                          int(transaction.buffer.size()),
-                                                          srcProc, tag, mpiCom);
-                            allRequestsTypes.emplace_back(SpRequestType{false, 1, rt.idxTransaction});
-                            allRequests.emplace_back(tr.request);
-                        }
-                        else if(rt.state == 1){
-                            // Recv done
-                            SpMpiRecvTransaction transaction = std::move(recvTransactions[rt.idxTransaction]);
-                            recvTransactions.erase(rt.idxTransaction);
-                            transaction.deserializer(transaction.buffer.data(),
-                                                     int(transaction.buffer.size()));
-                            // Post back task
-                            transaction.tm->postMPITaskExecution(*transaction.atg, transaction.task);
-                        }
-                    }
-                }
-            } while(idxDone != MPI_UNDEFINED && allRequests.size());
-        }
-    }
+    static void Consume(SpMpiBackgroundWorker* data);
 
 
     bool shouldTerminate = false;
@@ -220,26 +162,25 @@ class SpMpiBackgroundWorker {
     std::vector<std::function<SpMpiSendTransaction()>> newSends;
     std::vector<std::function<SpMpiRecvTransaction()>> newRecvs;
 
-    int counterTransactions;
-    std::unordered_map<int, SpMpiSendTransaction> sendTransactions;
-    std::unordered_map<int, SpMpiRecvTransaction> recvTransactions;
+    MPI_Comm mpiCom;
 
     std::thread thread;
 
-    MPI_Comm mpiCom;
-    std::vector<MPI_Request> allRequests;
-    std::vecotr<SpRequestType> allRequestsTypes;
-
-public:
     SpMpiBackgroundWorker()
-        : counterTransactions(0), thread(consume, this){
+        : mpiCom(MPI_COMM_WORLD), thread(Consume, this){
 
     }
+    static SpMpiBackgroundWorker MainWorker;
 
+public:
     SpMpiBackgroundWorker(const SpMpiBackgroundWorker&) = delete;
     SpMpiBackgroundWorker(SpMpiBackgroundWorker&&) = delete;
     SpMpiBackgroundWorker& operator=(const SpMpiBackgroundWorker&) = delete;
     SpMpiBackgroundWorker& operator=(SpMpiBackgroundWorker&&) = delete;
+
+    static SpMpiBackgroundWorker& GetWorker(){
+        return MainWorker;
+    }
 
     ~SpMpiBackgroundWorker(){
         if(shouldTerminate == false){
@@ -289,6 +230,8 @@ public:
             transaction.task = task;
             transaction.tm = tm;
             transaction.atg = atg;
+            transaction.srcProc = srcProc;
+            transaction.tag = tag;
 
             auto handles = task->getDataHandles();
             assert(handles.size() == 1);
@@ -301,7 +244,7 @@ public:
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            newRecvs.push_back(std::move(com));
+            newRecvs.push_back(std::move(comJob));
         }
         mutexCondition.notify_one();
     }

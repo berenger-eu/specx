@@ -90,7 +90,7 @@ class SpAbstractTask{
     SpAbstractTaskGraph* const atg;
 
     #ifdef SPETABARU_COMPILE_WITH_MPI
-    bool isCom;
+    bool isMpiTaskCom;
 #endif
 
 public:
@@ -103,7 +103,7 @@ public:
                                originalTask(nullptr),
                                atg(inAtg)
                          #ifdef SPETABARU_COMPILE_WITH_MPI
-                             ,isCom(false)
+                             ,isMpiTaskCom(false)
     #endif
     {
     }
@@ -292,10 +292,10 @@ public:
 
 #ifdef SPETABARU_COMPILE_WITH_MPI
     bool isMpiCom() const{
-        return isMpiCom;
+        return isMpiTaskCom;
     }
-    void setIsMpiCom(const boo inIsMpiCom){
-        isCom = inIsMpiCom;
+    void setIsMpiCom(const bool inIsMpiCom){
+        isMpiTaskCom = inIsMpiCom;
     }
 #endif
 };
