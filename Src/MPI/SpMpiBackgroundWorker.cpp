@@ -57,6 +57,8 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
             int idxDone = MPI_UNDEFINED;
             SpAssertMpi(MPI_Testany(static_cast<int>(allRequests.size()), allRequests.data(), &idxDone, &flagDone, MPI_STATUS_IGNORE));
             if(flagDone){
+                SpDebugPrint() << "[SpMpiBackgroundWorker] => idxDone " << idxDone;
+
                 assert(idxDone != MPI_UNDEFINED);
                 SpRequestType rt = allRequestsTypes[idxDone];
                 std::swap(allRequestsTypes[idxDone], allRequestsTypes.back());
@@ -65,6 +67,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 allRequests.pop_back();
 
                 if(rt.isSend){
+                    assert(sendTransactions.find(rt.idxTransaction) != sendTransactions.end());
                     if(rt.state == 1){
                         // Send done
                         SpMpiSendTransaction transaction = std::move(sendTransactions[rt.idxTransaction]);
@@ -74,10 +77,11 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                     }
                 }
                 else{
+                    assert(recvTransactions.find(rt.idxTransaction) != recvTransactions.end());
                     if(rt.state == 0){
                         // Size recv
                         SpMpiRecvTransaction& transaction = recvTransactions[rt.idxTransaction];
-                        transaction.buffer.resize(transaction.buffer.size());
+                        transaction.buffer.resize(*transaction.bufferSize);
                         transaction.request = DpIrecv(transaction.buffer.data(),
                                                       int(transaction.buffer.size()),
                                                       transaction.srcProc, transaction.tag, data->mpiCom);
