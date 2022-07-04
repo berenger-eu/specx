@@ -8,7 +8,6 @@
 #endif
 
 #include "SpMPIUtils.hpp"
-#include "Task/SpAbstractTask.hpp"
 
 #include <thread>
 #include <functional>
@@ -20,6 +19,7 @@
 
 class SpTaskManager;
 class SpAbstractTaskGraph;
+class SpAbstractTask;
 
 class SpMpiBackgroundWorker {
 
@@ -188,21 +188,18 @@ public:
         }
     }
 
-    template <class Serializer>
-    void addSend(const int destProc, const int tag,
+    template <class ObjectType>
+    void addSend(const ObjectType& obj, const int destProc, const int tag,
                  SpAbstractTask* task,
                  SpTaskManager* tm,
                  SpAbstractTaskGraph* atg) {
-        auto comJob = [=]() -> SpMpiSendTransaction {
+        auto comJob = [=, &obj]() -> SpMpiSendTransaction {
             SpMpiSendTransaction transaction;
             transaction.task = task;
             transaction.tm = tm;
             transaction.atg = atg;
 
-            auto handles = task->getDataHandles();
-            assert(handles.size() == 1);
-            SpDataHandle* handle = handles[0].first;
-            transaction.serializer(new Serializer(handle));
+            // TODO transaction.serializer(new Serializer<ObjectType>(obj));
 
             transaction.bufferSize(new int(transaction.serializer->getBufferSize()));
             transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
@@ -220,12 +217,12 @@ public:
         mutexCondition.notify_one();
     }
 
-    template <class Deserializer>
-    void addRecv(const int srcProc, const int tag,
+    template <class ObjectType>
+    void addRecv(ObjectType& obj, const int srcProc, const int tag,
                  SpAbstractTask* task,
                  SpTaskManager* tm,
                  SpAbstractTaskGraph* atg) {
-        auto comJob = [=]() -> SpMpiRecvTransaction{
+        auto comJob = [=, &obj]() -> SpMpiRecvTransaction{
             SpMpiRecvTransaction transaction;
             transaction.task = task;
             transaction.tm = tm;
@@ -233,10 +230,7 @@ public:
             transaction.srcProc = srcProc;
             transaction.tag = tag;
 
-            auto handles = task->getDataHandles();
-            assert(handles.size() == 1);
-            SpDataHandle* handle = handles[0].first;
-            transaction.deserializer(new Deserializer(handle));
+            //transaction.deserializer(new Deserializer<ObjectType>(obj));
 
             transaction.requestBufferSize = DpIrecv(transaction.bufferSize.get(),
                                           1, srcProc, tag, mpiCom);

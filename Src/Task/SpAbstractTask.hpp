@@ -92,8 +92,12 @@ class SpAbstractTask{
     #ifdef SPETABARU_COMPILE_WITH_MPI
     bool isMpiTaskCom;
 #endif
-
+protected:
+    static void SetCurrentTask(SpAbstractTask* inCurrentTask);
 public:
+    static SpAbstractTask* GetCurrentTask();
+
+
     explicit SpAbstractTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
                                currentState(SpTaskState::NOT_INITIALIZED),

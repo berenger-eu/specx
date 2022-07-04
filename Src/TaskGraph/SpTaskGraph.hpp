@@ -1782,11 +1782,11 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 #ifdef SPETABARU_COMPILE_WITH_MPI
     template <class Param>
-    auto mpiSend(Param& param, const int destProc, const int tag) {
+    auto mpiSend(const Param& param, const int destProc, const int tag) {
         currentTaskIsMpiCom = true;
-        return task(SpRead(param), [=](Param& param){
-            SpMpiBackgroundWorker::GetWorker().addSend(destProc, tag,
-                    getCurrentTask(),
+        return task(SpRead(param), [=](const Param& param){
+            SpMpiBackgroundWorker::GetWorker().addSend(param, destProc, tag,
+                    SpAbstractTask::GetCurrentTask(),
                     this,
                     &scheduler);
         });
@@ -1797,8 +1797,8 @@ public:
     auto mpiRecv(Param& param, const int srcProc, const int tag) {
         currentTaskIsMpiCom = true;
         return task(SpWrite(param), [=](Param& param){
-            SpMpiBackgroundWorker::GetWorker().addRecv(srcProc, tag,
-                    getCurrentTask(),
+            SpMpiBackgroundWorker::GetWorker().addRecv(param,srcProc, tag,
+                    SpAbstractTask::GetCurrentTask(),
                     this,
                     &scheduler);
         });

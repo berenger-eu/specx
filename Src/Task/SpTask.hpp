@@ -145,6 +145,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 
     //! Called by parent abstract task class
     void executeCore([[maybe_unused]] SpCallableType ct) final {
+        SpAbstractTask::SetCurrentTask(this);
 #ifdef SPETABARU_COMPILE_WITH_CUDA
         if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
             using CtTask = std::decay_t<decltype(std::get<0>(callables))>;
@@ -165,6 +166,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 #else // SPETABARU_COMPILE_WITH_CUDA
         executeCore(this, std::get<0>(callables), tupleParams);
 #endif
+        SpAbstractTask::SetCurrentTask(nullptr);
     }
     
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
