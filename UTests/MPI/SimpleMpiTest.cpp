@@ -29,7 +29,8 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
 
         tg.computeOn(ce);
 
-        assert(SpMpiUtils::GetMpiSize() == 2);
+        // This test works only with at least 2 processes
+        assert(SpMpiUtils::GetMpiSize() >= 2);
         if(SpMpiUtils::GetMpiRank() == 0){
             tg.task(SpRead(a), SpWrite(b),
                         SpCpu([](const int& paramA, int& paramB) {
@@ -40,7 +41,7 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
             tg.mpiSend(b, 1, 0);
             tg.mpiRecv(b, 1, 1);
         }
-        else{
+        else if(SpMpiUtils::GetMpiRank() == 1){
             tg.mpiRecv(b, 0, 0);
 
             tg.task(SpRead(a), SpWrite(b),

@@ -3,6 +3,7 @@
 
 #include <mpi.h>
 
+/// Return the correct MPI data type for a given native data type
 template <class ObjectType>
 struct SpGetMpiType;
 

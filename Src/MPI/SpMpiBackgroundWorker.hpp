@@ -24,10 +24,17 @@ class SpTaskManager;
 class SpAbstractTaskGraph;
 class SpAbstractTask;
 
+///
+/// \brief The SpMpiBackgroundWorker class is a singleton
+/// with a thread running that will mamange all the communications.
+/// The communications are pushed into the singleton, then
+/// a test any is perform with a spin loop.
+///
 class SpMpiBackgroundWorker {
 
     //////////////////////////////////////////////////////////////////
 
+    /// Interface to mpi isend
     template <class ObjectType>
     static MPI_Request Isend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
         SpDebugPrint() << "[SpMpiUtils::Isend] => nbElements " << nbElements << " dest " << dest
@@ -40,6 +47,7 @@ class SpMpiBackgroundWorker {
         return request;
     }
 
+    /// Interface to mpi irecv
     template <class ObjectType>
     static MPI_Request Irecv(ObjectType data[], const int nbElements, const int src, const int tag, const MPI_Comm inCom){
         SpDebugPrint() << "[SpMpiUtils::Irecv] => nbElements " << nbElements << " src " << src

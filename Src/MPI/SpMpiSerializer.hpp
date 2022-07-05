@@ -4,6 +4,9 @@
 #include <cstring>
 #include <cassert>
 
+////////////////////////////////////////////////////////////////
+/// The serializer class
+////////////////////////////////////////////////////////////////
 class SpAbstractMpiSerializer {
 public:
     virtual ~SpAbstractMpiSerializer(){}
@@ -19,14 +22,19 @@ public:
     SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){}
 
     virtual const unsigned char* getBuffer() override{
+        // Simply cast the object into an array
         return reinterpret_cast<const unsigned char*>(&obj);
     }
     virtual int getBufferSize() override{
+        // The lenght of the array is the size of the object
         return int(sizeof (ObjectClass));
     }
 };
 
 
+////////////////////////////////////////////////////////////////
+/// The deserializer class
+////////////////////////////////////////////////////////////////
 class SpAbstractMpiDeSerializer {
 public:
     virtual ~SpAbstractMpiDeSerializer(){}
@@ -40,7 +48,9 @@ public:
     SpMpiDeSerializer(ObjectClass& inObj) : obj(inObj){}
 
     void deserialize(const unsigned char* buffer, int bufferSize) override{
+        // Will not be true in the future
         assert(bufferSize == sizeof(ObjectClass));
+        // Copy the array to the object
         memcpy(&obj, buffer, bufferSize);
     }
 };
