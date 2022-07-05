@@ -85,7 +85,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         SpTaskCoreWrapper(callable, args, std::make_index_sequence<NbParams>{});
     }
     
-    void preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]] SpCallableType ct) final {
+    void preTaskExecution([[maybe_unused]] SpCallableType ct) final {
 #ifdef SPETABARU_COMPILE_WITH_CUDA
         SpCudaManager::Lock();
        std::size_t extraHandlesOffset = 0;

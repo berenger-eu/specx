@@ -126,7 +126,7 @@ public:
 
     virtual long int getNbParams() = 0;
     virtual bool dependencesAreReady() const = 0;
-    virtual void preTaskExecution(SpAbstractTaskGraph&, SpCallableType ct) = 0;
+    virtual void preTaskExecution(SpCallableType ct) = 0;
     virtual void postTaskExecution(SpAbstractTaskGraph&, SpCallableType ct) = 0;
     virtual void executeCore(SpCallableType ct) = 0;
     virtual void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) = 0;

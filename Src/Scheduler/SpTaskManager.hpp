@@ -208,7 +208,7 @@ public:
 
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
 
-inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
+inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
     SpDebugPrint() << "[preTaskExecution] task " << t->getId();
 	nbReadyTasks--;
 	nbRunningTasks += 1;
@@ -217,11 +217,11 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 	if constexpr(SpConfig::CompileWithCuda) {	
 		switch(w.getType()) {
 			case SpWorker::SpWorkerType::CPU_WORKER:
-				t->preTaskExecution(atg, SpCallableType::CPU);
+                t->preTaskExecution(SpCallableType::CPU);
                 break;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::CUDA_WORKER:
-				t->preTaskExecution(atg, SpCallableType::CUDA);
+                t->preTaskExecution(SpCallableType::CUDA);
 				break;
 #endif
 			default:
@@ -242,8 +242,7 @@ inline void SpTaskManager::preMPITaskExecution(SpAbstractTask* t) {
     nbRunningTasks += 1;
     t->takeControl();
 
-    // Currently impossible, because we do not know atg
-    // t->preTaskExecution(atg, SpCallableType::CPU);
+    t->preTaskExecution(SpCallableType::CPU);
 
     SpDebugPrint() << "Execute task with ID " << t->getId();
     assert(t->isState(SpTaskState::READY));
