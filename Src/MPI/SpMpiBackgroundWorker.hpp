@@ -81,8 +81,8 @@ class SpMpiBackgroundWorker {
         SpMpiSendTransaction& operator=(SpMpiSendTransaction&&) = default;
 
         void releaseRequest(){
-            SpAssertMpi(MPI_Request_free(&request));
-            SpAssertMpi(MPI_Request_free(&requestBufferSize));
+            // TODO SpAssertMpi(MPI_Request_free(&request));
+            // TODO SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
     };
 
@@ -119,8 +119,8 @@ class SpMpiBackgroundWorker {
         SpMpiRecvTransaction& operator=(SpMpiRecvTransaction&&) = default;
 
         void releaseRequest(){
-            SpAssertMpi(MPI_Request_free(&request));
-            SpAssertMpi(MPI_Request_free(&requestBufferSize));
+            // TODO SpAssertMpi(MPI_Request_free(&request));
+            // TODO SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
     };
 

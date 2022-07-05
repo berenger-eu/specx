@@ -1728,6 +1728,9 @@ private:
         aTask->releaseControl();
 
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
+#ifdef SPETABARU_COMPILE_WITH_MPI
+        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " is mpi " << (currentTaskIsMpiCom?"TRUE":"FALSE");
+#endif
 
         // Push to the scheduler
         this->scheduler.addNewTask(aTask);
@@ -1784,25 +1787,27 @@ public:
     template <class Param>
     auto mpiSend(const Param& param, const int destProc, const int tag) {
         currentTaskIsMpiCom = true;
-        return task(SpRead(param), [=](const Param& param){
+        auto res = task(SpRead(param), [=](const Param& param){
             SpMpiBackgroundWorker::GetWorker().addSend(param, destProc, tag,
                     SpAbstractTask::GetCurrentTask(),
                     &scheduler,
                     this);
         });
         currentTaskIsMpiCom = false;
+        return res;
     }
 
     template <class Param>
     auto mpiRecv(Param& param, const int srcProc, const int tag) {
         currentTaskIsMpiCom = true;
-        return task(SpWrite(param), [=](Param& param){
+        auto res = task(SpWrite(param), [=](Param& param){
             SpMpiBackgroundWorker::GetWorker().addRecv(param,srcProc, tag,
                     SpAbstractTask::GetCurrentTask(),
                                                        &scheduler,
                     this);
         });
         currentTaskIsMpiCom = false;
+        return res;
     }
 #endif
 };

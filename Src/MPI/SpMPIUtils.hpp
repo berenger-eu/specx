@@ -11,7 +11,7 @@
 #include <iostream>
 #include <vector>
 
-#define SpAssertMpi(X) if(MPI_SUCCESS != (X)) { std::cerr << "MPI Error at line " << __LINE__ << std::endl; std::cerr.flush() ; throw std::runtime_error("Stop from from mpi error"); }
+#define SpAssertMpi(X) if(MPI_SUCCESS != (X)) { std::cerr << "MPI Error at line " << __LINE__ << std::endl; std::cerr.flush() ; exit(1); }
 
 inline int DpGetMpiSize(MPI_Comm comm = MPI_COMM_WORLD){
     int comm_size;
