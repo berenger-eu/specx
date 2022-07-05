@@ -10,6 +10,10 @@
 #include <iostream>
 #include <cstring>
 
+#ifdef SPETABARU_COMPILE_WITH_MPI
+#include "MPI/SpMPIUtils.hpp"
+#endif
+
 /**
  * This class should be used to print debug info.
  * The environment variable SPETABARU_DEBUG_PRINT allow to disable/enable
@@ -39,7 +43,10 @@ public:
         std::stringstream buffer;
 
         explicit Printer(SpDebug& inMaster) : master(inMaster){
-            if(master.isEnable()){
+            if(master.isEnable()){                
+#ifdef SPETABARU_COMPILE_WITH_MPI
+                buffer << "[MPI-" << DpGetMpiRank() << "] ";
+#endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
         }
@@ -75,7 +82,11 @@ public:
 
         void lineBreak(){
             if(master.isEnable()){
-                buffer << '\n' << "[THREAD-" << master.getThreadId() << "] ";
+                buffer << '\n';
+#ifdef SPETABARU_COMPILE_WITH_MPI
+                buffer << "[MPI-" << DpGetMpiRank() << "] ";
+#endif
+                buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
         }
 

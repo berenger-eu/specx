@@ -188,7 +188,7 @@ public:
 
             transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
             transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
-                                            1, destProc, tag, mpiCom);
+                                            1, destProc, tag+9999, mpiCom);
 
             transaction.request = DpIsend(transaction.serializer->getBuffer(),
                                           transaction.serializer->getBufferSize(),
@@ -219,7 +219,7 @@ public:
 
             transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = DpIrecv(transaction.bufferSize.get(),
-                                          1, srcProc, tag, mpiCom);
+                                          1, srcProc, tag+9999, mpiCom);
             return transaction;
         };
         {

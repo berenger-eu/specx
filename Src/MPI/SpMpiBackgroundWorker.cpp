@@ -17,16 +17,18 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
     while (true) {
         {
             std::unique_lock<std::mutex> lock(data->queueMutex);
-            data->mutexCondition.wait(lock, [data] {
+            data->mutexCondition.wait(lock, [data, &allRequests] {
                 return !data->newSends.empty()
                         || !data->newRecvs.empty()
+                        || !allRequests.empty()
                         || data->shouldTerminate;
             });
             if (data->shouldTerminate) {
                 assert(data->newSends.empty()
                        && data->newRecvs.empty()
                        && sendTransactions.empty()
-                       && recvTransactions.empty());
+                       && recvTransactions.empty()
+                       && allRequests.empty());
                 break;
             }
             while(!data->newSends.empty()){
@@ -54,6 +56,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
         }
         int flagDone = 0;
         do{
+            usleep(10000);
             int idxDone = MPI_UNDEFINED;
             SpAssertMpi(MPI_Testany(static_cast<int>(allRequests.size()), allRequests.data(), &idxDone, &flagDone, MPI_STATUS_IGNORE));
             if(flagDone){
@@ -68,7 +71,9 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
 
                 if(rt.isSend){
                     assert(sendTransactions.find(rt.idxTransaction) != sendTransactions.end());
+                    SpDebugPrint() << "[SpMpiBackgroundWorker] => send done " << rt.idxTransaction;
                     if(rt.state == 1){
+                        SpDebugPrint() << "[SpMpiBackgroundWorker] => send complete " << rt.idxTransaction;
                         // Send done
                         SpMpiSendTransaction transaction = std::move(sendTransactions[rt.idxTransaction]);
                         sendTransactions.erase(rt.idxTransaction);
@@ -80,6 +85,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 else{
                     assert(recvTransactions.find(rt.idxTransaction) != recvTransactions.end());
                     if(rt.state == 0){
+                        SpDebugPrint() << "[SpMpiBackgroundWorker] => recv state 0 " << rt.idxTransaction;
                         // Size recv
                         SpMpiRecvTransaction& transaction = recvTransactions[rt.idxTransaction];
                         transaction.buffer.resize(*transaction.bufferSize);
@@ -90,6 +96,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                         allRequests.emplace_back(transaction.request);
                     }
                     else if(rt.state == 1){
+                        SpDebugPrint() << "[SpMpiBackgroundWorker] => recv state 1 " << rt.idxTransaction;
                         // Recv done
                         SpMpiRecvTransaction transaction = std::move(recvTransactions[rt.idxTransaction]);
                         recvTransactions.erase(rt.idxTransaction);
@@ -103,4 +110,5 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
             }
         } while(flagDone && allRequests.size());
     }
+    SpDebugPrint() << "[SpMpiBackgroundWorker] => worker stop";
 }
