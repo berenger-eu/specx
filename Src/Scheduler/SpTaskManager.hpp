@@ -313,10 +313,10 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 }
 
 #ifdef SPETABARU_COMPILE_WITH_MPI
-inline void SpTaskManager::postMPITaskExecution([[maybe_unused]] SpAbstractTaskGraph& atg, SpAbstractTask* t) {
+inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t) {
     t->setState(SpTaskState::POST_RUN);
 
-    // Currently not done t->postTaskExecution(atg, SpCallableType::CPU);
+    t->postTaskExecution(atg, SpCallableType::CPU);
 
     small_vector<SpAbstractTask*> candidates;
     t->releaseDependences(&candidates);

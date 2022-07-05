@@ -7,8 +7,8 @@
 #error MPI but be enable to use this file.
 #endif
 
-#include "SpMPIUtils.hpp"
-
+#include "SpMpiUtils.hpp"
+#include "SpMpiTypeUtils.hpp"
 #include "SpMpiSerializer.hpp"
 #include "Utils/SpDebug.hpp"
 
@@ -29,24 +29,24 @@ class SpMpiBackgroundWorker {
     //////////////////////////////////////////////////////////////////
 
     template <class ObjectType>
-    static MPI_Request DpIsend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
-        SpDebugPrint() << "[DpIsend] => nbElements " << nbElements << " dest " << dest
+    static MPI_Request Isend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
+        SpDebugPrint() << "[SpMpiUtils::Isend] => nbElements " << nbElements << " dest " << dest
                        << " tag " << tag;
 
         MPI_Request request;
-        SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, DpGetMpiType<ObjectType>::type, dest,
+        SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>::type, dest,
                               tag,
                               inCom, &request));
         return request;
     }
 
     template <class ObjectType>
-    static MPI_Request DpIrecv(ObjectType data[], const int nbElements, const int src, const int tag, const MPI_Comm inCom){
-        SpDebugPrint() << "[DpIrecv] => nbElements " << nbElements << " src " << src
+    static MPI_Request Irecv(ObjectType data[], const int nbElements, const int src, const int tag, const MPI_Comm inCom){
+        SpDebugPrint() << "[SpMpiUtils::Irecv] => nbElements " << nbElements << " src " << src
                        << " tag " << tag;
 
         MPI_Request request;
-        SpAssertMpi(MPI_Irecv(data, nbElements, DpGetMpiType<ObjectType>::type, src,
+        SpAssertMpi(MPI_Irecv(data, nbElements, SpGetMpiType<ObjectType>::type, src,
                               tag,
                               inCom, &request));
         return request;
@@ -81,8 +81,9 @@ class SpMpiBackgroundWorker {
         SpMpiSendTransaction& operator=(SpMpiSendTransaction&&) = default;
 
         void releaseRequest(){
-            // TODO SpAssertMpi(MPI_Request_free(&request));
-            // TODO SpAssertMpi(MPI_Request_free(&requestBufferSize));
+            // TODO, it seems that we should not free non consistant req.
+            // SpAssertMpi(MPI_Request_free(&request));
+            // SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
     };
 
@@ -119,8 +120,9 @@ class SpMpiBackgroundWorker {
         SpMpiRecvTransaction& operator=(SpMpiRecvTransaction&&) = default;
 
         void releaseRequest(){
-            // TODO SpAssertMpi(MPI_Request_free(&request));
-            // TODO SpAssertMpi(MPI_Request_free(&requestBufferSize));
+            // TODO, it seems that we should not free non consistant req.
+            // SpAssertMpi(MPI_Request_free(&request));
+            // SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
     };
 
@@ -187,10 +189,10 @@ public:
             transaction.serializer.reset(new SpMpiSerializer<ObjectType>(obj));
 
             transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
-            transaction.requestBufferSize = DpIsend(transaction.bufferSize.get(),
+            transaction.requestBufferSize = Isend(transaction.bufferSize.get(),
                                             1, destProc, tag+9999, mpiCom);
 
-            transaction.request = DpIsend(transaction.serializer->getBuffer(),
+            transaction.request = Isend(transaction.serializer->getBuffer(),
                                           transaction.serializer->getBufferSize(),
                                           destProc, tag, mpiCom);
             return transaction;
@@ -218,7 +220,7 @@ public:
             transaction.deserializer.reset(new SpMpiDeSerializer<ObjectType>(obj));
 
             transaction.bufferSize.reset(new int(0));
-            transaction.requestBufferSize = DpIrecv(transaction.bufferSize.get(),
+            transaction.requestBufferSize = Irecv(transaction.bufferSize.get(),
                                           1, srcProc, tag+9999, mpiCom);
             return transaction;
         };

@@ -11,7 +11,7 @@
 #include <cstring>
 
 #ifdef SPETABARU_COMPILE_WITH_MPI
-#include "MPI/SpMPIUtils.hpp"
+#include "MPI/SpMpiUtils.hpp"
 #endif
 
 /**
@@ -45,7 +45,7 @@ public:
         explicit Printer(SpDebug& inMaster) : master(inMaster){
             if(master.isEnable()){                
 #ifdef SPETABARU_COMPILE_WITH_MPI
-                buffer << "[MPI-" << DpGetMpiRank() << "] ";
+                buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
 #endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
@@ -84,7 +84,7 @@ public:
             if(master.isEnable()){
                 buffer << '\n';
 #ifdef SPETABARU_COMPILE_WITH_MPI
-                buffer << "[MPI-" << DpGetMpiRank() << "] ";
+                buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
 #endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }

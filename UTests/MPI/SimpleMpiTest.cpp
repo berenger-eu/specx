@@ -16,7 +16,7 @@
 #include "Compute/SpWorkerTeamBuilder.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Config/SpConfig.hpp"
-#include "MPI/SpMPIUtils.hpp"
+#include "MPI/SpMpiUtils.hpp"
 
 class SimpleMpiTest : public UTester< SimpleMpiTest > {
     using Parent = UTester< SimpleMpiTest >;
@@ -29,8 +29,8 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
 
         tg.computeOn(ce);
 
-        assert(DpGetMpiSize() == 2);
-        if(DpGetMpiRank() == 0){
+        assert(SpMpiUtils::GetMpiSize() == 2);
+        if(SpMpiUtils::GetMpiRank() == 0){
             tg.task(SpRead(a), SpWrite(b),
                         SpCpu([](const int& paramA, int& paramB) {
                             paramB = paramA + paramB;

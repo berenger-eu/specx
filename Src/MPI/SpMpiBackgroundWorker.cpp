@@ -89,7 +89,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                         // Size recv
                         SpMpiRecvTransaction& transaction = recvTransactions[rt.idxTransaction];
                         transaction.buffer.resize(*transaction.bufferSize);
-                        transaction.request = DpIrecv(transaction.buffer.data(),
+                        transaction.request = Irecv(transaction.buffer.data(),
                                                       int(transaction.buffer.size()),
                                                       transaction.srcProc, transaction.tag, data->mpiCom);
                         allRequestsTypes.emplace_back(SpRequestType{false, 1, rt.idxTransaction});
