@@ -1,5 +1,5 @@
-#ifndef SPABSTRACTDEVICEALLOCATOR_HPP
-#define SPABSTRACTDEVICEALLOCATOR_HPP
+#ifndef SPABSTRACTDEVICEMEMMANAGER_HPP
+#define SPABSTRACTDEVICEMEMMANAGER_HPP
 
 #ifndef SPECX_COMPILE_WITH_CUDA
 #error CUDE MUST BE ON
@@ -7,9 +7,9 @@
 
 #include <list>
 
-class SpAbstractDeviceAllocator {
+class SpAbstractDeviceMemManager {
 public:
-    virtual ~SpAbstractDeviceAllocator(){}
+    virtual ~SpAbstractDeviceMemManager(){}
 
     virtual void incrDeviceDataUseCount(void* key) = 0;
 

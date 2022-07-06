@@ -17,7 +17,7 @@
 #include <cuda.h>
 
 #include <Utils/small_vector.hpp>
-#include <Data/SpAbstractDeviceAllocator.hpp>
+#include <Data/SpAbstractDeviceMemManager.hpp>
 #include <Utils/SpConsumerThread.hpp>
 #include "SpCudaUtils.hpp"
 
@@ -45,7 +45,7 @@ public:
         CudaMutex.unlock();
     }
 
-    class SpCudaMemManager : public SpAbstractDeviceAllocator {
+    class SpCudaMemManager : public SpAbstractDeviceMemManager {
         const int id;
         std::unordered_map<void*, HandleDescr> handles;
         std::unordered_map<const void*, DataObj> allBlocks;

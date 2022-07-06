@@ -37,22 +37,22 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-                    SpCuda([](std::pair<void*, std::size_t> paramA) {
+                    SpCuda([](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramA)))++;
+                        (*paramA.objPtr())++;
             #endif
                         std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
 
         tg.task(SpWrite(b),
-                    SpCuda([](std::pair<void*, std::size_t> paramB) {
+                    SpCuda([](SpDeviceDataView<int> paramB) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramB)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramB.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramB)))++;
+                        (*paramB.objPtr())++;
             #endif
                     })
         );
@@ -68,11 +68,11 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                         paramA++;
                     }),
                     SpCuda(
-                        [](std::pair<void*, std::size_t> paramA) {
+                        [](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramA)))++;
+                        (*paramA.objPtr())++;
             #endif
                     })
         );
@@ -101,20 +101,18 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-            SpCuda([](std::pair<void*, std::size_t> paramA) {
-                int* arrayA = static_cast<int*>(std::get<0>(paramA));
-                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                                   paramA.nbElements());
 
                 std::this_thread::sleep_for(std::chrono::seconds(2));
             })
         );
 
         tg.task(SpWrite(b),
-            SpCuda([](std::pair<void*, std::size_t> paramB) {
-                int* arrayB = static_cast<int*>(std::get<0>(paramB));
-                const int nbElementsB = std::get<1>(paramB)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayB, nbElementsB);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramB) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramB.array(),
+                    paramB.nbElements());
             })
         );
 
@@ -133,10 +131,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     va++;
                 }
             }),
-            SpCuda([](std::pair<void*, std::size_t> paramA) {
-                int* arrayA = static_cast<int*>(std::get<0>(paramA));
-                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                                   paramA.nbElements());
             })
         );
 
