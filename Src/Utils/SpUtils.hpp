@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPUTILS_HPP
@@ -163,8 +163,8 @@ namespace SpUtils{
     
 }
 
-#define spetabaru_xstr(s) spetabaru_str(s)
-#define spetabaru_str(s) #s
-#define always_assert(X) SpUtils::CheckCorrect(spetabaru_str(X), (X), __LINE__, __FILE__)
+#define specx_xstr(s) specx_str(s)
+#define specx_str(s) #s
+#define always_assert(X) SpUtils::CheckCorrect(specx_str(X), (X), __LINE__, __FILE__)
 
 #endif

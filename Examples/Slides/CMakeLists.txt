@@ -1,15 +1,15 @@
 ###########################################################################
-# SPETABARU - Berenger Bramas MPCDF - 2016
+# SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-project(PATTERNS_SPETABARU CXX)
+project(PATTERNS_SPECX CXX)
 
-ADD_DEFINITIONS(${SPETABARU_CXX_FLAGS})
+ADD_DEFINITIONS(${SPECX_CXX_FLAGS})
 
-if(SPETABARU_BUILD_EXAMPLES)
+if(SPECX_BUILD_EXAMPLES)
 
     if($ENV{VERBOSE})
-        MESSAGE(STATUS "Examples -- SPETABARU_CXX_FLAGS   : ${SPETABARU_CXX_FLAGS}")
+        MESSAGE(STATUS "Examples -- SPECX_CXX_FLAGS   : ${SPECX_CXX_FLAGS}")
     endif()
 
     # Find all code files
@@ -22,8 +22,8 @@ if(SPETABARU_BUILD_EXAMPLES)
 
     # Adding the project sources dir as an include dir
     INCLUDE_DIRECTORIES(
-         ${SPETABARU_BINARY_DIR}/Src    
-         ${SPETABARU_SOURCE_DIR}/Src    
+         ${SPECX_BINARY_DIR}/Src    
+         ${SPECX_SOURCE_DIR}/Src    
     )
 
 
@@ -38,7 +38,7 @@ if(SPETABARU_BUILD_EXAMPLES)
             MESSAGE(STATUS "Examples -- Add ${execname}")
         endif()
 
-        if(SPETABARU_COMPILE_WITH_CUDA)
+        if(SPECX_COMPILE_WITH_CUDA)
             set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
         endif()
         add_executable(
@@ -48,8 +48,8 @@ if(SPETABARU_BUILD_EXAMPLES)
 
         target_link_libraries(
             ${execname}
-            spetabaru
-	        ${SPETABARU_LIBRARIES}
+            specx
+	        ${SPECX_LIBRARIES}
             )
     endforeach(exec)
 endif()

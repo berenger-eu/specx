@@ -18,7 +18,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuWorkers(const int nbWork
 
     return res;
 }
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams(),
                                              const int nbCudaWorkers = SpCudaUtils::GetNbDevices()) {
     small_vector<std::unique_ptr<SpWorker>> res;
@@ -55,7 +55,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nb
 }
 #endif
 static auto DefaultTeamOfWorkers() {
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     return TeamOfCpuCudaWorkers();
 #else
     return TeamOfCpuWorkers();

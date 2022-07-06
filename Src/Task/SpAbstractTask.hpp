@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPABSTRACTTASK_HPP
@@ -89,7 +89,7 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
-    #ifdef SPETABARU_COMPILE_WITH_MPI
+    #ifdef SPECX_COMPILE_WITH_MPI
     bool isMpiTaskCom;
 #endif
 protected:
@@ -106,7 +106,7 @@ public:
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
                                atg(inAtg)
-                         #ifdef SPETABARU_COMPILE_WITH_MPI
+                         #ifdef SPECX_COMPILE_WITH_MPI
                              ,isMpiTaskCom(false)
     #endif
     {
@@ -294,7 +294,7 @@ public:
         return atg;
     }
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
     bool isMpiCom() const{
         return isMpiTaskCom;
     }

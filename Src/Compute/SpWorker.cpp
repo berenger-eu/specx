@@ -11,7 +11,7 @@ void SpWorker::start() {
         t = std::thread([&]() {
             SpUtils::SetThreadId(threadId);
             SpWorker::setWorkerForThread(this);
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
             if(this->getType() == SpWorkerType::CUDA_WORKER){
                 cudaData.initByWorker();
             }
@@ -19,7 +19,7 @@ void SpWorker::start() {
             
             doLoop(nullptr);
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
             if(this->getType() == SpWorkerType::CUDA_WORKER){
                 cudaData.destroyByWorker();
             }
@@ -78,7 +78,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         execute(task);
                         atg->postTaskExecution(task, *this);
                     }
-                    #ifdef SPETABARU_COMPILE_WITH_CUDA
+                    #ifdef SPECX_COMPILE_WITH_CUDA
                     else if(workerType == SpWorker::SpWorkerType::CUDA_WORKER) {
 						atg->preTaskExecution(task, *this);
 						execute(task);

@@ -30,7 +30,7 @@
 #include "Compute/SpComputeEngine.hpp"
 #include "Scheduler/SpTaskManagerListener.hpp"
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
 #include "MPI/SpMpiBackgroundWorker.hpp"
 #endif
 
@@ -252,7 +252,7 @@ protected:
     template <bool probabilityArgWasGivenByUser, typename Func, class T0, class T1, class T2, class... ParamsTy>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, ParamsTy&&...params) {
         static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::CUDA>),
-                      "SpTaskGraph::task : SPETABARU_COMPILE_WITH_CUDA macro is undefined. Unable to compile tasks for which only a CUDA callable has been provided.");
+                      "SpTaskGraph::task : SPECX_COMPILE_WITH_CUDA macro is undefined. Unable to compile tasks for which only a CUDA callable has been provided.");
 
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
@@ -1669,7 +1669,7 @@ private:
                                      std::forward<TupleTy>(t),
                                      std::make_index_sequence<std::tuple_size_v<TupleTyWithoutRef>>{});
     }
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
    bool currentTaskIsMpiCom;
 #endif
     
@@ -1721,14 +1721,14 @@ private:
 
         aTask->setState(SpTaskState::WAITING_TO_BE_READY);
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
         aTask->setIsMpiCom(currentTaskIsMpiCom);
 #endif
 
         aTask->releaseControl();
 
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " is mpi " << (currentTaskIsMpiCom?"TRUE":"FALSE");
 #endif
 
@@ -1748,7 +1748,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 
     explicit SpTaskGraph()
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
         : currentTaskIsMpiCom(false)
 #endif
     {}
@@ -1783,7 +1783,7 @@ public:
     ///////////////////////////////////////////////////////////////////////////
     /// MPI method
     ///////////////////////////////////////////////////////////////////////////
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
     template <class Param>
     auto mpiSend(const Param& param, const int destProc, const int tag) {
         currentTaskIsMpiCom = true;

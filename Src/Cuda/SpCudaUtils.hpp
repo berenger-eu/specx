@@ -60,7 +60,7 @@ public:
 
     static void UseDevice(const int deviceId){
         if(deviceId >= GetNbDevices()){
-            std::cerr << "[SPETABARU] Ask to use gpu " << deviceId
+            std::cerr << "[SPECX] Ask to use gpu " << deviceId
                       << " but there are only " << GetNbDevices() << " gpus" << std::endl;
         }
         CUDA_ASSERT(cudaSetDevice (deviceId));
@@ -87,13 +87,13 @@ public:
     static void PrintDeviceName(const int cudaId){
         cudaDeviceProp prop;
         CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
-        std::cout << "[SPETABARU] - Device id: " << cudaId << std::endl;
-        std::cout << "[SPETABARU]   Device name: " << prop.name << std::endl;
+        std::cout << "[SPECX] - Device id: " << cudaId << std::endl;
+        std::cout << "[SPECX]   Device name: " << prop.name << std::endl;
     }
 
     static void PrintInfo(){
         const int nbGpus = GetNbDevices();
-        std::cout << "[SPETABARU] There are " << nbGpus << " gpus" << std::endl;
+        std::cout << "[SPECX] There are " << nbGpus << " gpus" << std::endl;
         for(int idxGpu = 0 ; idxGpu < nbGpus ; ++idxGpu){
             PrintDeviceName(idxGpu);
         }

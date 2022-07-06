@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPTASK_HPP
@@ -16,7 +16,7 @@
 #include "Data/SpDataHandle.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 #include "Cuda/SpCudaMemManager.hpp"
 #include "Cuda/SpCudaWorkerData.hpp"
 #endif
@@ -86,7 +86,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
     
     void preTaskExecution([[maybe_unused]] SpCallableType ct) final {
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
         SpCudaManager::Lock();
        std::size_t extraHandlesOffset = 0;
         
@@ -140,13 +140,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         }, this->getDataDependencyTupleRef());
 
         SpCudaManager::Unlock();
-#endif // SPETABARU_COMPILE_WITH_CUDA
+#endif // SPECX_COMPILE_WITH_CUDA
     }
 
     //! Called by parent abstract task class
     void executeCore([[maybe_unused]] SpCallableType ct) final {
         SpAbstractTask::SetCurrentTask(this);
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
         if constexpr(std::tuple_size_v<CallableTupleTy> == 1) {
             using CtTask = std::decay_t<decltype(std::get<0>(callables))>;
             assert(ct == CtTask::callable_type);
@@ -163,14 +163,14 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 executeCore(this, std::get<1>(callables), cudaCallableArgs);
             }
         }
-#else // SPETABARU_COMPILE_WITH_CUDA
+#else // SPECX_COMPILE_WITH_CUDA
         executeCore(this, std::get<0>(callables), tupleParams);
 #endif
         SpAbstractTask::SetCurrentTask(nullptr);
     }
     
     void postTaskExecution([[maybe_unused]] SpAbstractTaskGraph& inAtg, [[maybe_unused]]  SpCallableType ct) final {
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
         if(ct == SpCallableType::CUDA){
             // Syn only if we the task was on GPU
             SpCudaUtils::SyncCurrentStream();
@@ -210,7 +210,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         }, this->getDataDependencyTupleRef());
 
         SpCudaManager::Unlock();
-#endif // SPETABARU_COMPILE_WITH_CUDA
+#endif // SPECX_COMPILE_WITH_CUDA
     }
 
 public:

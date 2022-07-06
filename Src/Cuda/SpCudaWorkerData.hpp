@@ -7,8 +7,8 @@
 
 #include "SpCudaUtils.hpp"
 
-#ifndef SPETABARU_COMPILE_WITH_CUDA
-#error SPETABARU_COMPILE_WITH_CUDA must be defined
+#ifndef SPECX_COMPILE_WITH_CUDA
+#error SPECX_COMPILE_WITH_CUDA must be defined
 #endif
 
 struct SpCudaWorkerData {
