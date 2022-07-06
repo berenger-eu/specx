@@ -19,8 +19,8 @@ RUN apt-get update \
 # To rebuild and update the repo:
 # - Make sure there are not images: sudo docker images
 # - Remove all images: sudo docker rmi --force c7885369373a
-# - Build the new image: sudo docker build -t spetabaru .
-# - Tag it: sudo docker tag 257399324d18 berenger/spetabaruci:latest
-# - Push it: sudo docker push berenger/spetabaruci
-# - Test it: sudo docker exec -it berenger/spetabaruci:latest /bin/bash
-#            or sudo docker run -it berenger/spetabaruci:latest /bin/bash
+# - Build the new image: sudo docker build -t specx .
+# - Tag it: sudo docker tag 257399324d18 berenger/specxci:latest
+# - Push it: sudo docker push berenger/specxci
+# - Test it: sudo docker exec -it berenger/specxci:latest /bin/bash
+#            or sudo docker run -it berenger/specxci:latest /bin/bash

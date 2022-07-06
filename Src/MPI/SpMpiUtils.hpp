@@ -3,7 +3,7 @@
 
 #include "Config/SpConfig.hpp"
 
-#ifndef SPETABARU_COMPILE_WITH_MPI
+#ifndef SPECX_COMPILE_WITH_MPI
 #error MPI but be enable to use this file.
 #endif
 

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPRUNTIME_HPP
@@ -11,7 +11,7 @@
 #include "Utils/SpUtils.hpp"
 #include "Compute/SpWorkerTeamBuilder.hpp"
 
-//! The runtime is the main component of spetabaru.
+//! The runtime is the main component of specx.
 template <SpSpeculativeModel SpecModel = SpSpeculativeModel::SP_MODEL_1>
 class SpRuntime {
  

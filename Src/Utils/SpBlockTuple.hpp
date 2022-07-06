@@ -92,7 +92,7 @@ public:
 		std::memcpy(static_cast<char*>(this->buffer) + totalSizeBlocks, totalSizeNbEltsAndOffsets.data(),  std::tuple_size_v<ArrayTy> * sizeof(std::size_t));
 	}
 	
-	#ifndef SPETABARU_COMPILE_WITH_CUDA
+	#ifndef SPECX_COMPILE_WITH_CUDA
 	
 	SpBlockTuple(const SpBlockTuple& other) {
 		*this = other;

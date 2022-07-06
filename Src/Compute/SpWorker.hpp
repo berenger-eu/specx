@@ -8,7 +8,7 @@
 
 #include "Config/SpConfig.hpp"
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 #include "Cuda/SpCudaWorkerData.hpp"
 #include "Cuda/SpCudaMemManager.hpp"
 #endif
@@ -25,7 +25,7 @@ class SpWorker {
 public:
     enum class SpWorkerType {
         CPU_WORKER,
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
         CUDA_WORKER,
 #endif
         NB_WORKER_TYPES
@@ -44,7 +44,7 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaWorkerData cudaData;
 #endif
 
@@ -66,7 +66,7 @@ private:
             case SpWorkerType::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
-                #ifdef SPETABARU_COMPILE_WITH_CUDA
+                #ifdef SPECX_COMPILE_WITH_CUDA
             case SpWorkerType::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
@@ -134,7 +134,7 @@ public:
         return wt;
     }
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaWorkerData& getCudaData(){
         return cudaData;
     }

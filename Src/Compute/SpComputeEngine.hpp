@@ -10,7 +10,7 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 #include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
 #endif
 #include "Utils/small_vector.hpp"
@@ -26,7 +26,7 @@ private:
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
 #else
     SpPrioScheduler prioSched;
@@ -37,7 +37,7 @@ private:
     SpComputeEngine* ceToMigrateTo;
     long int nbAvailableCpuWorkers;
     long int totalNbCpuWorkers;
-    #ifdef SPETABARU_COMPILE_WITH_CUDA
+    #ifdef SPECX_COMPILE_WITH_CUDA
     long int nbAvailableCudaWorkers;
     long int totalNbCudaWorkers;
 #endif
@@ -62,7 +62,7 @@ private:
             switch(wt) {
                 case SpWorker::SpWorkerType::CPU_WORKER:
                     return compute(totalNbCpuWorkers, nbAvailableCpuWorkers, allowBusyWorkersToBeDetached, maxCount);
-                    #ifdef SPETABARU_COMPILE_WITH_CUDA
+                    #ifdef SPECX_COMPILE_WITH_CUDA
                 case SpWorker::SpWorkerType::CUDA_WORKER:
                     return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
 #endif
@@ -164,7 +164,7 @@ private:
                     nbAvailableCpuWorkers += addend;
                 }
                 break;
-                #ifdef SPETABARU_COMPILE_WITH_CUDA
+                #ifdef SPECX_COMPILE_WITH_CUDA
             case SpWorker::SpWorkerType::CUDA_WORKER:
                 if constexpr(updateTotalCounter) {
                     totalNbCudaWorkers += addend;
@@ -209,7 +209,7 @@ public:
     : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorker::SpWorkerType::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
       totalNbCpuWorkers(0),
-      #ifdef SPETABARU_COMPILE_WITH_CUDA
+      #ifdef SPECX_COMPILE_WITH_CUDA
       nbAvailableCudaWorkers(0), totalNbCudaWorkers(0),
   #endif
       hasBeenStopped(false) {

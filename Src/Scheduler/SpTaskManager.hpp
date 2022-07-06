@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPTASKMANAGER_HPP
@@ -27,7 +27,7 @@
 
 class SpAbstractTaskGraph;
 
-//! The runtime is the main component of spetabaru.
+//! The runtime is the main component of specx.
 class SpTaskManager{
 
     std::atomic<SpComputeEngine*> ce;
@@ -80,7 +80,7 @@ class SpTaskManager{
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
                     if(aTask->isMpiCom()){
                         SpDebugPrint() << "[insertIfReady] is mpi task " << aTask->getId();
                         this->preMPITaskExecution(aTask);
@@ -100,7 +100,7 @@ class SpTaskManager{
                         } else {
                             ce.load()->pushTask(aTask);
                         }
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
                     }
 #endif
                 }
@@ -184,7 +184,7 @@ public:
     
     void preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
     void postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
     void preMPITaskExecution(SpAbstractTask* t);
     void postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t);
 #endif
@@ -219,7 +219,7 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 			case SpWorker::SpWorkerType::CPU_WORKER:
                 t->preTaskExecution(SpCallableType::CPU);
                 break;
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::CUDA_WORKER:
                 t->preTaskExecution(SpCallableType::CUDA);
 				break;
@@ -235,7 +235,7 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 	t->setState(SpTaskState::RUNNING);
 }
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
 inline void SpTaskManager::preMPITaskExecution(SpAbstractTask* t) {
     SpDebugPrint() << "[preMPITaskExecution] task " << t->getId();
     nbReadyTasks--;
@@ -260,7 +260,7 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 			case SpWorker::SpWorkerType::CPU_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CPU);
 				break;
-                #ifdef SPETABARU_COMPILE_WITH_CUDA
+                #ifdef SPECX_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::CUDA_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CUDA);
 				break;
@@ -311,7 +311,7 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 	}
 }
 
-#ifdef SPETABARU_COMPILE_WITH_MPI
+#ifdef SPECX_COMPILE_WITH_MPI
 inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t) {
     t->setState(SpTaskState::POST_RUN);
 

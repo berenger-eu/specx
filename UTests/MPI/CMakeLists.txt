@@ -1,9 +1,9 @@
 ###########################################################################
-# SPETABARU - Berenger Bramas MPCDF - 2016
+# SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-#project(UTESTS_MPI_SPETABARU LANGUAGES CXX CUDA)
-project(UTESTS_MPI_SPETABARU LANGUAGES CXX)
+#project(UTESTS_MPI_SPECX LANGUAGES CXX CUDA)
+project(UTESTS_MPI_SPECX LANGUAGES CXX)
 
 # Find all code files (no GLOB_RECURSE)
 file(
@@ -16,10 +16,10 @@ file(
 
 # Adding the project sources dir as an include dir
 INCLUDE_DIRECTORIES(
-	 ${SPETABARU_BINARY_DIR}/Src    
-	 ${SPETABARU_SOURCE_DIR}/Src
-	 ${SPETABARU_SOURCE_DIR}/UTests    
-	 ${UTESTS_MPI_SPETABARU_SOURCE_DIR}
+	 ${SPECX_BINARY_DIR}/Src    
+	 ${SPECX_SOURCE_DIR}/Src
+	 ${SPECX_SOURCE_DIR}/UTests    
+	 ${UTESTS_MPI_SPECX_SOURCE_DIR}
 )
 
 
@@ -40,8 +40,8 @@ foreach(exec ${source_tests_files})
 
 	target_link_libraries(
 		${execname}
-		spetabaru
-		${SPETABARU_LIBRARIES}
+		specx
+		${SPECX_LIBRARIES}
 		)
 	add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
 endforeach(exec)

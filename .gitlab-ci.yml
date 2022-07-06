@@ -1,6 +1,6 @@
-image: berenger/spetabaruci
+image: berenger/specxci
 
-spetabaru:
+specx:
   tags:
     - medium
   script:
@@ -11,7 +11,7 @@ spetabaru:
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
     
-spetabaru-debug:
+specx-debug:
   tags:
     - medium
   script:
@@ -21,7 +21,7 @@ spetabaru-debug:
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
-spetabaru-clang:
+specx-clang:
   tags:
     - medium
   script:
@@ -32,7 +32,7 @@ spetabaru-clang:
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
     
-spetabaru-debug-clang:
+specx-debug-clang:
   tags:
     - medium
   script:
@@ -43,13 +43,13 @@ spetabaru-debug-clang:
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
 
-spetabaru-debug-coverage:
+specx-debug-coverage:
   tags:
     - medium
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPETABARU_USE_COVERAGE=ON ..
+    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPECX_USE_COVERAGE=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     - /usr/local/bin/lcov --gcov-tool /usr/bin/gcov-8 --directory ./ -c -o coverage-rapport.info
@@ -64,7 +64,7 @@ pages:
     - medium
   stage: deploy
   dependencies:
-    - spetabaru-debug-coverage
+    - specx-debug-coverage
   script:
     - mv coverage/ public/
   artifacts:

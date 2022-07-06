@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPDATAHANDLE_HPP
@@ -15,10 +15,10 @@
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
 #include "Data/SpDeviceData.hpp"
 #include "Data/SpDataDuplicator.hpp"
-#endif // SPETABARU_COMPILE_WITH_CUDA
+#endif // SPECX_COMPILE_WITH_CUDA
 
 //! This is a register data to apply the
 //! dependences on it.
@@ -26,14 +26,14 @@ class SpDataHandle {
 private:
     //! Generic pointer to the data
     void* ptrToData;
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     //! Copy of the CPU object on CUDAs
     std::array<SpDeviceData, SpConfig::SpMaxNbCudas> copies;
     //! Copy builder from/to CPU/CUDA
     std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
     //! Tell if the CPU version is OK
     bool cpuDataOk;
-#endif // SPETABARU_COMPILE_WITH_CUDA
+#endif // SPECX_COMPILE_WITH_CUDA
     //! Lock the data
     std::mutex handleLock;
     
@@ -53,7 +53,7 @@ public:
     template <class DataType>
     explicit SpDataHandle(DataType* inPtrToData)
         : ptrToData(inPtrToData),
-      #ifdef SPETABARU_COMPILE_WITH_CUDA
+      #ifdef SPECX_COMPILE_WITH_CUDA
           copies(),
           deviceDataOp(new SpDeviceDataCopier<DataType>()),
           cpuDataOk(true),
@@ -68,7 +68,7 @@ public:
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
 
-#ifdef SPETABARU_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     template <class Allocators>
     void setCpuOnlyValid(Allocators& memManagers) {
         assert(cpuDataOk = true);
@@ -149,7 +149,7 @@ public:
         }
         return copies[cudaId];
     }
-#endif // SPETABARU_COMPILE_WITH_CUDA
+#endif // SPECX_COMPILE_WITH_CUDA
 
 	void lock() {
 		handleLock.lock();

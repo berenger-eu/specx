@@ -1,14 +1,14 @@
 ###########################################################################
-# SPETABARU - Berenger Bramas MPCDF - 2016
+# SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-project(UTESTS_SPETABARU CXX)
+project(UTESTS_SPECX CXX)
 
-ADD_DEFINITIONS(${SPETABARU_CXX_FLAGS})
+ADD_DEFINITIONS(${SPECX_CXX_FLAGS})
 
-OPTION( SPETABARU_BUILD_UTESTS  "Set to ON to build the unit tests" ON )
+OPTION( SPECX_BUILD_UTESTS  "Set to ON to build the unit tests" ON )
 
-if(SPETABARU_BUILD_UTESTS)
+if(SPECX_BUILD_UTESTS)
     # Find all code files (no GLOB_RECURSE)
     file(
         GLOB	
@@ -19,9 +19,9 @@ if(SPETABARU_BUILD_UTESTS)
 
     # Adding the project sources dir as an include dir
     INCLUDE_DIRECTORIES(
-         ${SPETABARU_BINARY_DIR}/Src    
-         ${SPETABARU_SOURCE_DIR}/Src    
-         ${UTESTS_SPETABARU_SOURCE_DIR}
+         ${SPECX_BINARY_DIR}/Src    
+         ${SPECX_SOURCE_DIR}/Src    
+         ${UTESTS_SPECX_SOURCE_DIR}
     )
 
 
@@ -35,7 +35,7 @@ if(SPETABARU_BUILD_UTESTS)
             MESSAGE(STATUS "UTests -- Add ${execname}")
         endif()
 
-        if(SPETABARU_COMPILE_WITH_CUDA)
+        if(SPECX_COMPILE_WITH_CUDA)
             set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
         endif()
         add_executable(
@@ -45,8 +45,8 @@ if(SPETABARU_BUILD_UTESTS)
 
         target_link_libraries(
             ${execname}
-            spetabaru
-            ${SPETABARU_LIBRARIES}
+            specx
+            ${SPECX_LIBRARIES}
             )
         add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
     endforeach(exec)

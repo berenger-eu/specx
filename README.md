@@ -1,9 +1,9 @@
-[![pipeline status](https://gitlab.inria.fr/bramas/spetabaru/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
-[![coverage report](https://gitlab.inria.fr/bramas/spetabaru/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/spetabaru/)
+[![pipeline status](https://gitlab.inria.fr/bramas/specx/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/specx/commits/master)
+[![coverage report](https://gitlab.inria.fr/bramas/specx/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/specx/)
 
 
 # Introduction
-SPETABARU is a task-based runtime system, which is
+SPECX is a task-based runtime system, which is
 capable of executing tasks in advance if some others are not certain to modify
 the data.
 
@@ -17,7 +17,7 @@ This is an on-going project under development.
 2. CMake (version 2.8.3 or after)
 
 # Installation
-1. First create a new directory outside of SPETABARU's source tree with mkdir <dir_name>
+1. First create a new directory outside of SPECX's source tree with mkdir <dir_name>
 2. cd into the newly created directory.
 3. Create a subdirectory with a name of your choice
 4. Run cmake -DCMAKE_INSTALL_PREFIX=<path_to_directory_created_in_step_3> -DCMAKE_BUILD_TYPE=<build_type> ..
@@ -26,20 +26,20 @@ This is an on-going project under development.
 
 `<build_type>` can take one of two values : `Release` or `Debug`.
 
-If you want to install the static SPETABARU library and its header files to your default user
+If you want to install the static SPECX library and its header files to your default user
 library location you can remove the DCMAKE_INSTALL_PREFIX flag in step 4.
 
-If you want to create the build directory inside SPETABARU's source tree, we recommend
+If you want to create the build directory inside SPECX's source tree, we recommend
 to call it "build" as this name has been explicitly marked as to be ignored by Git.
 
 # Examples
 
 Several examples are given in the `Examples` and `UTests` directories.
-Setting the environment variable `SPETABARU_DEBUG_PRINT` to `TRUE` will enable debug information output. 
+Setting the environment variable `SPECX_DEBUG_PRINT` to `TRUE` will enable debug information output. 
 
 # Support
-Please leave an issue on the SPETABARU repository:
-https://gitlab.inria.fr/bramas/spetabaru
+Please leave an issue on the SPECX repository:
+https://gitlab.inria.fr/bramas/specx
 
 # Citing
 
@@ -156,7 +156,7 @@ You can find the source file for this example at [Examples/Basic/getting-started
 
 # Detailed overview
 ## Workflow
-Workflow in Spetabaru mainly revolves around three interfaces:
+Workflow in Specx mainly revolves around three interfaces:
 - the runtime interface
 - the data dependency interface
 - the task viewer interface
@@ -235,7 +235,7 @@ and work with v1 and v2 directly. You can however capture any variable that does
 The runtime will store addresses to the data elements appearing in the data dependency list and will take care of calling the callable with the
 appropriate corresponding arguments. In the example given above, assuming the task call is the sole task call in the entire program, the runtime will take
 the addresses of v1 and v2 (since these are the data elements that appear in the data dependency list) and when the task executes it will call the lambda
-with arguments \*v1 and \*v2. Note that since Spetabaru is a speculative task-based runtime system it will also happen that the callable gets called with
+with arguments \*v1 and \*v2. Note that since Specx is a speculative task-based runtime system it will also happen that the callable gets called with
 copies of the data elements (sampled at different points in time) rather then the original data elements.  
 The callables for normal tasks can return any value.
 The callables for potential tasks must however all return a boolean. This boolean is used to inform the runtime of whether the task has written
@@ -244,7 +244,7 @@ true if the task wrote to its maybe-write data dependencies and false otherwise.
 In overload (1) the callable is passed as is to the task call. It will implicitly be interpreted by the runtime as CPU code.  
 In overload (2) the callable c1 is explictly tagged as CPU code by being wrapped inside a SpCpuCode object (see subsection on callable wrapper objects 
 in section Data dependency interface below). Overload (2) additionally permits the user to provide a GPU version of the code (in this case the callable
-should be wrapped inside a SpGpuCode object). When both CPU and GPU versions of the code are provided, the Spetabaru runtime will decide at runtime
+should be wrapped inside a SpGpuCode object). When both CPU and GPU versions of the code are provided, the Specx runtime will decide at runtime
 which one of the two to execute.           
 
 - void setSpeculationTest(std::function<bool(int,const SpProbability&)> inFormula)
@@ -364,7 +364,7 @@ request awr1 on data x does not have to wait for awr1 to be fulfilled in order t
 Multiple successive atomic writes will be performed in any order.
 As an example, if two tasks atomically write to data x, the runtime does not enforce an order as to which tasks gets to atomically write first and
 the two tasks will be able to execute in parallel. The atomic writes will be committed to memory in whatever order they will be committed at
-runtime, the point is that the Spetabaru runtime does not enforce an order on the atomic writes.  
+runtime, the point is that the Specx runtime does not enforce an order on the atomic writes.  
 Atomic writes are ordered by the runtime with respect to reads, writes, maybe-writes and commutative writes.
 The order is the order in which the data accesses have been requested at runtime.
 
@@ -432,7 +432,11 @@ Speculative versions of tasks will have an apostrophe appended to their name.
 
 # GPU/CUDA
 
-The CMake variable `SPETABARU_COMPILE_WITH_CUDA` must be set to ON, for example with the command `cmake .. -DSPETABARU_COMPILE_WITH_CUDA=ON`.
+The CMake variable `SPECX_COMPILE_WITH_CUDA` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_CUDA=ON`.
 If CMake is not able to find nvcc, one must set `CUDACXX` env variable or the CMake variable `CMAKE_CUDA_COMPILER` to the path to nvcc.
 On can set `CMAKE_CUDA_ARCHITECTURES` to select the CUDA sm to compile for.
+
+# MPI
+
+The CMake variable `SPECX_COMPILE_WITH_MPI` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_MPI=ON`.
 
