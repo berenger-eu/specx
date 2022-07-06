@@ -10,6 +10,7 @@
 // @SPETABARU_X@
 
 #cmakedefine SPETABARU_COMPILE_WITH_CUDA
+#cmakedefine SPETABARU_COMPILE_WITH_MPI
 
 namespace SpConfig {
     #ifdef SPETABARU_COMPILE_WITH_CUDA
@@ -17,6 +18,11 @@ namespace SpConfig {
         inline constexpr int SpMaxNbCudas = 16;
     #else
         inline constexpr bool CompileWithCuda = false;    
+    #endif
+    #ifdef SPETABARU_COMPILE_WITH_MPI
+        inline constexpr bool CompileWithMPI = true;
+    #else
+        inline constexpr bool CompileWithMPI = false;    
     #endif
 }
 

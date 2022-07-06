@@ -30,6 +30,10 @@
 #include "Compute/SpComputeEngine.hpp"
 #include "Scheduler/SpTaskManagerListener.hpp"
 
+#ifdef SPETABARU_COMPILE_WITH_MPI
+#include "MPI/SpMpiBackgroundWorker.hpp"
+#endif
+
 template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {
 protected:
@@ -1665,6 +1669,9 @@ private:
                                      std::forward<TupleTy>(t),
                                      std::make_index_sequence<std::tuple_size_v<TupleTyWithoutRef>>{});
     }
+#ifdef SPETABARU_COMPILE_WITH_MPI
+   bool currentTaskIsMpiCom;
+#endif
     
     template <class DataDependencyTupleTy, class CallableTupleTy>
     auto coreTaskCreation(const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple, CallableTupleTy& callableTuple) {
@@ -1713,11 +1720,18 @@ private:
         auto descriptor = aTask->getViewer();
 
         aTask->setState(SpTaskState::WAITING_TO_BE_READY);
-        
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+        aTask->setIsMpiCom(currentTaskIsMpiCom);
+#endif
+
         aTask->releaseControl();
 
         SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-        
+#ifdef SPETABARU_COMPILE_WITH_MPI
+        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " is mpi " << (currentTaskIsMpiCom?"TRUE":"FALSE");
+#endif
+
         // Push to the scheduler
         this->scheduler.addNewTask(aTask);
         
@@ -1733,7 +1747,11 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpTaskGraph() {}
+    explicit SpTaskGraph()
+#ifdef SPETABARU_COMPILE_WITH_MPI
+        : currentTaskIsMpiCom(false)
+#endif
+    {}
         
     ///////////////////////////////////////////////////////////////////////////
     /// Destructor
@@ -1761,6 +1779,37 @@ public:
         };
         return this->callWithPartitionedArgs(f, std::forward<ParamsTy>(params)...);
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    /// MPI method
+    ///////////////////////////////////////////////////////////////////////////
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    template <class Param>
+    auto mpiSend(const Param& param, const int destProc, const int tag) {
+        currentTaskIsMpiCom = true;
+        auto res = task(SpRead(param), [=](const Param& param){
+            SpMpiBackgroundWorker::GetWorker().addSend(param, destProc, tag,
+                    SpAbstractTask::GetCurrentTask(),
+                    &scheduler,
+                    this);
+        });
+        currentTaskIsMpiCom = false;
+        return res;
+    }
+
+    template <class Param>
+    auto mpiRecv(Param& param, const int srcProc, const int tag) {
+        currentTaskIsMpiCom = true;
+        auto res = task(SpWrite(param), [=](Param& param){
+            SpMpiBackgroundWorker::GetWorker().addRecv(param,srcProc, tag,
+                    SpAbstractTask::GetCurrentTask(),
+                                                       &scheduler,
+                    this);
+        });
+        currentTaskIsMpiCom = false;
+        return res;
+    }
+#endif
 };
 
 #endif

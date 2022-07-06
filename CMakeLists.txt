@@ -57,6 +57,13 @@ if(SPETABARU_COMPILE_WITH_CUDA)
     list(APPEND SPETABARU_LIBRARIES ${CUDA_LIBRARIES})
 endif()
 
+OPTION(SPETABARU_COMPILE_WITH_MPI "Set to on to use MPI" OFF)
+if(SPETABARU_COMPILE_WITH_MPI)
+    find_package(MPI REQUIRED)
+    include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+    list(APPEND SPETABARU_LIBRARIES ${MPI_CXX_LIBRARIES})
+endif()
+
 # need pthread
 list(APPEND SPETABARU_LIBRARIES pthread)
 
@@ -183,6 +190,10 @@ if(NOT SPETABARU_JUST_LIB)
     
     if(SPETABARU_COMPILE_WITH_CUDA)
 		add_subdirectory(UTests/Gpu)
+	endif()
+	
+    if(SPETABARU_COMPILE_WITH_MPI)
+		add_subdirectory(UTests/MPI)
 	endif()
 	
     #===========================================================================

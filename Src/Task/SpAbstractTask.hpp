@@ -89,7 +89,15 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
+    #ifdef SPETABARU_COMPILE_WITH_MPI
+    bool isMpiTaskCom;
+#endif
+protected:
+    static void SetCurrentTask(SpAbstractTask* inCurrentTask);
 public:
+    static SpAbstractTask* GetCurrentTask();
+
+
     explicit SpAbstractTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
                                currentState(SpTaskState::NOT_INITIALIZED),
@@ -97,7 +105,11 @@ public:
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
-                               atg(inAtg) {
+                               atg(inAtg)
+                         #ifdef SPETABARU_COMPILE_WITH_MPI
+                             ,isMpiTaskCom(false)
+    #endif
+    {
     }
 
     virtual ~SpAbstractTask(){}
@@ -114,7 +126,7 @@ public:
 
     virtual long int getNbParams() = 0;
     virtual bool dependencesAreReady() const = 0;
-    virtual void preTaskExecution(SpAbstractTaskGraph&, SpCallableType ct) = 0;
+    virtual void preTaskExecution(SpCallableType ct) = 0;
     virtual void postTaskExecution(SpAbstractTaskGraph&, SpCallableType ct) = 0;
     virtual void executeCore(SpCallableType ct) = 0;
     virtual void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) = 0;
@@ -281,6 +293,15 @@ public:
     SpAbstractTaskGraph* getAbstractTaskGraph() const {
         return atg;
     }
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    bool isMpiCom() const{
+        return isMpiTaskCom;
+    }
+    void setIsMpiCom(const bool inIsMpiCom){
+        isMpiTaskCom = inIsMpiCom;
+    }
+#endif
 };
 
 

@@ -63,7 +63,7 @@ class SpTaskManager{
         if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
             aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
-                SpDebugPrint() << "Is waiting to be ready " << aTask->getId();
+                SpDebugPrint() << "[insertIfReady] Is waiting to be ready, id " << aTask->getId();
                 const bool hasCommutativeAccessMode = aTask->hasMode(SpDataAccessMode::COMMUTATIVE_WRITE);
                 if(hasCommutativeAccessMode){
                     mutexCommutative.lock();
@@ -73,27 +73,39 @@ class SpTaskManager{
                     if(hasCommutativeAccessMode){
                         mutexCommutative.unlock();
                     }
-                    SpDebugPrint() << "Was not in ready list " << aTask->getId();
+                    SpDebugPrint() << "[insertIfReady] Was not in ready list, id " << aTask->getId();
 
                     nbReadyTasks++;
 
                     aTask->setState(SpTaskState::READY);
                     aTask->releaseControl();
-                    
-                    auto l = listener.load();
-                    
-                    if(l) {
-                        l->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+                    if(aTask->isMpiCom()){
+                        SpDebugPrint() << "[insertIfReady] is mpi task " << aTask->getId();
+                        this->preMPITaskExecution(aTask);
+                        aTask->executeCore(SpCallableType::CPU);
                     }
-                    
-                    if(!ce) {
-                        readyTasks.push_back(aTask);
-                    } else {
-                        ce.load()->pushTask(aTask);
+                    else{
+                        SpDebugPrint() << "[insertIfReady] is normal task " << aTask->getId();
+#endif
+                        auto l = listener.load();
+
+                        if(l) {
+                            l->thisTaskIsReady(aTask, isNotCalledInAContextOfTaskCreation);
+                        }
+
+                        if(!ce) {
+                            readyTasks.push_back(aTask);
+                        } else {
+                            ce.load()->pushTask(aTask);
+                        }
+#ifdef SPETABARU_COMPILE_WITH_MPI
                     }
+#endif
                 }
                 else{
-                    SpDebugPrint() << " not ready yet " << aTask->getId();
+                    SpDebugPrint() << "[insertIfReady] not ready yet, id " << aTask->getId();
                     aTask->releaseControl();
                     if(hasCommutativeAccessMode){
                        mutexCommutative.unlock();
@@ -172,6 +184,10 @@ public:
     
     void preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
     void postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w);
+#ifdef SPETABARU_COMPILE_WITH_MPI
+    void preMPITaskExecution(SpAbstractTask* t);
+    void postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t);
+#endif
     
     void setComputeEngine(SpComputeEngine* inCe) {
         if(inCe && !ce) {
@@ -192,7 +208,8 @@ public:
 
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
 
-inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
+inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
+    SpDebugPrint() << "[preTaskExecution] task " << t->getId();
 	nbReadyTasks--;
 	nbRunningTasks += 1;
 	t->takeControl();
@@ -200,11 +217,11 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 	if constexpr(SpConfig::CompileWithCuda) {	
 		switch(w.getType()) {
 			case SpWorker::SpWorkerType::CPU_WORKER:
-				t->preTaskExecution(atg, SpCallableType::CPU);
+                t->preTaskExecution(SpCallableType::CPU);
                 break;
 #ifdef SPETABARU_COMPILE_WITH_CUDA
 			case SpWorker::SpWorkerType::CUDA_WORKER:
-				t->preTaskExecution(atg, SpCallableType::CUDA);
+                t->preTaskExecution(SpCallableType::CUDA);
 				break;
 #endif
 			default:
@@ -217,6 +234,23 @@ inline void SpTaskManager::preTaskExecution(SpAbstractTaskGraph& atg, SpAbstract
 
 	t->setState(SpTaskState::RUNNING);
 }
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+inline void SpTaskManager::preMPITaskExecution(SpAbstractTask* t) {
+    SpDebugPrint() << "[preMPITaskExecution] task " << t->getId();
+    nbReadyTasks--;
+    nbRunningTasks += 1;
+    t->takeControl();
+
+    t->preTaskExecution(SpCallableType::CPU);
+
+    SpDebugPrint() << "Execute task with ID " << t->getId();
+    assert(t->isState(SpTaskState::READY));
+
+    t->setState(SpTaskState::RUNNING);
+}
+#endif
+
 
 inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
 	t->setState(SpTaskState::POST_RUN);
@@ -239,11 +273,12 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 	small_vector<SpAbstractTask*> candidates;
 	t->releaseDependences(&candidates);
 
-	SpDebugPrint() << "Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
+    SpDebugPrint() << "[postTaskExecution] Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
 	for(auto otherId : candidates){
-		SpDebugPrint() << "Test " << otherId->getId();
+        SpDebugPrint() << "[postTaskExecution] Test task id " << otherId->getId();
 		insertIfReady<true>(otherId);
 	}
+    SpDebugPrint() << "[postTaskExecution] nbReadyTasks is now " << nbReadyTasks;
 	
 	t->setState(SpTaskState::FINISHED);
 	t->releaseControl();
@@ -275,5 +310,55 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 		saveCe->wakeUpWaitingWorkers();
 	}
 }
+
+#ifdef SPETABARU_COMPILE_WITH_MPI
+inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t) {
+    t->setState(SpTaskState::POST_RUN);
+
+    t->postTaskExecution(atg, SpCallableType::CPU);
+
+    small_vector<SpAbstractTask*> candidates;
+    t->releaseDependences(&candidates);
+
+    SpDebugPrint() << "[postMPITaskExecution] Proceed candidates from after MPI " << t->getId() << ", they are " << candidates.size();
+    for(auto otherId : candidates){
+        SpDebugPrint() << "Test " << otherId->getId();
+        insertIfReady<true>(otherId);
+    }
+    SpDebugPrint() << "[postMPITaskExecution] nbReadyTasks is now " << nbReadyTasks;
+
+    t->setState(SpTaskState::FINISHED);
+    t->releaseControl();
+
+    nbRunningTasks--;
+
+    // We save all of the following values because the SpTaskManager
+    // instance might get destroyed as soon as the mutex (mutexFinishedTasks)
+    // protected region below has been executed.
+    auto previousCntVal = nbFinishedTasks.fetch_add(1);
+    auto nbPushedTasksVal = nbPushedTasks.load();
+    SpComputeEngine *saveCe = ce.load();
+
+    {
+        // In this case the lock on mutexFinishedTasks should be held
+        // while doing the notify on conditionAllTasksOver
+        // (conditionAllTasksOver.notify_one()) because we don't want
+        // the condition variable to get destroyed before we were able
+        // to notify.
+        std::unique_lock<std::mutex> locker(mutexFinishedTasks);
+        tasksFinished.emplace_back(t);
+
+        SpDebugPrint() << "[postMPITaskExecution] => task "  << t->getId() << " tasksFinished.size " << tasksFinished.size() << " nbPushedTasks " << nbPushedTasks;
+        // We notify conditionAllTasksOver every time because of
+        // waitRemain
+        conditionAllTasksOver.notify_one();
+    }
+
+    if(nbPushedTasksVal == (previousCntVal + 1)) {
+        saveCe->wakeUpWaitingWorkers();
+    }
+    SpDebugPrint() << "[postMPITaskExecution] done";
+}
+#endif
 
 #endif

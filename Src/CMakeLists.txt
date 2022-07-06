@@ -26,6 +26,10 @@ if(NOT SPETABARU_COMPILE_WITH_CUDA)
     list(FILTER source_lib_files EXCLUDE REGEX "/Cuda/")
 endif()
 
+if(NOT SPETABARU_COMPILE_WITH_MPI)
+    list(FILTER source_lib_files EXCLUDE REGEX "/MPI/")
+endif()
+
 
 # Adding cpp files to project
 add_library(

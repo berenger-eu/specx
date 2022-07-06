@@ -1,0 +1,58 @@
+#ifndef SPMPISERIALIZER_HPP
+#define SPMPISERIALIZER_HPP
+
+#include <cstring>
+#include <cassert>
+
+////////////////////////////////////////////////////////////////
+/// The serializer class
+////////////////////////////////////////////////////////////////
+class SpAbstractMpiSerializer {
+public:
+    virtual ~SpAbstractMpiSerializer(){}
+    virtual const unsigned char* getBuffer() = 0;
+    virtual int getBufferSize() = 0;
+};
+
+template <class ObjectClass>
+class SpMpiSerializer : public SpAbstractMpiSerializer {
+    const ObjectClass& obj;
+public:
+
+    SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){}
+
+    virtual const unsigned char* getBuffer() override{
+        // Simply cast the object into an array
+        return reinterpret_cast<const unsigned char*>(&obj);
+    }
+    virtual int getBufferSize() override{
+        // The lenght of the array is the size of the object
+        return int(sizeof (ObjectClass));
+    }
+};
+
+
+////////////////////////////////////////////////////////////////
+/// The deserializer class
+////////////////////////////////////////////////////////////////
+class SpAbstractMpiDeSerializer {
+public:
+    virtual ~SpAbstractMpiDeSerializer(){}
+    virtual void deserialize(const unsigned char* buffer, int bufferSize) = 0;
+};
+
+template <class ObjectClass>
+class SpMpiDeSerializer : public SpAbstractMpiDeSerializer {
+    ObjectClass& obj;
+public:
+    SpMpiDeSerializer(ObjectClass& inObj) : obj(inObj){}
+
+    void deserialize(const unsigned char* buffer, int bufferSize) override{
+        // Will not be true in the future
+        assert(bufferSize == sizeof(ObjectClass));
+        // Copy the array to the object
+        memcpy(&obj, buffer, bufferSize);
+    }
+};
+
+#endif // SPMPISERIALIZER_HPP
