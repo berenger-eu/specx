@@ -23,6 +23,29 @@ __global__ void inc_var(int* ptr, int size){
     }
 }
 
+class MemmovClassExample{
+public:
+    std::size_t memmovNeededSize() const{
+        return 10;
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    struct View{
+        View(){}
+        View(void* devicePtr, std::size_t size){}
+    };
+    using DeviceDataType = View;
+};
+
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
@@ -98,6 +121,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         std::vector<int> a(100,0);
         std::vector<int> b(100,0);
 
+        static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,
+                      "should be stdvec");
+
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
@@ -158,9 +184,31 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         }
     }
 
+
+    void TestMemMove(){
+        SpCudaUtils::PrintInfo();
+
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+        SpTaskGraph tg;
+        tg.computeOn(ce);
+
+        static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,
+                      "should be memmov");
+
+        MemmovClassExample obj;
+
+        tg.task(SpWrite(obj),
+            SpCuda([](SpDeviceDataView<MemmovClassExample> objv) {
+            })
+        );
+
+        tg.waitAllTasks();
+    }
+
     void SetTests() {
         Parent::AddTest(&SimpleGpuTest::Test, "Basic gpu test");
         Parent::AddTest(&SimpleGpuTest::TestVec, "Basic gpu test with vec");
+        Parent::AddTest(&SimpleGpuTest::TestMemMove, "Basic gpu test with memmov");
     }
 };
 

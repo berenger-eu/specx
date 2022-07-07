@@ -31,14 +31,14 @@ public:
 //////////////////////////////////////////////////////////
 namespace SpDeviceDataUtils{
 
-template <typename, typename, typename = std::void_t<>>
+template <typename, typename = std::void_t<>>
 struct class_has_memmovNeededSize
 : public std::false_type {};
 
 template <typename Class>
 struct class_has_memmovNeededSize<Class,
-    std::void_t<decltype(std::declval<Class>().memmovNeededSize(std::declval<void>()))>>
-: public std::is_same<decltype(std::declval<Class>().memmovNeededSize(std::declval<void>())), std::size_t>
+    std::void_t<decltype(std::declval<Class>().memmovNeededSize())>>
+: public std::is_same<decltype(std::declval<Class>().memmovNeededSize()), std::size_t>
 {};
 
 ///////////////////
@@ -49,8 +49,8 @@ struct class_has_memmovHostToDevice
 
 template <typename Class, typename CopierClass>
 struct class_has_memmovHostToDevice<Class, CopierClass,
-    std::void_t<decltype(std::declval<Class>().memmovHostToDevice(std::declval<CopierClass, void*, std::size_t>()))>>
-: public std::is_same<decltype(std::declval<Class>().memmovHostToDevice(std::declval<CopierClass, void*, std::size_t>())), void>
+    std::void_t<decltype(std::declval<Class>().template memmovHostToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>()))>>
+: public std::is_same<decltype(std::declval<Class>().template memmovHostToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>())), void>
 {};
 
 ///////////////////
@@ -61,8 +61,8 @@ struct class_has_memmovDeviceToHost
 
 template <typename Class, typename CopierClass>
 struct class_has_memmovDeviceToHost<Class, CopierClass,
-    std::void_t<decltype(std::declval<Class>().memmovDeviceToHost(std::declval<CopierClass, void*, std::size_t>()))>>
-: public std::is_same<decltype(std::declval<Class>().memmovDeviceToHost(std::declval<CopierClass, void*, std::size_t>())), void>
+    std::void_t<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>()))>>
+: public std::is_same<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>())), void>
 {};
 
 ///////////////////
@@ -127,18 +127,18 @@ enum class DeviceMovableType{
 
 template <class DataType>
 DeviceMovableType constexpr GetDeviceMovableType(){
-    if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
-        return DeviceMovableType::RAW_COPY;
+    if constexpr(class_has_memmovNeededSize<DataType>::value
+                && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
+                && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
+        return DeviceMovableType::MEMMOV;
     }
     else if constexpr(is_stdvector<DataType>::value){
         return DeviceMovableType::STDVEC;
     }
-    else if constexpr(class_has_memmovNeededSize<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
-            && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
-            && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
-        return DeviceMovableType::MEMMOV;
+    else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+        return DeviceMovableType::RAW_COPY;
     }
-    else{
+    else {
         return DeviceMovableType::ERROR;
     }
 }
@@ -164,6 +164,8 @@ class SpDeviceDataView<DataType,
     void *rawPtr;
     std::size_t rawSize;
 public:
+     const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::RAW_COPY;
+
      SpDeviceDataView()
          : rawPtr(nullptr), rawSize(0){
      }
@@ -202,6 +204,8 @@ class SpDeviceDataView<DataType,
     void *rawPtr;
     std::size_t rawSize;
 public:
+     const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::STDVEC;
+
      SpDeviceDataView()
          : rawPtr(nullptr), rawSize(0){
      }
@@ -249,6 +253,8 @@ class SpDeviceDataView<DataType,
     std::size_t rawSize;
     DeviceDataType deviceData;
 public:
+    const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::MEMMOV;
+
      SpDeviceDataView()
          : rawPtr(nullptr), rawSize(0){
      }
@@ -290,6 +296,8 @@ class SpDeviceDataView<DataType,
     void *rawPtr;
     std::size_t rawSize;
 public:
+     const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::ERROR;
+
      SpDeviceDataView()
          : rawPtr(nullptr), rawSize(0){
      }
@@ -337,16 +345,16 @@ class SpDeviceDataCopier : public SpAbstractDeviceDataCopier<AllocatorClass> {
 public:
     bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
-            neededSize = (sizeof(DataType));
-        }
-        else if constexpr(SpDeviceDataUtils::is_stdvector<DataType>::value){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
-        }
-        else if constexpr(SpDeviceDataUtils::class_has_memmovNeededSize<DataType, SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass>>::value){
+        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
         }
-        else{
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+        }
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
+            neededSize = (sizeof(DataType));
+        }
+        else {
             assert(0);
         }
         return allocator.hasEnoughSpace(neededSize);
@@ -354,16 +362,16 @@ public:
 
     std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
-            neededSize = (sizeof(DataType));
-        }
-        else if constexpr(SpDeviceDataUtils::is_stdvector<DataType>::value){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
-        }
-        else if constexpr(SpDeviceDataUtils::class_has_memmovNeededSize<DataType, SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass>>::value){
+        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
         }
-        else{
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+        }
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
+            neededSize = (sizeof(DataType));
+        }
+        else {
             assert(0);
         }
         return allocator.candidatesToBeRemoved(neededSize);
@@ -372,16 +380,16 @@ public:
 
     SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override{
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
-            neededSize = (sizeof(DataType));
-        }
-        else if constexpr(SpDeviceDataUtils::is_stdvector<DataType>::value){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
-        }
-        else if constexpr(SpDeviceDataUtils::class_has_memmovNeededSize<DataType, SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass>>::value){
+        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
         }
-        else{
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+        }
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
+            neededSize = (sizeof(DataType));
+        }
+        else {
             assert(0);
         }
         SpDeviceData copy;
@@ -391,17 +399,18 @@ public:
     }
     void  copyFromHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
-        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
-            assert(devicePtr.size == sizeof(DataType));
-            allocator.copyHostToDevice(devicePtr.ptr, hostPtr,  sizeof(DataType));
+        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
+            SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
+            ((DataType*)rawHostPtr)->memmovHostToDevice(interface, devicePtr.ptr, devicePtr.size);
         }
-        else if constexpr(SpDeviceDataUtils::is_stdvector<DataType>::value){
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
             assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
             allocator.copyHostToDevice(devicePtr.ptr, ((DataType*)rawHostPtr)->data(),
                                               devicePtr.size);
         }
-        else if constexpr(SpDeviceDataUtils::class_has_memmovHostToDevice<DataType, SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass>>::value){
-            ((DataType*)rawHostPtr)->memmovHostToDevice(devicePtr.ptr, devicePtr.size);
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
+            assert(devicePtr.size == sizeof(DataType));
+            allocator.copyHostToDevice(devicePtr.ptr, hostPtr,  sizeof(DataType));
         }
         else {
             assert(0);
@@ -409,17 +418,18 @@ public:
     }
     void  copyFromDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
-        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
-            assert(devicePtr.size == sizeof(DataType));
-            return allocator.copyDeviceToHost(hostPtr, devicePtr.ptr,  sizeof(DataType));
+        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
+            SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
+            ((DataType*)rawHostPtr)->memmovDeviceToHost(interface, devicePtr.ptr, devicePtr.size);
         }
-        else if constexpr(SpDeviceDataUtils::is_stdvector<DataType>::value){
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
             assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
             return allocator.copyDeviceToHost(((DataType*)rawHostPtr)->data(), devicePtr.ptr,
                                               devicePtr.size);
         }
-        else if constexpr(SpDeviceDataUtils::class_has_memmovDeviceToHost<DataType, SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass>>::value){
-            ((DataType*)rawHostPtr)->memmovDeviceToHost(devicePtr.ptr, devicePtr.size);
+        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
+            assert(devicePtr.size == sizeof(DataType));
+            return allocator.copyDeviceToHost(hostPtr, devicePtr.ptr,  sizeof(DataType));
         }
         else {
             assert(0);
