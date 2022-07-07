@@ -54,7 +54,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     DataDependencyTupleTy tupleParams;
     
     //! Arguments for cuda callable
-    std::array<std::pair<void*, std::size_t>, NbParams> cudaCallableArgs;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    DeviceViewTyple<DataDependencyTupleTy> cudaCallableArgs;
+#endif
     
     //! Callables
     CallableTupleTy callables;
@@ -129,7 +131,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         SpCudaUtils::SyncCurrentStream();
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
-                    cudaCallableArgs[index] = {dataObj.ptr, dataObj.size};
+                    std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
                 }
                 else{
                     assert(0);

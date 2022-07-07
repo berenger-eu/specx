@@ -430,11 +430,42 @@ By default the task will be named as the demangled string of the typeid name of 
 Retrieves the name of the task.  
 Speculative versions of tasks will have an apostrophe appended to their name.
 
-# GPU/CUDA
+# GPU/CUDA (Work-in-progress)
 
 The CMake variable `SPECX_COMPILE_WITH_CUDA` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_CUDA=ON`.
 If CMake is not able to find nvcc, one must set `CUDACXX` env variable or the CMake variable `CMAKE_CUDA_COMPILER` to the path to nvcc.
 On can set `CMAKE_CUDA_ARCHITECTURES` to select the CUDA sm to compile for.
+
+Here is an example of a task on CUDA GPU:
+```cpp
+tg.task(SpWrite(a),// Dependencies are expressed as usually
+    SpCuda([](SpDeviceDataView<std::vector<int>> paramA) { // Each parameter is converted into an SpDeviceDataView
+        // The kernel call be called using the dedicated stream
+        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                           paramA.nbElements());
+    })
+);
+```
+Currently, the call to a CUDA kernel must be done in a `.cu` file.
+There are three types of `SpDeviceDataView` that offer different methods: one for the `is_trivially_copyable` objects, one for the `std::vectors` of `is_trivially_copyable` objects, and one customize by the users.
+In the latest, it is required to provide the following methods:
+```cpp
+    std::size_t memmovNeededSize() const{
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+```
+Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
+This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
 
 # MPI
 

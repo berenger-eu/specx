@@ -18,6 +18,7 @@
 #ifdef SPECX_COMPILE_WITH_CUDA
 #include "Data/SpDeviceData.hpp"
 #include "Data/SpDataDuplicator.hpp"
+#include "Cuda/SpCudaMemManager.hpp"
 #endif // SPECX_COMPILE_WITH_CUDA
 
 //! This is a register data to apply the
@@ -30,7 +31,7 @@ private:
     //! Copy of the CPU object on CUDAs
     std::array<SpDeviceData, SpConfig::SpMaxNbCudas> copies;
     //! Copy builder from/to CPU/CUDA
-    std::unique_ptr<SpAbstractDeviceDataCopier> deviceDataOp;
+    std::unique_ptr<SpAbstractDeviceDataCopier<SpCudaManager::SpCudaMemManager>> deviceDataOp;
     //! Tell if the CPU version is OK
     bool cpuDataOk;
 #endif // SPECX_COMPILE_WITH_CUDA
@@ -55,7 +56,7 @@ public:
         : ptrToData(inPtrToData),
       #ifdef SPECX_COMPILE_WITH_CUDA
           copies(),
-          deviceDataOp(new SpDeviceDataCopier<DataType>()),
+          deviceDataOp(new SpDeviceDataCopier<DataType, SpCudaManager::SpCudaMemManager>()),
           cpuDataOk(true),
       #endif
           datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){

@@ -23,6 +23,29 @@ __global__ void inc_var(int* ptr, int size){
     }
 }
 
+class MemmovClassExample{
+public:
+    std::size_t memmovNeededSize() const{
+        return 10;
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    struct View{
+        View(){}
+        View(void* devicePtr, std::size_t size){}
+    };
+    using DeviceDataType = View;
+};
+
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
 
@@ -37,22 +60,22 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-                    SpCuda([](std::pair<void*, std::size_t> paramA) {
+                    SpCuda([](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramA)))++;
+                        (*paramA.objPtr())++;
             #endif
                         std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
 
         tg.task(SpWrite(b),
-                    SpCuda([](std::pair<void*, std::size_t> paramB) {
+                    SpCuda([](SpDeviceDataView<int> paramB) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramB)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramB.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramB)))++;
+                        (*paramB.objPtr())++;
             #endif
                     })
         );
@@ -68,11 +91,11 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                         paramA++;
                     }),
                     SpCuda(
-                        [](std::pair<void*, std::size_t> paramA) {
+                        [](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(static_cast<int*>(std::get<0>(paramA)), 1);
+                        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
             #else
-                        (*static_cast<int*>(std::get<0>(paramA)))++;
+                        (*paramA.objPtr())++;
             #endif
                     })
         );
@@ -98,23 +121,24 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         std::vector<int> a(100,0);
         std::vector<int> b(100,0);
 
+        static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,
+                      "should be stdvec");
+
         tg.computeOn(ce);
 
         tg.task(SpWrite(a),
-            SpCuda([](std::pair<void*, std::size_t> paramA) {
-                int* arrayA = static_cast<int*>(std::get<0>(paramA));
-                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                                   paramA.nbElements());
 
                 std::this_thread::sleep_for(std::chrono::seconds(2));
             })
         );
 
         tg.task(SpWrite(b),
-            SpCuda([](std::pair<void*, std::size_t> paramB) {
-                int* arrayB = static_cast<int*>(std::get<0>(paramB));
-                const int nbElementsB = std::get<1>(paramB)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayB, nbElementsB);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramB) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramB.array(),
+                    paramB.nbElements());
             })
         );
 
@@ -133,10 +157,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     va++;
                 }
             }),
-            SpCuda([](std::pair<void*, std::size_t> paramA) {
-                int* arrayA = static_cast<int*>(std::get<0>(paramA));
-                const int nbElementsA = std::get<1>(paramA)/sizeof(int);
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(arrayA, nbElementsA);
+            SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
+                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                                   paramA.nbElements());
             })
         );
 
@@ -161,9 +184,31 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         }
     }
 
+
+    void TestMemMove(){
+        SpCudaUtils::PrintInfo();
+
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+        SpTaskGraph tg;
+        tg.computeOn(ce);
+
+        static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,
+                      "should be memmov");
+
+        MemmovClassExample obj;
+
+        tg.task(SpWrite(obj),
+            SpCuda([](SpDeviceDataView<MemmovClassExample> objv) {
+            })
+        );
+
+        tg.waitAllTasks();
+    }
+
     void SetTests() {
         Parent::AddTest(&SimpleGpuTest::Test, "Basic gpu test");
         Parent::AddTest(&SimpleGpuTest::TestVec, "Basic gpu test with vec");
+        Parent::AddTest(&SimpleGpuTest::TestMemMove, "Basic gpu test with memmov");
     }
 };
 
