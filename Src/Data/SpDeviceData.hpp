@@ -84,6 +84,14 @@ struct is_stdvector<std::vector<T, Alloc>> : public std::true_type {
 template <typename T>
 using SpDeviceDataTrivialCopyTest = std::conjunction<std::is_trivially_copyable<T>>;
 
+///////////////////
+
+template<class T> struct is_trivial_stdvector : public std::false_type {};
+
+template<class T, class Alloc>
+struct is_trivial_stdvector<std::vector<T, Alloc>> : public SpDeviceDataTrivialCopyTest<T> {
+    using _T = T;
+};
 
 ///////////////////
 template <class AllocatorClass>
@@ -132,7 +140,7 @@ DeviceMovableType constexpr GetDeviceMovableType(){
                 && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
         return DeviceMovableType::MEMMOV;
     }
-    else if constexpr(is_stdvector<DataType>::value){
+    else if constexpr(is_trivial_stdvector<DataType>::value){
         return DeviceMovableType::STDVEC;
     }
     else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
@@ -200,7 +208,7 @@ public:
 template <class DataType>
 class SpDeviceDataView<DataType,
         typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC>>{
-    using ObjType = typename SpDeviceDataUtils::is_stdvector<DataType>::_T;
+    using ObjType = typename SpDeviceDataUtils::is_trivial_stdvector<DataType>::_T;
     void *rawPtr;
     std::size_t rawSize;
 public:
