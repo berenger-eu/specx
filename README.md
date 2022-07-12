@@ -467,6 +467,44 @@ In the latest, it is required to provide the following methods:
 Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
 This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
 
+# GPU/HIP (Work-in-progress)
+
+The CMake variable `SPECX_COMPILE_WITH_HIP` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
+The C++ compiler must also be set with for example `cmake -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ ..`.
+On can set `GPU_TARGETS` to select the HIP sm to compile for.
+
+Here is an example of a task on HIP GPU:
+```cpp
+tg.task(SpWrite(a),// Dependencies are expressed as usually
+    SpHip([](SpDeviceDataView<std::vector<int>> paramA) { // Each parameter is converted into an SpDeviceDataView
+        // The kernel call be called using the dedicated stream
+        inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
+                                                           paramA.nbElements());
+    })
+);
+```
+Currently, the call to a HIP kernel must be done in a `.cu` file.
+There are three types of `SpDeviceDataView` that offer different methods: one for the `is_trivially_copyable` objects, one for the `std::vectors` of `is_trivially_copyable` objects, and one customize by the users.
+In the latest, it is required to provide the following methods:
+```cpp
+    std::size_t memmovNeededSize() const{
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+```
+Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
+This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
+
+
 # MPI
 
 The CMake variable `SPECX_COMPILE_WITH_MPI` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_MPI=ON`.

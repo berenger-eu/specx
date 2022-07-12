@@ -1,8 +1,8 @@
 #ifndef SPDEVICEDATA_HPP
 #define SPDEVICEDATA_HPP
 
-#ifndef SPECX_COMPILE_WITH_CUDA
-#error CUDE MUST BE ON
+#if !(defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP))
+#error CUDA or HIP MUST BE ON
 #endif
 
 #include <type_traits>

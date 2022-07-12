@@ -300,10 +300,11 @@ struct access_modes_are_equal<dam1, T, std::void_t<decltype(T::AccessMode)>> : a
        
 enum class SpCallableType {
     CPU=0,
-    CUDA        
+    CUDA  ,
+    HIP
 };
 
-template <bool compileWithCuda, class T, SpCallableType ct>
+template <bool compileWithType, class T, SpCallableType ct>
 class SpCallableWrapper {
 private:
     using CallableTy = std::remove_reference_t<T>;
@@ -334,6 +335,11 @@ auto SpCpu(T &&callable) {
 template <class T>
 auto SpCuda(T&& callable) {
     return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::CUDA>(std::forward<T>(callable));
+}
+
+template <class T>
+auto SpHip(T&& callable) {
+    return SpCallableWrapper<SpConfig::CompileWithHip, T, SpCallableType::HIP>(std::forward<T>(callable));
 }
 
 template <class T0>

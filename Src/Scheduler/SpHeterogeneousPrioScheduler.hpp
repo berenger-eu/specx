@@ -27,11 +27,11 @@ class SpHeterogeneousPrioScheduler{
     mutable std::mutex mutexReadyTasks;
     
     std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > cpuTaskQueue;
-    std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > cudaTaskQueue;
+    std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > gpuTaskQueue;
     std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio > heterogeneousTaskQueue;
 
 public:
-    explicit SpHeterogeneousPrioScheduler() : mutexReadyTasks(), cpuTaskQueue(), cudaTaskQueue(), heterogeneousTaskQueue()
+    explicit SpHeterogeneousPrioScheduler() : mutexReadyTasks(), cpuTaskQueue(), gpuTaskQueue(), heterogeneousTaskQueue()
     {}
 
     // No copy or move
@@ -46,21 +46,22 @@ public:
         if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
             return static_cast<int>(cpuTaskQueue.size() + heterogeneousTaskQueue.size());
         }
-        return static_cast<int>(cudaTaskQueue.size() + heterogeneousTaskQueue.size());
+        return static_cast<int>(gpuTaskQueue.size() + heterogeneousTaskQueue.size());
     }
 
     int push(SpAbstractTask* newTask){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         const bool hasCpuCallable = newTask->hasCallableOfType(SpCallableType::CPU);
-        const bool hasCudaCallable = newTask->hasCallableOfType(SpCallableType::CUDA);
+        const bool hasGpuCallable = newTask->hasCallableOfType(SpCallableType::CUDA)
+                || newTask->hasCallableOfType(SpCallableType::HIP);
         
-        if(hasCpuCallable && hasCudaCallable) {
+        if(hasCpuCallable && hasGpuCallable) {
             heterogeneousTaskQueue.push(newTask);
         } else {
             if(hasCpuCallable) {
                 cpuTaskQueue.push(newTask);
             } else {
-                cudaTaskQueue.push(newTask);
+                gpuTaskQueue.push(newTask);
             }
         }
         return 1;
@@ -71,15 +72,16 @@ public:
         
         for(auto t : tasks) {
             const bool hasCpuCallable = t->hasCallableOfType(SpCallableType::CPU);
-            const bool hasCudaCallable = t->hasCallableOfType(SpCallableType::CUDA);
+            const bool hasGpuCallable = t->hasCallableOfType(SpCallableType::CUDA)
+                    || newTask->hasCallableOfType(SpCallableType::HIP);
             
-            if(hasCpuCallable && hasCudaCallable) {
+            if(hasCpuCallable && hasGpuCallable) {
                 heterogeneousTaskQueue.push(t);
             } else {
-                if(hasCpuCallable) {
+                if(hasGpuCallable) {
                     cpuTaskQueue.push(t);
                 } else {
-                    cudaTaskQueue.push(t);
+                    gpuTaskQueue.push(t);
                 }
             }
         }
@@ -104,15 +106,16 @@ public:
             } else {
                 queue = std::addressof(cpuTaskQueue);
             }
-        } else if(wt == SpWorker::SpWorkerType::CUDA_WORKER && cudaTaskQueue.size() > 0) {
-            SpAbstractTask* cudaTask = cudaTaskQueue.top();
+        } else if((wt == SpWorker::SpWorkerType::CUDA_WORKER
+                   || wt == SpWorker::SpWorkerType::HIP_WORKER) && gpuTaskQueue.size() > 0) {
+            SpAbstractTask* cudaTask = gpuTaskQueue.top();
             
             if(queue) {
                 if(ComparePrio()(queue->top(), cudaTask)) {
-                    queue = std::addressof(cudaTaskQueue);
+                    queue = std::addressof(gpuTaskQueue);
                 }
             } else {
-                queue = std::addressof(cudaTaskQueue);
+                queue = std::addressof(gpuTaskQueue);
             }
         }
         

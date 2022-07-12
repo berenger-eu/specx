@@ -10,7 +10,7 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
 #include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
 #endif
 #include "Utils/small_vector.hpp"
@@ -28,6 +28,8 @@ private:
     std::condition_variable migrationCondVar;
 #ifdef SPECX_COMPILE_WITH_CUDA
     std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
 #else
     SpPrioScheduler prioSched;
 #endif
@@ -40,7 +42,11 @@ private:
     #ifdef SPECX_COMPILE_WITH_CUDA
     long int nbAvailableCudaWorkers;
     long int totalNbCudaWorkers;
-#endif
+    #endif
+    #ifdef SPECX_COMPILE_WITH_HIP
+    long int nbAvailableHipWorkers;
+    long int totalNbHipWorkers;
+    #endif
     bool hasBeenStopped;
 
 private:
@@ -65,6 +71,10 @@ private:
                     #ifdef SPECX_COMPILE_WITH_CUDA
                 case SpWorker::SpWorkerType::CUDA_WORKER:
                     return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+                case SpWorker::SpWorkerType::HIP_WORKER:
+                     return compute(totalNbHipWorkers, nbAvailableHipWorkers, allowBusyWorkersToBeDetached, maxCount);
 #endif
                 default:
                     return static_cast<long int>(0);
@@ -175,6 +185,17 @@ private:
                 }
                 break;
 #endif
+#ifdef SPECX_COMPILE_WITH_HIP
+case SpWorker::SpWorkerType::HIP_WORKER:
+if constexpr(updateTotalCounter) {
+    totalNbHipWorkers += addend;
+}
+
+if constexpr(updateAvailableCounter) {
+    nbAvailableHipWorkers += addend;
+}
+break;
+#endif
             default:
                 break;
         }
@@ -212,6 +233,9 @@ public:
       #ifdef SPECX_COMPILE_WITH_CUDA
       nbAvailableCudaWorkers(0), totalNbCudaWorkers(0),
   #endif
+  #ifdef SPECX_COMPILE_WITH_HIP
+  nbAvailableHipWorkers(0), totalNbHipWorkers(0),
+#endif
       hasBeenStopped(false) {
         addWorkers(std::move(inWorkers));
     }

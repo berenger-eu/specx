@@ -224,6 +224,11 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
                 t->preTaskExecution(SpCallableType::CUDA);
 				break;
 #endif
+#ifdef SPECX_COMPILE_WITH_CUDA
+            case SpWorker::SpWorkerType::HIP_WORKER:
+                t->preTaskExecution(SpCallableType::HIP);
+                break;
+#endif
 			default:
 				assert(false && "Worker is of unknown type.");
 		}
@@ -264,6 +269,11 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 			case SpWorker::SpWorkerType::CUDA_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CUDA);
 				break;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+case SpWorker::SpWorkerType::HIP_WORKER:
+t->postTaskExecution(atg, SpCallableType::HIP);
+break;
 #endif
 			default:
 				assert(false && "Worker is of unknown type.");
