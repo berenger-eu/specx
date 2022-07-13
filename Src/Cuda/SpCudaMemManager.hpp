@@ -4,7 +4,7 @@
 #include "Config/SpConfig.hpp"
 
 #ifndef SPECX_COMPILE_WITH_CUDA
-#error CUDE MUST BE ON
+#error SPECX_COMPILE_WITH_CUDA must be defined
 #endif
 
 #include <mutex>
