@@ -1,10 +1,6 @@
 #ifndef SPDEVICEDATA_HPP
 #define SPDEVICEDATA_HPP
 
-#if !(defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP))
-#error CUDA or HIP MUST BE ON
-#endif
-
 #include <type_traits>
 #include "SpAbstractDeviceMemManager.hpp"
 
@@ -354,10 +350,10 @@ public:
     bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
         std::size_t neededSize = 0;
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
+            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
             neededSize = (sizeof(DataType));
@@ -371,10 +367,10 @@ public:
     std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
         std::size_t neededSize = 0;
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
+            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
             neededSize = (sizeof(DataType));
@@ -389,10 +385,10 @@ public:
     SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override{
         std::size_t neededSize = 0;
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = ((DataType*)rawHostPtr)->memmovNeededSize();
+            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
+            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
             neededSize = (sizeof(DataType));
@@ -409,11 +405,11 @@ public:
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
-            ((DataType*)rawHostPtr)->memmovHostToDevice(interface, devicePtr.ptr, devicePtr.size);
+            (reinterpret_cast<DataType*>(rawHostPtr))->memmovHostToDevice(interface, devicePtr.ptr, devicePtr.size);
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
-            allocator.copyHostToDevice(devicePtr.ptr, ((DataType*)rawHostPtr)->data(),
+            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+            allocator.copyHostToDevice(devicePtr.ptr, (reinterpret_cast<DataType*>(rawHostPtr))->data(),
                                               devicePtr.size);
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
@@ -428,11 +424,11 @@ public:
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
-            ((DataType*)rawHostPtr)->memmovDeviceToHost(interface, devicePtr.ptr, devicePtr.size);
+            (reinterpret_cast<DataType*>(rawHostPtr))->memmovDeviceToHost(interface, devicePtr.ptr, devicePtr.size);
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * ((DataType*)rawHostPtr)->size());
-            return allocator.copyDeviceToHost(((DataType*)rawHostPtr)->data(), devicePtr.ptr,
+            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+            return allocator.copyDeviceToHost((reinterpret_cast<DataType*>(rawHostPtr))->data(), devicePtr.ptr,
                                               devicePtr.size);
         }
         else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){

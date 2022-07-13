@@ -30,6 +30,9 @@ if(NOT SPECX_COMPILE_WITH_MPI)
     list(FILTER source_lib_files EXCLUDE REGEX "/MPI/")
 endif()
 
+if(NOT SPECX_COMPILE_WITH_HIP)
+    list(FILTER source_lib_files EXCLUDE REGEX "/Hip/")
+endif()
 
 # Adding cpp files to project
 add_library(

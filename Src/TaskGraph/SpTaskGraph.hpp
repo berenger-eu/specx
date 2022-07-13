@@ -29,6 +29,7 @@
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "Scheduler/SpTaskManagerListener.hpp"
+#include "Data/SpDeviceData.hpp"
 
 #ifdef SPECX_COMPILE_WITH_MPI
 #include "MPI/SpMpiBackgroundWorker.hpp"
@@ -216,12 +217,9 @@ protected:
     typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
         static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
-                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::CUDA>>,
+                                       std::disjunction<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::CUDA>,
+                                                        is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::HIP>>>,
                       "SpTaskGraph::task when providing two callables to a task one should be a CPU callable and the other a CUDA callable");
-
-        static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
-                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::HIP>>,
-                      "SpTaskGraph::task when providing two callables to a task one should be a CPU callable and the other a HIP callable");
 
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");

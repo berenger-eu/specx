@@ -74,6 +74,7 @@ if(SPECX_COMPILE_WITH_CUDA)
 endif()
 
 if(SPECX_COMPILE_WITH_HIP)
+    # https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html
     list(APPEND SPECX_LIBRARIES hip::device hip::host)    
 endif()
 

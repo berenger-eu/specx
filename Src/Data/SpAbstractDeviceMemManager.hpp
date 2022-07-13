@@ -1,10 +1,6 @@
 #ifndef SPABSTRACTDEVICEMEMMANAGER_HPP
 #define SPABSTRACTDEVICEMEMMANAGER_HPP
 
-#if !(defined(SPECX_COMPILE_WITH_CUDA) || define(SPECX_COMPILE_WITH_HIP))
-#error CUDA or HIP MUST BE ON
-#endif
-
 #include <list>
 
 class SpAbstractDeviceMemManager {
