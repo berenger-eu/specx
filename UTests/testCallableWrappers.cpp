@@ -39,29 +39,29 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         [](int& param_a){
             param_a++;
         },
-        SpCuda([](std::pair<void*, std::size_t> param_a){
-            (*static_cast<int*>(std::get<0>(param_a)))++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }));
         
         runtime.task(SpWrite(a),
         SpCpu([](int& param_a){
             param_a++;
         }),
-        SpCuda([](std::pair<void*, std::size_t> param_a){
-            (*static_cast<int*>(std::get<0>(param_a)))++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }));
 
         runtime.task(SpWrite(a),
-        SpCuda([](std::pair<void*, std::size_t> param_a){
-            (*static_cast<int*>(std::get<0>(param_a)))++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }),
         [](int& param_a){
             param_a++;
         });
         
         runtime.task(SpWrite(a),
-        SpCuda([](std::pair<void*, std::size_t> param_a){
-            (*static_cast<int*>(std::get<0>(param_a)))++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }),
         SpCpu([](int& param_a){
             param_a++;

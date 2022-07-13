@@ -14,6 +14,7 @@
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "Compute/SpWorker.hpp"
+#include "Data/SpDataAccessMode.hpp"
 
 class SpHeterogeneousPrioScheduler{
     struct ComparePrio{
@@ -73,7 +74,7 @@ public:
         for(auto t : tasks) {
             const bool hasCpuCallable = t->hasCallableOfType(SpCallableType::CPU);
             const bool hasGpuCallable = t->hasCallableOfType(SpCallableType::CUDA)
-                    || newTask->hasCallableOfType(SpCallableType::HIP);
+                    || t->hasCallableOfType(SpCallableType::HIP);
             
             if(hasCpuCallable && hasGpuCallable) {
                 heterogeneousTaskQueue.push(t);
@@ -106,8 +107,14 @@ public:
             } else {
                 queue = std::addressof(cpuTaskQueue);
             }
-        } else if((wt == SpWorker::SpWorkerType::CUDA_WORKER
-                   || wt == SpWorker::SpWorkerType::HIP_WORKER) && gpuTaskQueue.size() > 0) {
+        } else if(
+          #ifdef SPECX_COMPILE_WITH_CUDA
+                  wt == SpWorker::SpWorkerType::CUDA_WORKER &&
+          #endif
+          #ifdef SPECX_COMPILE_WITH_HIP
+                  wt == SpWorker::SpWorkerType::HIP_WORKER &&
+          #endif
+                  gpuTaskQueue.size() > 0) {
             SpAbstractTask* cudaTask = gpuTaskQueue.top();
             
             if(queue) {

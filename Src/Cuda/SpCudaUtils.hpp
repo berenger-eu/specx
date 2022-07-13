@@ -5,6 +5,8 @@
 #include <cstring>
 #include <vector>
 
+#include "Config/SpConfig.hpp"
+
 #ifndef SPECX_COMPILE_WITH_CUDA
 #error SPECX_COMPILE_WITH_CUDA must be defined
 #endif

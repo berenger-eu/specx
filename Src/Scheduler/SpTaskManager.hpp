@@ -224,7 +224,7 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
                 t->preTaskExecution(SpCallableType::CUDA);
 				break;
 #endif
-#ifdef SPECX_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_HIP
             case SpWorker::SpWorkerType::HIP_WORKER:
                 t->preTaskExecution(SpCallableType::HIP);
                 break;
