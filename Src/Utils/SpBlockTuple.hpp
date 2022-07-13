@@ -8,6 +8,19 @@
 #include "SpAlignment.hpp"
 #include "Config/SpConfig.hpp"
 
+#ifndef SPHOST
+    #define SPHOST
+#endif
+
+#ifndef SPDEVICE
+    #define SPDEVICE
+#endif
+
+#ifndef SPGLOBAL
+    #define SPGLOBAL
+#endif
+
+
 template <class... Blocks>
 class SpBlockTuple {
 private:
