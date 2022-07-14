@@ -2,8 +2,7 @@
 # SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-#project(UTESTS_GPU_SPECX LANGUAGES CXX CUDA)
-project(UTESTS_GPU_SPECX LANGUAGES CXX)
+project(UTESTS_CUDA_SPECX LANGUAGES CXX CUDA)
 
 # Find all code files (no GLOB_RECURSE)
 file(
@@ -19,7 +18,7 @@ INCLUDE_DIRECTORIES(
 	 ${SPECX_BINARY_DIR}/Src    
 	 ${SPECX_SOURCE_DIR}/Src
 	 ${SPECX_SOURCE_DIR}/UTests    
-	 ${UTESTS_GPU_SPECX_SOURCE_DIR}
+	 ${UTESTS_CUDA_SPECX_SOURCE_DIR}
 )
 
 

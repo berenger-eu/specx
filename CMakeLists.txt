@@ -2,7 +2,7 @@
 # SPECX - Berenger Bramas MPCDF - 2017
 # Under MIT Licence, please you must read the LICENCE file.
 ###########################################################################
-cmake_minimum_required (VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
@@ -14,7 +14,13 @@ project(SPECX CXX)
 include(CheckLanguage)
 check_language(CUDA)
 
-OPTION(SPECX_COMPILE_WITH_CUDA "Set to on to compile tasks with GPU callables" ${CMAKE_CUDA_COMPILER})
+OPTION(SPECX_COMPILE_WITH_CUDA "Set to on to compile tasks with CUDA callables" ${CMAKE_CUDA_COMPILER})
+OPTION(SPECX_COMPILE_WITH_HIP "Set to on to compile tasks with HIP callables" ${CMAKE_HIP_COMPILER})
+
+if(SPECX_COMPILE_WITH_CUDA AND SPECX_COMPILE_WITH_HIP)
+    message(FATAL_ERROR "Impossible to use both CUDA and HIP together")
+endif()
+
 
 if(SPECX_COMPILE_WITH_CUDA)
 	enable_language(CUDA)
@@ -23,6 +29,15 @@ if(SPECX_COMPILE_WITH_CUDA)
       set(CMAKE_CUDA_ARCHITECTURES "75" CACHE STRING
           "Set CUDA target architecture" FORCE)
     endif()
+endif()
+
+if(SPECX_COMPILE_WITH_HIP)
+    # Search for rocm in common locations
+    list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+    # Find hip
+    find_package(hip)
+    # Set the GPU to compile for
+    set(GPU_TARGETS "gfx900" CACHE STRING "GPU targets to compile for")
 endif()
 
 # check if compiling into source directories
@@ -46,8 +61,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# TODO https://stackoverflow.com/questions/68950463/cmake-cuda-compiler-flag-is-false-despite-cuda-being-found
+
 if(SPECX_COMPILE_WITH_CUDA)
+    # TODO https://stackoverflow.com/questions/68950463/cmake-cuda-compiler-flag-is-false-despite-cuda-being-found
 	#set(CMAKE_CUDA_FLAGS "-std=c++17")
 	set(CMAKE_CUDA_STANDARD 17)
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,6 +72,11 @@ if(SPECX_COMPILE_WITH_CUDA)
 	include_directories(${CUDA_INCLUDE_DIRS})
     list(APPEND SPECX_LIBRARIES ${CUDA_LIBRARIES})
 endif()
+
+# if(SPECX_COMPILE_WITH_HIP)
+#     # https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html
+#     list(APPEND SPECX_LIBRARIES hip::device hip::host)    
+# endif()
 
 OPTION(SPECX_COMPILE_WITH_MPI "Set to on to use MPI" OFF)
 if(SPECX_COMPILE_WITH_MPI)
@@ -189,7 +210,11 @@ if(NOT SPECX_JUST_LIB)
     add_subdirectory(UTests/ShouldNotCompile)
     
     if(SPECX_COMPILE_WITH_CUDA)
-		add_subdirectory(UTests/Gpu)
+		add_subdirectory(UTests/Cuda)
+	endif()
+	
+    if(SPECX_COMPILE_WITH_HIP)
+		add_subdirectory(UTests/Hip)
 	endif()
 	
     if(SPECX_COMPILE_WITH_MPI)

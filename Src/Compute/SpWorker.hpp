@@ -12,6 +12,10 @@
 #include "Cuda/SpCudaWorkerData.hpp"
 #include "Cuda/SpCudaMemManager.hpp"
 #endif
+#ifdef SPECX_COMPILE_WITH_HIP
+#include "Hip/SpHipWorkerData.hpp"
+#include "Hip/SpHipMemManager.hpp"
+#endif
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
@@ -27,6 +31,9 @@ public:
         CPU_WORKER,
 #ifdef SPECX_COMPILE_WITH_CUDA
         CUDA_WORKER,
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+        HIP_WORKER,
 #endif
         NB_WORKER_TYPES
     };
@@ -46,6 +53,9 @@ private:
     std::thread t;
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaWorkerData cudaData;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    SpHipWorkerData hipData;
 #endif
 
 private:
@@ -70,6 +80,11 @@ private:
             case SpWorkerType::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+case SpWorkerType::HIP_WORKER:
+task->execute(SpCallableType::HIP);
+break;
 #endif
             default:
                 assert(false && "Worker is of unknown type.");
@@ -137,6 +152,12 @@ public:
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaWorkerData& getCudaData(){
         return cudaData;
+    }
+#endif
+
+#ifdef SPECX_COMPILE_WITH_HIP
+    SpHipWorkerData& getHipData(){
+        return hipData;
     }
 #endif
     

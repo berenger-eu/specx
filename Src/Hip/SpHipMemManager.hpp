@@ -1,10 +1,10 @@
-#ifndef SPCUDAMEMMANAGER_HPP
-#define SPCUDAMEMMANAGER_HPP
+#ifndef SPHIPMEMMANAGER_HPP
+#define SPHIPMEMMANAGER_HPP
 
 #include "Config/SpConfig.hpp"
 
-#ifndef SPECX_COMPILE_WITH_CUDA
-#error SPECX_COMPILE_WITH_CUDA must be defined
+#ifndef SPECX_COMPILE_WITH_HIP
+#error CUDE MUST BE ON
 #endif
 
 #include <mutex>
@@ -13,15 +13,13 @@
 #include <unordered_set>
 #include <cstring>
 
-#include <cuda_runtime.h>
-#include <cuda.h>
+#include "SpHipUtils.hpp"
 
 #include <Utils/small_vector.hpp>
 #include <Data/SpAbstractDeviceMemManager.hpp>
 #include <Utils/SpConsumerThread.hpp>
-#include "SpCudaUtils.hpp"
 
-class SpCudaManager {
+class SpHipManager {
     struct DataObj{
         void* ptr;
         std::size_t size;
@@ -33,19 +31,19 @@ class SpCudaManager {
         int useCount = 0;
     };
 
-    static std::mutex CudaMutex;
+    static std::mutex HipMutex;
 
 public:
 
     static void Lock(){// Do finer lock TODO
-        CudaMutex.lock();
+        HipMutex.lock();
     }
 
     static void Unlock(){
-        CudaMutex.unlock();
+        HipMutex.unlock();
     }
 
-    class SpCudaMemManager : public SpAbstractDeviceMemManager {
+    class SpHipMemManager : public SpAbstractDeviceMemManager {
         const int id;
         std::unordered_map<void*, HandleDescr> handles;
         std::unordered_map<const void*, DataObj> allBlocks;
@@ -53,32 +51,32 @@ public:
 
         std::list<void*> lru;
 
-        cudaStream_t extraStream;
+        hipStream_t extraStream;
         std::unique_ptr<SpConsumerThread> deferCopier;
 
     public:
-        explicit SpCudaMemManager(const int inId)
+        explicit SpHipMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread){
 
             deferCopier->submitJobAndWait([this]{
-                SpCudaUtils::UseDevice(id);
-                CUDA_ASSERT(cudaStreamCreate(&extraStream));
+                SpHipUtils::UseDevice(id);
+                HIP_ASSERT(hipStreamCreate(&extraStream));
             });
         }
 
-        ~SpCudaMemManager(){
+        ~SpHipMemManager(){
             if(deferCopier){
                 deferCopier->submitJobAndWait([this]{
-                    CUDA_ASSERT(cudaStreamDestroy(extraStream));
+                    HIP_ASSERT(hipStreamDestroy(extraStream));
                 });
             }
         }
 
-        SpCudaMemManager(const SpCudaMemManager&) = delete;
-        SpCudaMemManager(SpCudaMemManager&&) = default;
+        SpHipMemManager(const SpHipMemManager&) = delete;
+        SpHipMemManager(SpHipMemManager&&) = default;
 
-        SpCudaMemManager& operator=(const SpCudaMemManager&) = delete;
-        SpCudaMemManager& operator=(SpCudaMemManager&&) = delete;
+        SpHipMemManager& operator=(const SpHipMemManager&) = delete;
+        SpHipMemManager& operator=(SpHipMemManager&&) = delete;
 
         void incrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
@@ -100,7 +98,7 @@ public:
         }
 
         bool hasEnoughSpace(std::size_t inByteSize) override{
-            return inByteSize <= SpCudaUtils::GetFreeMemOnDevice();
+            return inByteSize <= SpHipUtils::GetFreeMemOnDevice();
         }
 
         std::list<void*> candidatesToBeRemoved(const std::size_t inByteSize) override{
@@ -125,14 +123,14 @@ public:
             assert(hasEnoughSpace(inByteSize));
             DataObj data;
             data.size = inByteSize;
-            assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
-#ifndef SPECX_EMUL_CUDA
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
+            assert(data.size <= SpHipUtils::GetFreeMemOnDevice());
+#ifndef SPECX_EMUL_HIP
+            if(SpHipUtils::CurrentWorkerIsHip()){
+                HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, SpHipUtils::GetCurrentStream()*/));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, extraStream));
+                    HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, extraStream*/));
                 });
             }
 #else
@@ -159,13 +157,13 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
-#ifndef SPECX_EMUL_CUDA
-                if(SpCudaUtils::CurrentWorkerIsCuda()){
-                    CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+#ifndef SPECX_EMUL_HIP
+                if(SpHipUtils::CurrentWorkerIsHip()){
+                    HIP_ASSERT(hipFree/*Async*/(data.ptr/*, SpHipUtils::GetCurrentStream()*/));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
-                        CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
+                        HIP_ASSERT(hipFree/*Async*/(data.ptr/*, extraStream*/));
                     });
                 }
 #else
@@ -180,13 +178,13 @@ public:
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_CUDA
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, SpCudaUtils::GetCurrentStream()));
+#ifndef SPECX_EMUL_HIP
+            if(SpHipUtils::CurrentWorkerIsHip()){
+                HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, extraStream));
+                    HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, extraStream));
                 });
             }
 #else
@@ -197,14 +195,14 @@ public:
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_CUDA
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
-                                        SpCudaUtils::GetCurrentStream()));
+#ifndef SPECX_EMUL_HIP
+            if(SpHipUtils::CurrentWorkerIsHip()){
+                HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
+                                        SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
+                    HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
                                             extraStream));
                 });
             }
@@ -216,14 +214,14 @@ public:
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_CUDA
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
-                                        SpCudaUtils::GetCurrentStream()));
+#ifndef SPECX_EMUL_HIP
+            if(SpHipUtils::CurrentWorkerIsHip()){
+                HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
+                                        SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
+                    HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
                                             extraStream));
                 });
             }
@@ -236,18 +234,18 @@ public:
                                 const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDevDest) != allBlocks.end()
                     && allBlocks[inPtrDevDest].size <= inByteSize);
-            // This is on the other CUDA
+            // This is on the other HIP
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-#ifndef SPECX_EMUL_CUDA
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
-                CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
-                                            SpCudaUtils::GetCurrentStream()));
+#ifndef SPECX_EMUL_HIP
+            if(SpHipUtils::CurrentWorkerIsHip()){
+                HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
+                                            SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
+                    HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                                 extraStream));
                 });
             }
@@ -257,31 +255,31 @@ public:
         }
 
         bool isConnectedTo(const int otherId){
-            return SpCudaUtils::DevicesAreConnected(id, otherId);
+            return SpHipUtils::DevicesAreConnected(id, otherId);
         }
 
         void syncExtraStream(){
             deferCopier->submitJobAndWait([this]{
-                SpCudaUtils::SynchronizeStream(extraStream);
+                SpHipUtils::SynchronizeStream(extraStream);
             });
         }
     };
 
-    static std::vector<SpCudaMemManager> BuildManagers(){
-        std::vector<SpCudaMemManager> managers;
-        const int nbCudas = SpCudaUtils::GetNbDevices();
-        for(int idxCuda = 0 ; idxCuda < nbCudas ; ++idxCuda){
-            managers.push_back(SpCudaMemManager(idxCuda));
+    static std::vector<SpHipMemManager> BuildManagers(){
+        std::vector<SpHipMemManager> managers;
+        const int nbHips = SpHipUtils::GetNbDevices();
+        for(int idxHip = 0 ; idxHip < nbHips ; ++idxHip){
+            managers.push_back(SpHipMemManager(idxHip));
         }
         return managers;
     }
 
-    static SpCudaMemManager& GetManagerForDevice(const int deviceId){
+    static SpHipMemManager& GetManagerForDevice(const int deviceId){
         assert(deviceId < int(Managers.size()));
         return Managers[deviceId];
     }
 
-    static std::vector<SpCudaMemManager> Managers;
+    static std::vector<SpHipMemManager> Managers;
 };
 
 #endif

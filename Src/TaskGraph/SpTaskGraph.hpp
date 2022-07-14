@@ -29,6 +29,7 @@
 #include "SpAbstractTaskGraph.hpp"
 #include "Compute/SpComputeEngine.hpp"
 #include "Scheduler/SpTaskManagerListener.hpp"
+#include "Data/SpDeviceData.hpp"
 
 #ifdef SPECX_COMPILE_WITH_MPI
 #include "MPI/SpMpiBackgroundWorker.hpp"
@@ -194,6 +195,9 @@ protected:
 
         if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::CUDA>) {
             return dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
+        }
+        else if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::HIP>) {
+            return dispatchStage4(std::forward<decltype(c2)>(c2), std::forward<decltype(c1)>(c1));
         } else {
             return dispatchStage4(std::forward<decltype(c1)>(c1), std::forward<decltype(c2)>(c2));
         }
@@ -213,7 +217,8 @@ protected:
     typename = std::enable_if_t<std::conjunction_v<is_instantiation_of_callable_wrapper<T2>, is_instantiation_of_callable_wrapper<T3>>>>
     auto callWithPartitionedArgsStage4(Func&& f, T0&& t0, T1&& t1, T2&& t2, [[maybe_unused]] T3&& t3, ParamsTy&&...params) {
         static_assert(std::conjunction_v<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T2>, SpCallableType::CPU>,
-                                       is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::CUDA>>,
+                                       std::disjunction<is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::CUDA>,
+                                                        is_instantiation_of_callable_wrapper_with_type<std::remove_reference_t<T3>, SpCallableType::HIP>>>,
                       "SpTaskGraph::task when providing two callables to a task one should be a CPU callable and the other a CUDA callable");
 
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
@@ -232,13 +237,21 @@ protected:
         auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...);
         auto callableTuple =
         [&](){
-            if constexpr(SpConfig::CompileWithCuda) {
+            if constexpr(SpConfig::CompileWithCuda && T3::compileWithType_v) {
                 static_assert(std::conjunction_v<std::conditional_t<SpDeviceDataUtils::GetDeviceMovableType<std::remove_reference_t<decltype(params.getView())>>() != SpDeviceDataUtils::DeviceMovableType::ERROR, std::true_type, std::false_type> ...>,
                             "SpTaskGraph::task Cuda, all SpDeviceDataView must be valid");
                 static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,
                                 "SpTaskGraph::task Cuda callable is not invocable with data dependencies.");
                 return std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
-            } else {
+            }
+            else if constexpr(SpConfig::CompileWithHip && T3::compileWithType_v) {
+                static_assert(std::conjunction_v<std::conditional_t<SpDeviceDataUtils::GetDeviceMovableType<std::remove_reference_t<decltype(params.getView())>>() != SpDeviceDataUtils::DeviceMovableType::ERROR, std::true_type, std::false_type> ...>,
+                            "SpTaskGraph::task Hip, all SpDeviceDataView must be valid");
+                static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,
+                                "SpTaskGraph::task Hip callable is not invocable with data dependencies.");
+                return std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
+            }
+            else {
                 return std::forward_as_tuple(std::forward<T2>(t2));
             }
         }();
@@ -255,6 +268,9 @@ protected:
         static_assert(!(!SpConfig::CompileWithCuda && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::CUDA>),
                       "SpTaskGraph::task : SPECX_COMPILE_WITH_CUDA macro is undefined. Unable to compile tasks for which only a CUDA callable has been provided.");
 
+        static_assert(!(!SpConfig::CompileWithHip && is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::HIP>),
+                      "SpTaskGraph::task : SPECX_COMPILE_WITH_HIP macro is undefined. Unable to compile tasks for which only a HIP callable has been provided.");
+
         static_assert(std::conjunction_v<has_getView<ParamsTy>..., has_getAllData<ParamsTy>...>,
                       "SpTaskGraph::task some data dependencies don't have a getView() and/or a getAllData method.");
 
@@ -263,7 +279,14 @@ protected:
                         "SpTaskGraph::task Cuda, all SpDeviceDataView must be valid");
             static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,
                         "SpTaskGraph::task Cuda callable is not invocable with data dependencies.");
-        } else {
+        }
+        else if constexpr(is_instantiation_of_callable_wrapper_with_type_v<std::remove_reference_t<T2>, SpCallableType::HIP>) {
+            static_assert(std::conjunction_v<std::conditional_t<SpDeviceDataUtils::GetDeviceMovableType<std::remove_reference_t<decltype(params.getView())>>() != SpDeviceDataUtils::DeviceMovableType::ERROR, std::true_type, std::false_type> ...>,
+                        "SpTaskGraph::task Hip, all SpDeviceDataView must be valid");
+            static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,
+                        "SpTaskGraph::task Hip callable is not invocable with data dependencies.");
+        }
+        else {
             static_assert(std::is_invocable_v<decltype(t2.getCallableRef()), decltype(params.getView())...>,
                         "SpTaskGraph::task callable is not invocable with data dependencies.");
         }

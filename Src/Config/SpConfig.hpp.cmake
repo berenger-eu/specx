@@ -11,6 +11,7 @@
 
 #cmakedefine SPECX_COMPILE_WITH_CUDA
 #cmakedefine SPECX_COMPILE_WITH_MPI
+#cmakedefine SPECX_COMPILE_WITH_HIP
 
 namespace SpConfig {
     #ifdef SPECX_COMPILE_WITH_CUDA
@@ -23,6 +24,12 @@ namespace SpConfig {
         inline constexpr bool CompileWithMPI = true;
     #else
         inline constexpr bool CompileWithMPI = false;    
+    #endif
+    #ifdef SPECX_COMPILE_WITH_HIP
+        inline constexpr bool CompileWithHip = true;
+        inline constexpr int SpMaxNbHips = 16;
+    #else
+        inline constexpr bool CompileWithHip = false;
     #endif
 }
 

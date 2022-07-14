@@ -1,10 +1,6 @@
 #ifndef SPABSTRACTDEVICEMEMMANAGER_HPP
 #define SPABSTRACTDEVICEMEMMANAGER_HPP
 
-#ifndef SPECX_COMPILE_WITH_CUDA
-#error CUDE MUST BE ON
-#endif
-
 #include <list>
 
 class SpAbstractDeviceMemManager {
