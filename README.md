@@ -470,7 +470,7 @@ This type must have two constructors, one empty, and one with `void* devicePtr, 
 # GPU/HIP (Work-in-progress)
 
 The CMake variable `SPECX_COMPILE_WITH_HIP` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
-The C++ compiler must also be set with for example `cmake -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ ..`.
+The C++ compiler must also be set with for example `CXX=hipcc`, so a working command line should be `CXX=hipcc cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
 On can set `GPU_TARGETS` to select the HIP sm to compile for.
 
 Here is an example of a task on HIP GPU:
