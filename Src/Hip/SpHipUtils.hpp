@@ -6,8 +6,8 @@
 #include <vector>
 
 
-#include <hip_runtime.h>
-#include <hip.h>
+#include "hip/hip_runtime.h"
+#include "hip/hip_runtime_api.h"
 
 #define HIP_ASSERT(X)\
 {\
@@ -85,7 +85,7 @@ public:
     }
 
     static void PrintDeviceName(const int hipId){
-        hipDeviceProp prop;
+        hipDeviceProp_t prop;
         HIP_ASSERT(hipGetDeviceProperties(&prop, hipId));
         std::cout << "[SPECX] - Device id: " << hipId << std::endl;
         std::cout << "[SPECX]   Device name: " << prop.name << std::endl;

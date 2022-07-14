@@ -32,7 +32,13 @@ endif()
 
 if(NOT SPECX_COMPILE_WITH_HIP)
     list(FILTER source_lib_files EXCLUDE REGEX "/Hip/")
+else()
+    foreach(src_file ${source_lib_files}) 
+        message(STATUS "${src_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1")
+        set_source_files_properties(${src_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1) 
+    endforeach()
 endif()
+
 
 # Adding cpp files to project
 add_library(

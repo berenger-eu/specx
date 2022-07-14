@@ -310,6 +310,7 @@ private:
     using CallableTy = std::remove_reference_t<T>;
     CallableTy callable; 
 public:
+    static constexpr bool compileWithType_v = compileWithType;
     static constexpr auto callable_type = ct;
     
     template <typename T2, typename=std::enable_if_t<std::is_same<std::remove_reference_t<T2>, CallableTy>::value>> 
@@ -323,6 +324,8 @@ public:
 template <class T, SpCallableType ct>
 class SpCallableWrapper<false, T, ct> {
 public:
+    static constexpr bool compileWithType_v = false;
+
     template<typename T2>
     SpCallableWrapper(T2&&) {}
 };

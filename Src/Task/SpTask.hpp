@@ -13,17 +13,19 @@
 #include <utility>
 
 #include "SpAbstractTask.hpp"
-#include "Data/SpDataHandle.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
 #ifdef SPECX_COMPILE_WITH_CUDA
 #include "Cuda/SpCudaMemManager.hpp"
 #include "Cuda/SpCudaWorkerData.hpp"
+#include "Data/SpDeviceData.hpp"
 #endif // SPECX_COMPILE_WITH_CUDA
 #ifdef SPECX_COMPILE_WITH_HIP
 #include "Hip/SpHipMemManager.hpp"
 #include "Hip/SpHipWorkerData.hpp"
+#include "Data/SpDeviceData.hpp"
 #endif // SPECX_COMPILE_WITH_HIP
+#include "Data/SpDataHandle.hpp"
 
 #ifdef __GNUG__
 #include <cxxabi.h>
@@ -132,7 +134,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     const int cudaId = SpCudaUtils::CurrentCudaId();
                     auto dataObj = h->getDeviceData(SpCudaManager::Managers, cudaId);
                     if(accessMode != SpDataAccessMode::READ){
-                        h->setCudaOnlyValid(SpCudaManager::Managers, cudaId);
+                        h->setGpuOnlyValid(SpCudaManager::Managers, cudaId);
                     }
                     else{
                         SpCudaUtils::SyncCurrentStream();
@@ -182,17 +184,17 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         h->setCpuOnlyValid(SpHipManager::Managers);
                     }
                 }
-                else if(ct == SpCallableType::CUDA){
-                    const int cudaId = SpHipUtils::CurrentHipId();
-                    auto dataObj = h->getDeviceData(SpHipManager::Managers, cudaId);
+                else if(ct == SpCallableType::HIP){
+                    const int hipId = SpHipUtils::CurrentHipId();
+                    auto dataObj = h->getDeviceData(SpHipManager::Managers, hipId);
                     if(accessMode != SpDataAccessMode::READ){
-                        h->setHipOnlyValid(SpHipManager::Managers, cudaId);
+                        h->setGpuOnlyValid(SpHipManager::Managers, hipId);
                     }
                     else{
                         SpHipUtils::SyncCurrentStream();
                     }
-                    SpHipManager::Managers[cudaId].incrDeviceDataUseCount(h);
-                    std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
+                    SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
+                    std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
                 }
                 else{
                     assert(0);

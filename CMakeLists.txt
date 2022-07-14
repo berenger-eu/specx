@@ -73,10 +73,10 @@ if(SPECX_COMPILE_WITH_CUDA)
     list(APPEND SPECX_LIBRARIES ${CUDA_LIBRARIES})
 endif()
 
-if(SPECX_COMPILE_WITH_HIP)
-    # https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html
-    list(APPEND SPECX_LIBRARIES hip::device hip::host)    
-endif()
+# if(SPECX_COMPILE_WITH_HIP)
+#     # https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html
+#     list(APPEND SPECX_LIBRARIES hip::device hip::host)    
+# endif()
 
 OPTION(SPECX_COMPILE_WITH_MPI "Set to on to use MPI" OFF)
 if(SPECX_COMPILE_WITH_MPI)

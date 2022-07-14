@@ -237,14 +237,14 @@ protected:
         auto dataDepTuple = std::forward_as_tuple(std::forward<ParamsTy>(params)...);
         auto callableTuple =
         [&](){
-            if constexpr(SpConfig::CompileWithCuda) {
+            if constexpr(SpConfig::CompileWithCuda && T3::compileWithType_v) {
                 static_assert(std::conjunction_v<std::conditional_t<SpDeviceDataUtils::GetDeviceMovableType<std::remove_reference_t<decltype(params.getView())>>() != SpDeviceDataUtils::DeviceMovableType::ERROR, std::true_type, std::false_type> ...>,
                             "SpTaskGraph::task Cuda, all SpDeviceDataView must be valid");
                 static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,
                                 "SpTaskGraph::task Cuda callable is not invocable with data dependencies.");
                 return std::forward_as_tuple(std::forward<T2>(t2), std::forward<T3>(t3));
             }
-            else if constexpr(SpConfig::CompileWithHip) {
+            else if constexpr(SpConfig::CompileWithHip && T3::compileWithType_v) {
                 static_assert(std::conjunction_v<std::conditional_t<SpDeviceDataUtils::GetDeviceMovableType<std::remove_reference_t<decltype(params.getView())>>() != SpDeviceDataUtils::DeviceMovableType::ERROR, std::true_type, std::false_type> ...>,
                             "SpTaskGraph::task Hip, all SpDeviceDataView must be valid");
                 static_assert(std::is_invocable_v<decltype(t3.getCallableRef()), SpDeviceDataView<std::remove_reference_t<decltype(params.getView())>>...>,

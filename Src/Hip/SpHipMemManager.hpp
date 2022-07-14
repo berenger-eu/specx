@@ -13,13 +13,11 @@
 #include <unordered_set>
 #include <cstring>
 
-#include <hip_runtime.h>
-#include <hip.h>
+#include "SpHipUtils.hpp"
 
 #include <Utils/small_vector.hpp>
 #include <Data/SpAbstractDeviceMemManager.hpp>
 #include <Utils/SpConsumerThread.hpp>
-#include "SpHipUtils.hpp"
 
 class SpHipManager {
     struct DataObj{
@@ -78,9 +76,9 @@ public:
         SpHipMemManager(SpHipMemManager&&) = default;
 
         SpHipMemManager& operator=(const SpHipMemManager&) = delete;
-        SpHipMemManager& operator=(SpHipMemManager&&) = default;
+        SpHipMemManager& operator=(SpHipMemManager&&) = delete;
 
-        void incrDeviceDataUseCount(void* key){
+        void incrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
             handles[key].useCount += 1;
             if(handles[key].lruIterator != lru.begin()){
@@ -90,7 +88,7 @@ public:
             }
         }
 
-        void decrDeviceDataUseCount(void* key){
+        void decrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
             handles[key].useCount -= 1;
         }
@@ -128,11 +126,11 @@ public:
             assert(data.size <= SpHipUtils::GetFreeMemOnDevice());
 #ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
-                HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, SpHipUtils::GetCurrentStream()));
+                HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, SpHipUtils::GetCurrentStream()*/));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, extraStream));
+                    HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, extraStream*/));
                 });
             }
 #else
@@ -161,11 +159,11 @@ public:
                 released += data.size;
 #ifndef SPECX_EMUL_HIP
                 if(SpHipUtils::CurrentWorkerIsHip()){
-                    HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
+                    HIP_ASSERT(hipFree/*Async*/(data.ptr/*, SpHipUtils::GetCurrentStream()*/));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
-                        HIP_ASSERT(hipFreeAsync(data.ptr, extraStream));
+                        HIP_ASSERT(hipFree/*Async*/(data.ptr/*, extraStream*/));
                     });
                 }
 #else

@@ -78,9 +78,9 @@ public:
         SpCudaMemManager(SpCudaMemManager&&) = default;
 
         SpCudaMemManager& operator=(const SpCudaMemManager&) = delete;
-        SpCudaMemManager& operator=(SpCudaMemManager&&) = default;
+        SpCudaMemManager& operator=(SpCudaMemManager&&) = delete;
 
-        void incrDeviceDataUseCount(void* key){
+        void incrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
             handles[key].useCount += 1;
             if(handles[key].lruIterator != lru.begin()){
@@ -90,7 +90,7 @@ public:
             }
         }
 
-        void decrDeviceDataUseCount(void* key){
+        void decrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
             handles[key].useCount -= 1;
         }

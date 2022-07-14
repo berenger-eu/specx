@@ -156,7 +156,7 @@ public:
 #endif
 
 #ifdef SPECX_COMPILE_WITH_HIP
-    SpCudaWorkerData& getHipData(){
+    SpHipWorkerData& getHipData(){
         return hipData;
     }
 #endif
