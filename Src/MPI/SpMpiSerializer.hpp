@@ -4,6 +4,8 @@
 #include <cstring>
 #include <cassert>
 
+#include "SpSerializer.hpp"
+
 ////////////////////////////////////////////////////////////////
 /// The serializer class
 ////////////////////////////////////////////////////////////////
@@ -17,17 +19,28 @@ public:
 template <class ObjectClass>
 class SpMpiSerializer : public SpAbstractMpiSerializer {
     const ObjectClass& obj;
+    SpSerializer serializer;
 public:
 
-    SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){}
+    SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){
+    	prepareSerializer();    
+    }
 
     virtual const unsigned char* getBuffer() override{
-        // Simply cast the object into an array
-        return reinterpret_cast<const unsigned char*>(&obj);
+        const std::vector<unsigned char> &buffer = serializer.getBuffer();
+        
+        return &buffer[0];
     }
     virtual int getBufferSize() override{
-        // The lenght of the array is the size of the object
-        return int(sizeof (ObjectClass));
+        const std::vector<unsigned char> &buffer = serializer.getBuffer();
+        
+        return buffer.size();
+    }
+    
+private:
+    
+    void prepareSerializer() {
+    	serializer.append(obj, "sp");
     }
 };
 
@@ -48,10 +61,9 @@ public:
     SpMpiDeSerializer(ObjectClass& inObj) : obj(inObj){}
 
     void deserialize(const unsigned char* buffer, int bufferSize) override{
-        // Will not be true in the future
-        assert(bufferSize == sizeof(ObjectClass));
-        // Copy the array to the object
-        memcpy(&obj, buffer, bufferSize);
+        SpDeserializer deserializer(&buffer[0], bufferSize);
+        
+        obj = deserializer.restore<ObjectClass>("sp");
     }
 };
 

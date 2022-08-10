@@ -14,6 +14,12 @@ project(SPECX CXX)
 include(CheckLanguage)
 check_language(CUDA)
 
+# Add fmt
+add_subdirectory(third_party/fmt-9.0.0 EXCLUDE_FROM_ALL)
+include_directories(SYSTEM
+	third_party/fmt-9.0.0/include
+	)
+
 OPTION(SPECX_COMPILE_WITH_CUDA "Set to on to compile tasks with CUDA callables" ${CMAKE_CUDA_COMPILER})
 OPTION(SPECX_COMPILE_WITH_HIP "Set to on to compile tasks with HIP callables" ${CMAKE_HIP_COMPILER})
 
