@@ -19,10 +19,10 @@
 #include "MPI/SpMpiUtils.hpp"
 #include "MPI/SpSerializer.hpp"
 
-class int_data_holder : public SpAbstractSerializable {
+class IntDataHolder : public SpAbstractSerializable {
 public:
-	int_data_holder(int value = 0) : value{value} {}
-	int_data_holder(SpDeserializer &deserializer) : value(deserializer.restore<decltype(value)>("value")) {
+    IntDataHolder(int value = 0) : value{value} {}
+    IntDataHolder(SpDeserializer &deserializer) : value(deserializer.restore<decltype(value)>("value")) {
 	}
 	
 	void serialize(SpSerializer &serializer) const final {
@@ -43,8 +43,8 @@ class SimpleUserDefinedSerializationMpiTest : public UTester< SimpleUserDefinedS
     void Test(){
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
-        int_data_holder a = 1;
-        int_data_holder b = 0;
+        IntDataHolder a = 1;
+        IntDataHolder b = 0;
 
         tg.computeOn(ce);
 
