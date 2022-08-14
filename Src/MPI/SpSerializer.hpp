@@ -36,8 +36,6 @@
 #define FMT_HEADER_ONLY
 
 #include <array>
-#include <fmt/format.h>
-#include <fmt/ostream.h>
 #include <sstream>
 #include <string>
 #include <type_traits>

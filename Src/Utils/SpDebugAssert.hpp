@@ -17,16 +17,6 @@
 // along with complexes++.  If not, see <https://www.gnu.org/licenses/>
 
 ///////////////////////////////////////////////////////////////////////////
-// This file is a trimmed version of src/util/util.h file from the complexes++
-// project. 
-// https://github.com/bio-phys/complexespp
-//
-// [12 Aug 2020] It only includes the DEBUG_ASSERT macro which has been renamed to
-// SP_DEBUG_ASSERT.
-///////////////////////////////////////////////////////////////////////////
-
-
-///////////////////////////////////////////////////////////////////////////
 // Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
@@ -43,14 +33,23 @@
 
 #include <iostream>
 
+template<typename StreamClass, typename ... Params>
+inline void SP_DEBUG_ASSERT_HELPER([[maybe_unused]] StreamClass& stream,
+                                   [[maybe_unused]] Params&&... params){
+    if(sizeof... (Params)){
+        using expander = int[];
+        (void)expander{0, (void(stream << ',' << std::forward<Params>(params)), 0)...};
+    }
+}
+
 #define SP_DEBUG_ASSERT(condition, ...)                                           \
   if (!(condition)) {                                                          \
-    fmt::print(std::cerr, "An assert has failed : {} \n", #condition);         \
-    fmt::print(std::cerr, "\t In file : {}\n", __FILE__);                      \
-    fmt::print(std::cerr, "\t At line : {}\n", __LINE__);                      \
-    fmt::print(std::cerr, "\t Log : ");                                        \
-    fmt::print(std::cerr, __VA_ARGS__);                                        \
-    fmt::print(std::cerr, "\n");                                               \
+    std::cerr << "An assert has failed : " << #condition << "\n";         \
+    std::cerr << "\t In file : " << __FILE__ << "\n";                      \
+    std::cerr << "\t At line : " << __LINE__ << "\n";                      \
+    std::cerr << "\t Log : ";                                        \
+    SP_DEBUG_ASSERT_HELPER(std::cerr, __VA_ARGS__);                                        \
+    std::cerr << std::endl;                                               \
     throw std::runtime_error("Bad Assert Exit");                               \
   }
 #endif
