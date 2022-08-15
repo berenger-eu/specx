@@ -204,7 +204,7 @@ public:
 
   SpDeserializer &access(const std::string &inKey) {
     SP_DEBUG_ASSERT(m_currentIndex + sizeof(size_t) <= m_bufferSize,
-                 "Unpack too much data for key {}", inKey);
+                 "Unpack too much data for key " + inKey);
 
     size_t keySize;
     std::copy(&m_buffer[m_currentIndex],
@@ -213,7 +213,7 @@ public:
     m_currentIndex += sizeof(size_t);
 
     SP_DEBUG_ASSERT(m_currentIndex + keySize <= m_bufferSize,
-                 "Unpack too much data for key {}", inKey);
+                 "Unpack too much data for key " + inKey);
 
     std::vector<char> recvKey(keySize + 1);
     std::copy(&m_buffer[m_currentIndex], &m_buffer[m_currentIndex + keySize],
@@ -222,8 +222,7 @@ public:
     recvKey[keySize] = '\0';
     const std::string recvKeyStr = recvKey.data();
 
-    SP_DEBUG_ASSERT(inKey == recvKeyStr, "Key missmatch, asked {} but it is {}",
-                 inKey, recvKeyStr);
+    SP_DEBUG_ASSERT(inKey == recvKeyStr, "Key missmatch, asked " + inKey + " but it is " + recvKeyStr);
 
     return *this;
   }
@@ -239,8 +238,7 @@ public:
     m_currentIndex += sizeof(size_t);
     SP_DEBUG_ASSERT(
         nextPackSize == size,
-        "Next message is of size {} and it has been asked for {}, key {}",
-        nextPackSize, size, inKey);
+        "Next message is of size " + std::to_string(nextPackSize) + " and it has been asked for " + std::to_string(size) + " key " + inKey);
 
     SP_DEBUG_ASSERT(m_currentIndex + size <= m_bufferSize, "Unpack too much data");
     std::copy(&m_buffer[m_currentIndex], &m_buffer[m_currentIndex + size],
@@ -249,9 +247,9 @@ public:
 
     SP_DEBUG_ASSERT(m_currentIndex + 1 <= m_bufferSize, "Unpack too much data");
     SP_DEBUG_ASSERT(m_buffer[m_currentIndex] == static_cast<unsigned char>(~0),
-                 "Invalid check value, should be {} is {}, for key {}",
-                 static_cast<unsigned char>(~0), m_buffer[m_currentIndex],
-                 inKey);
+                 "Invalid check value, should be " +std::to_string(static_cast<unsigned char>(~0))
+                    + " is " + std::to_string(m_buffer[m_currentIndex])
+                    + ", for key " + inKey);
     m_currentIndex += 1;
   }
 
