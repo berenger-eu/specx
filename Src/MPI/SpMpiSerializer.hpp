@@ -158,11 +158,7 @@ class SpMpiSerializer<SpSerializationType::SP_VEC_SERIALIZER_TYPE, ObjectClass> 
     SpSerializer serializer;
 public:
     SpMpiSerializer(const ObjectClass& inObj) : obj(inObj){
-        serializer.append(inObj.size(), "nbElements");
-        int idx = 0;
-        for(const auto& element : obj){
-            serializer.append(obj, "sp" + std::to_string(idx++));
-        }
+        serializer.append(inObj, "data");
     }
 
     virtual const unsigned char* getBuffer() override{
@@ -279,12 +275,7 @@ public:
 
     void deserialize(const unsigned char* buffer, int bufferSize) override{
         SpDeserializer deserializer(&buffer[0], bufferSize);
-
-        const std::size_t nbElements = deserializer.restore<std::size_t>("nbElements");
-        obj.resize(nbElements);
-        for(std::size_t idx = 0 ; idx < nbElements ; ++idx){
-            obj[idx] = deserializer.restore<typename ObjectClass::value_type>("sp" + std::to_string(idx));
-        }
+        obj = deserializer.restore<ObjectClass>("data");
     }
 };
 
