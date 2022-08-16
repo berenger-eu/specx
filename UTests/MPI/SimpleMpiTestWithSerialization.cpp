@@ -360,20 +360,6 @@ class SimpleUserDefinedSerializationMpiTest : public UTester< SimpleUserDefinedS
     }
 
     void SetTests() {
-        using ObjectClass = std::vector<IntDataHolder>;
-        std::vector<IntDataHolder> obj(2);
-        std::vector<unsigned char> buffer;
-        {
-            SpSerializer serializer;
-            serializer.append(obj, "data");
-            buffer = serializer.getBuffer();
-        }
-        const std::size_t bufferSize = buffer.size();
-        {
-            SpDeserializer deserializer(&buffer[0], bufferSize);
-            obj = deserializer.restore<ObjectClass>("data");
-        }
-
         Parent::AddTest(&SimpleUserDefinedSerializationMpiTest::Test, "Simple User Defined Serialization MPI Test");
         Parent::AddTest(&SimpleUserDefinedSerializationMpiTest::TestRawStruct, "Simple User Defined Serialization MPI Test");
         Parent::AddTest(&SimpleUserDefinedSerializationMpiTest::TestDirectAccess, "Simple User Defined Serialization MPI Test");
