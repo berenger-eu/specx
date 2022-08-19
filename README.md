@@ -571,7 +571,7 @@ tg.mpiSend(b, 1, 0);
 tg.mpiRecv(b, 1, 1);
 ```
 
-### Type 3 - SpAbstractSerializable
+### Type 2 - Direct access
 
 ```cpp
 class DirectAccessClass {
