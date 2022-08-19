@@ -142,11 +142,11 @@ option(SPECX_USE_COVERAGE "Should be ON to enable code coverage" OFF)
 
 if( SPECX_USE_COVERAGE )
     message(STATUS "Main -- Use code coverage")
-    set(SPECX_CXX_FLAGS "${SPECX_CXX_FLAGS} -g -O0 --coverage")
+    set(SPECX_CXX_FLAGS "${SPECX_CXX_FLAGS} -g -O0 --coverage -ftest-coverage") # -fprofile-arcs
     list(APPEND SPECX_LIBRARIES gcov)
     # Then one can use these commands:
     # lcov --directory CMakeFiles/ -c -o coverage-rapport.info
-    # genhtml -o ./coverage -t "Coverage example" coverage-rapport.info
+    # genhtml -o ./coverage -t "Coverage specx" coverage-rapport.info
 endif()
 
 # Extra-flags
