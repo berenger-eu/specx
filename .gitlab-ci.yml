@@ -1,4 +1,4 @@
-image: berenger/spetabaruci
+image: berenger/specxci
 
 specx:
   tags:
@@ -6,7 +6,7 @@ specx:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-8 cmake -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=g++ cmake -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
@@ -17,7 +17,7 @@ specx-debug:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=g++ cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
@@ -27,7 +27,7 @@ specx-clang:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=clang++-8 cmake -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=clang++ cmake -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     
@@ -38,7 +38,7 @@ specx-debug-clang:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=clang++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
+    - VERBOSE=1 CXX=clang++ cmake -DCMAKE_BUILD_TYPE=DEBUG -DUSE_ADVANCE_TESTING=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
 
@@ -49,7 +49,7 @@ specx-debug-coverage:
   script:
     - mkdir build
     - cd build
-    - VERBOSE=1 CXX=g++-8 cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPECX_USE_COVERAGE=ON ..
+    - VERBOSE=1 CXX=g++ cmake -DCMAKE_BUILD_TYPE=DEBUG -DSPECX_USE_COVERAGE=ON ..
     - make
     - CTEST_OUTPUT_ON_FAILURE=TRUE make test
     - /usr/local/bin/lcov --gcov-tool /usr/bin/gcov-8 --directory ./ -c -o coverage-rapport.info
