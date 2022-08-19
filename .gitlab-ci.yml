@@ -1,4 +1,4 @@
-image: berenger/specxci
+image: berenger/spetabaruci
 
 specx:
   tags:

@@ -509,3 +509,93 @@ This type must have two constructors, one empty, and one with `void* devicePtr, 
 
 The CMake variable `SPECX_COMPILE_WITH_MPI` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_MPI=ON`.
 
+## Data Serialization and Deserialization
+Data can be send to target MPI processes using the `mpiSend` and `mpiRecv` methods of the `SpTaskGraph` object.
+
+To be moved across computing nodes, the objects must be one of the following types:
+1. Be an instance of a class that inherits `SpAbstractSerializable` (see below for more details).
+2. Supports the methods `getRawDataSize`, `getRawData` and `restoreRawData`, which will be used to extract the data to be sent, and restore them.
+3. Be a POD type (well, have `is_standard_layout_v` and `is_trivial_v` returning true, which means that having a pointer in a struct will not be detected and could be an issue).
+4. Be a vector of the types defined in 1, 2 or 3.
+
+It is the function `SpGetSerializationType` that performs the detection and assigns the corresponding `SpSerializationType` value to each object.
+The detection is performed in the order written above.
+
+For examples, refer to the unit tests under `UTests/MPI`.
+
+### Type 3 - POD
+For built-in and POD types these methods work automatically:
+```cpp
+SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+int a = 1;
+int b = 0;
+...
+tg.mpiSend(b, 1, 0);
+tg.mpiRecv(b, 1, 1);
+```
+
+### Type 1 - SpAbstractSerializable
+However, user-defined types must enable support for MPI serialization and deserialization. To do that they must implement these steps.
+1. Include "MPI/SpSerializer.hpp"
+2. Make the class a public subclass of the SpAbstractSerializable class
+3. Provide a constructor that takes as argument a non-const referene to SpDeserializer. This constructor allows an object of the class to be constructed from the deserialization.
+4. Provide a public method "serialize" with argument a non-const reference to SpSerializer. This method serializes the object into the input SpSerializer object.
+
+These steps in detail are shown in the following example:
+```cpp
+#include "MPI/SpSerializer.hpp"
+
+class int_data_holder : public SpAbstractSerializable {
+public:
+	int_data_holder(int value = 0) : value{value} {}
+	int_data_holder(SpDeserializer &deserializer) : value(deserializer.restore<decltype(value)>("value")) {
+	}
+	
+	void serialize(SpSerializer &serializer) const final {
+		serializer.append(value, "value");
+	}
+
+	int get() const { return value; }
+	void set(int value) {
+		this->value = value;
+	}
+private:
+	int value;
+};
+...
+SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+int_data_holder a = 1;
+int_data_holder b = 0;
+...
+tg.mpiSend(b, 1, 0);
+tg.mpiRecv(b, 1, 1);
+```
+
+### Type 2 - Direct access
+
+```cpp
+class DirectAccessClass {
+    int key;
+public:
+    const unsigned char* getRawData() const {
+        return reinterpret_cast<const unsigned char*>(&key);
+    }
+    std::size_t getRawDataSize() const {
+        return sizeof(key);
+    }
+
+    void restoreRawData(const unsigned char* ptr, std::size_t size){
+        assert(sizeof(key) == size);
+        key = *reinterpret_cast<const int*>(ptr);
+    }
+
+    int& value(){
+        return key;
+    }
+
+    const int& value() const{
+        return key;
+    }
+};
+```
+

@@ -194,7 +194,7 @@ public:
             transaction.tm = tm;
             transaction.atg = atg;
 
-            transaction.serializer.reset(new SpMpiSerializer<ObjectType>(obj));
+            transaction.serializer.reset(new SpMpiSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
 
             transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
             transaction.requestBufferSize = Isend(transaction.bufferSize.get(),
@@ -225,7 +225,7 @@ public:
             transaction.srcProc = srcProc;
             transaction.tag = tag;
 
-            transaction.deserializer.reset(new SpMpiDeSerializer<ObjectType>(obj));
+            transaction.deserializer.reset(new SpMpiDeSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
 
             transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = Irecv(transaction.bufferSize.get(),
