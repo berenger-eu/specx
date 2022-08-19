@@ -8,11 +8,7 @@ RUN apt-get update \
     && apt-get install -y make \
     && apt-get install -y cmake \
     && apt-get install -y clang \
-    && git clone https://github.com/linux-test-project/lcov.git \
-    && cd lcov \
-    && git checkout v1.14 \
-    && make install \
-    && cd ..
+    && apt-get install -y lcov
 
 # To rebuild and update the repo:
 # - Make sure there are not images: sudo docker images
