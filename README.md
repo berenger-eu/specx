@@ -3,8 +3,10 @@
 
 
 # Introduction
-SPECX is a task-based runtime system, which is
-capable of executing tasks in advance if some others are not certain to modify
+SPECX is a task-based runtime system.
+It shares several similarities with StarPU but is written in modern C++.
+It also supports speculative execution, which is
+the capability of executing tasks in advance if some others are not certain to modify
 the data.
 
 The project was originally designed for Monte Carlo and
@@ -14,7 +16,7 @@ This is an on-going project under development.
 
 # Installation requirements
 1. C++17 standard compliant toolchain
-2. CMake (version 2.8.3 or after)
+2. CMake (version 3.20 or after)
 
 # Installation
 1. First create a new directory outside of SPECX's source tree with mkdir <dir_name>
