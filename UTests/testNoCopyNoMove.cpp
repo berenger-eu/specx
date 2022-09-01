@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 
@@ -20,11 +20,11 @@ class TestCopyMove : public UTester< TestCopyMove > {
         public:
             NotMovableNotCopyableClass() = default;
             NotMovableNotCopyableClass(const NotMovableNotCopyableClass&) = delete;
-            NotMovableNotCopyableClass(const NotMovableNotCopyableClass&&) = delete;
+            NotMovableNotCopyableClass(NotMovableNotCopyableClass&&) = delete;
             NotMovableNotCopyableClass& operator=(const NotMovableNotCopyableClass&) = delete;
-            NotMovableNotCopyableClass& operator=(const NotMovableNotCopyableClass&&) = delete;
+            NotMovableNotCopyableClass& operator=(NotMovableNotCopyableClass&&) = delete;
 
-            NotMovableNotCopyableClass* clone() const{
+            NotMovableNotCopyableClass* clone() const {
                 return nullptr;
             }
         };

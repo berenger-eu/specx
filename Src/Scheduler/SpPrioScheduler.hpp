@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPPRIOSCHEDULER_HPP
@@ -13,6 +13,7 @@
 #include "Task/SpPriority.hpp"
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
+#include "Compute/SpWorker.hpp"
 
 class SpPrioScheduler{
     struct ComparePrio{
@@ -39,8 +40,12 @@ public:
     SpPrioScheduler& operator=(const SpPrioScheduler&) = delete;
     SpPrioScheduler& operator=(SpPrioScheduler&&) = delete;
 
-    int getNbTasks() const{
-        return nbReadyTasks;
+    int getNbReadyTasksForWorkerType(const SpWorker::SpWorkerType wt) const{
+        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+            return nbReadyTasks;
+        }
+        
+        return 0;
     }
 
     int push(SpAbstractTask* newTask){
@@ -59,13 +64,16 @@ public:
         return int(tasks.size());
     }
 
-    SpAbstractTask* pop(){
-        std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        if(tasksReady.size()){
-            nbReadyTasks--;
-            auto res = tasksReady.top();
-            tasksReady.pop();
-            return res;
+    SpAbstractTask* popForWorkerType(const SpWorker::SpWorkerType wt){
+        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+            std::unique_lock<std::mutex> locker(mutexReadyTasks);
+            if(tasksReady.size()){
+                nbReadyTasks--;
+                auto res = tasksReady.top();
+                tasksReady.pop();
+                return res;
+            }
+            return nullptr;
         }
         return nullptr;
     }

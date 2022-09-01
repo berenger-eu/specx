@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH -J spetabaru
+#SBATCH -J specx
 #SBATCH -D ./
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -12,7 +12,7 @@
 module load cmake
 module load gcc/7.2
 
-cd /u/bbramas/spetabaru/Build/testremc
+cd /u/bbramas/specx/Build/testremc
 
 outputdir="results"
 cptres=0

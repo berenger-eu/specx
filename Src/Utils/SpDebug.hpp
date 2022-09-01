@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPDEBUG_HPP
@@ -10,9 +10,13 @@
 #include <iostream>
 #include <cstring>
 
+#ifdef SPECX_COMPILE_WITH_MPI
+#include "MPI/SpMpiUtils.hpp"
+#endif
+
 /**
  * This class should be used to print debug info.
- * The environment variable SPETABARU_DEBUG_PRINT allow to disable/enable
+ * The environment variable SPECX_DEBUG_PRINT allow to disable/enable
  * the output at runtime.
  */
 class SpDebug {
@@ -21,7 +25,7 @@ class SpDebug {
     const bool toFile;
 
     SpDebug()
-        : hasBeenEnabled(getenv("SPETABARU_DEBUG_PRINT") && strcmp(getenv("SPETABARU_DEBUG_PRINT"),"TRUE") == 0?true:false),
+        : hasBeenEnabled(getenv("SPECX_DEBUG_PRINT") && strcmp(getenv("SPECX_DEBUG_PRINT"),"TRUE") == 0?true:false),
           toFile(false){
     }
 
@@ -39,7 +43,10 @@ public:
         std::stringstream buffer;
 
         explicit Printer(SpDebug& inMaster) : master(inMaster){
-            if(master.isEnable()){
+            if(master.isEnable()){                
+#ifdef SPECX_COMPILE_WITH_MPI
+                buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
+#endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
         }
@@ -75,7 +82,11 @@ public:
 
         void lineBreak(){
             if(master.isEnable()){
-                buffer << '\n' << "[THREAD-" << master.getThreadId() << "] ";
+                buffer << '\n';
+#ifdef SPECX_COMPILE_WITH_MPI
+                buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
+#endif
+                buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
         }
 

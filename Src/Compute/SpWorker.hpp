@@ -6,6 +6,16 @@
 #include <condition_variable>
 #include <thread>
 
+#include "Config/SpConfig.hpp"
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+#include "Cuda/SpCudaWorkerData.hpp"
+#include "Cuda/SpCudaMemManager.hpp"
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+#include "Hip/SpHipWorkerData.hpp"
+#include "Hip/SpHipMemManager.hpp"
+#endif
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
@@ -13,31 +23,23 @@
 
 class SpComputeEngine;
 class SpAbstractTaskGraph;
+class SpWorkerTeamBuilder;
 
 class SpWorker {
 public:
     enum class SpWorkerType {
         CPU_WORKER,
-        GPU_WORKER
+#ifdef SPECX_COMPILE_WITH_CUDA
+        CUDA_WORKER,
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+        HIP_WORKER,
+#endif
+        NB_WORKER_TYPES
     };
     
     static std::atomic<long int> totalNbThreadsCreated;
-    
-    static auto createATeamOfNCpuWorkers(const int nbCpuWorkers) {
-        small_vector<std::unique_ptr<SpWorker>> res;
-        res.reserve(nbCpuWorkers);
-        
-        for(int i = 0; i < nbCpuWorkers; i++) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER));
-        }
-        
-        return res;
-    }
-    
-    static auto createDefaultWorkerTeam() {
-        return createATeamOfNCpuWorkers(SpUtils::DefaultNumThreads());
-    }
-    
+
     static void setWorkerForThread(SpWorker *w);
     static SpWorker* getWorkerForThread();
 
@@ -49,7 +51,13 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
-    
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaWorkerData cudaData;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    SpHipWorkerData hipData;
+#endif
+
 private:
     void setStopFlag(const bool inStopFlag) {
         stopFlag.store(inStopFlag, std::memory_order_relaxed);
@@ -68,9 +76,16 @@ private:
             case SpWorkerType::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
-            case SpWorkerType::GPU_WORKER:
-                task->execute(SpCallableType::GPU);
+                #ifdef SPECX_COMPILE_WITH_CUDA
+            case SpWorkerType::CUDA_WORKER:
+                task->execute(SpCallableType::CUDA);
                 break;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+case SpWorkerType::HIP_WORKER:
+task->execute(SpCallableType::HIP);
+break;
+#endif
             default:
                 assert(false && "Worker is of unknown type.");
         }
@@ -116,7 +131,8 @@ public:
 
     explicit SpWorker(const SpWorkerType inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
-    stopFlag(false), ce(nullptr), threadId(0), t() {
+    stopFlag(false), ce(nullptr), threadId(0), t()
+    {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
 
@@ -132,10 +148,24 @@ public:
     SpWorkerType getType() const {
         return wt;
     }
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaWorkerData& getCudaData(){
+        return cudaData;
+    }
+#endif
+
+#ifdef SPECX_COMPILE_WITH_HIP
+    SpHipWorkerData& getHipData(){
+        return hipData;
+    }
+#endif
     
     void start();
     
     void doLoop(SpAbstractTaskGraph* inAtg);
+
+    friend SpWorkerTeamBuilder;
 };
 
 #endif

@@ -1,12 +1,14 @@
+#include "Scheduler/SpTaskManager.hpp"
+
 #ifndef SPABSTRACTTASKGRAPH_HPP
 #define SPABSTRACTTASKGRAPH_HPP
 
-#include "Scheduler/SpTaskManager.hpp"
 #include "Output/SpDotDag.hpp"
 #include "Output/SpSvgTrace.hpp"
 
 class SpComputeEngine;
 class SpAbstractTask;
+class SpWorker;
 
 class SpAbstractTaskGraph {
 protected:
@@ -15,20 +17,25 @@ protected:
     
     //! Internal scheduler of tasks
     SpTaskManager scheduler;
+    
+    std::queue<SpDataHandle*> unusedDataHandles;
+    std::mutex unusedDataHandlesMutex;
 
 protected:
     
-    void preTaskExecution(SpAbstractTask* t) {
-        scheduler.preTaskExecution(t);
+    void preTaskExecution(SpAbstractTask* t, SpWorker& w) {
+        scheduler.preTaskExecution(*this, t, w);
     }
     
-    void postTaskExecution(SpAbstractTask* t) {
-        scheduler.postTaskExecution(t);
+    void postTaskExecution(SpAbstractTask* t, SpWorker& w) {
+        scheduler.postTaskExecution(*this, t, w);
     }
 
     friend void SpWorker::doLoop(SpAbstractTaskGraph*);
-    
+    friend void SpTaskManager::preTaskExecution(SpAbstractTaskGraph&, SpAbstractTask*, SpWorker&);
+    friend void SpTaskManager::postTaskExecution(SpAbstractTaskGraph&, SpAbstractTask*, SpWorker&);
 public:
+	
     void computeOn(SpComputeEngine& inCe) {
         scheduler.setComputeEngine(std::addressof(inCe));
     }

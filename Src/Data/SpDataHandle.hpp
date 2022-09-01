@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPDATAHANDLE_HPP
@@ -10,16 +10,42 @@
 #include <mutex>
 #include <atomic>
 
+#include "Config/SpConfig.hpp"
 #include "SpDependence.hpp"
 #include "Utils/SpUtils.hpp"
-#include "Data/SpDataDuplicator.hpp"
 #include "Utils/small_vector.hpp"
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+#include "Data/SpDeviceData.hpp"
+#include "Data/SpDataDuplicator.hpp"
+#include "Cuda/SpCudaMemManager.hpp"
+#endif // SPECX_COMPILE_WITH_CUDA
 
 //! This is a register data to apply the
 //! dependences on it.
 class SpDataHandle {
+private:
     //! Generic pointer to the data
     void* ptrToData;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    //! Copy of the CPU object on CUDAs
+    std::array<SpDeviceData, SpConfig::SpMaxNbCudas> copies;
+    //! Copy builder from/to CPU/CUDA
+    std::unique_ptr<SpAbstractDeviceDataCopier<SpCudaManager::SpCudaMemManager>> deviceDataOp;
+    //! Tell if the CPU version is OK
+    bool cpuDataOk;
+#endif // SPECX_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_HIP
+    //! Copy of the CPU object on CUDAs
+    std::array<SpDeviceData, SpConfig::SpMaxNbHips> copies;
+    //! Copy builder from/to CPU/CUDA
+    std::unique_ptr<SpAbstractDeviceDataCopier<SpHipManager::SpHipMemManager>> deviceDataOp;
+    //! Tell if the CPU version is OK
+    bool cpuDataOk;
+#endif // SPECX_COMPILE_WITH_CUDA
+    //! Lock the data
+    std::mutex handleLock;
+    
     //! Original data type name
     const std::string datatypeName;
 
@@ -33,20 +59,125 @@ class SpDataHandle {
     long int currentDependenceCursor;
 
 public:
-    template <class Datatype>
-    explicit SpDataHandle(Datatype* inPtrToData)
-        : ptrToData(inPtrToData), datatypeName(typeid(Datatype).name()),
-          currentDependenceCursor(0){
+    template <class DataType>
+    explicit SpDataHandle(DataType* inPtrToData)
+        : ptrToData(inPtrToData),
+      #ifdef SPECX_COMPILE_WITH_CUDA
+          copies(),
+          deviceDataOp(new SpDeviceDataCopier<DataType, SpCudaManager::SpCudaMemManager>()),
+          cpuDataOk(true),
+      #endif
+      #ifdef SPECX_COMPILE_WITH_HIP
+          copies(),
+          deviceDataOp(new SpDeviceDataCopier<DataType, SpHipManager::SpHipMemManager>()),
+          cpuDataOk(true),
+      #endif
+          datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
         SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
     }
-
+    
     //! Cannot be copied or moved
     SpDataHandle(const SpDataHandle&) = delete;
     SpDataHandle(SpDataHandle&&) = delete;
     SpDataHandle& operator=(const SpDataHandle&) = delete;
     SpDataHandle& operator=(SpDataHandle&&) = delete;
+
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+    template <class Allocators>
+    void setCpuOnlyValid(Allocators& memManagers) {
+        assert(cpuDataOk = true);
+        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
+            if(copies[idxGpu].ptr){
+                deviceDataOp->freeGroup(memManagers[idxGpu], this, ptrToData);
+                copies[idxGpu] = SpDeviceData();
+            }
+        }
+    }
+
+    template <class Allocators>
+    void setGpuOnlyValid(Allocators& memManagers, const int gpuId) {
+        assert(copies[gpuId].ptr);
+        cpuDataOk = false;
+        for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
+            if(idxGpu != gpuId && copies[idxGpu].ptr){
+                deviceDataOp->freeGroup(memManagers[idxGpu], this, ptrToData);
+                copies[idxGpu] = SpDeviceData();
+            }
+        }
+    }
+
+    template <class Allocators>
+    int syncCpuDataIfNeeded(Allocators& memManagers){
+        if(cpuDataOk == false){
+            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+                return iter.ptr != nullptr;
+            });
+            assert(idxGpuSrcIter != copies.end());
+            const int idxGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
+            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], this, ptrToData, copies[idxGpu]);
+            return idxGpu;
+        }
+        return -1;
+    }
+
+    template <class Allocators>
+    void removeFromGpu(Allocators& memManagers, const int gpuId){
+        assert(copies[gpuId].ptr);
+        syncCpuDataIfNeeded(memManagers);
+        deviceDataOp->freeGroup(memManagers[gpuId], this, ptrToData);
+        copies[gpuId] = SpDeviceData();
+    }
+
+    template <class Allocators>
+    SpDeviceData& getDeviceData(Allocators& memManagers, const int gpuId) {
+#if defined(SPECX_COMPILE_WITH_CUDA)
+        assert(gpuId < SpConfig::SpMaxNbCudas);
+#elif defined(SPECX_COMPILE_WITH_HIP)
+        assert(gpuId < SpConfig::SpMaxNbHips);
+#endif
+        if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
+            copies[gpuId].ptr = nullptr;
+            auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
+                return iter.ptr != nullptr;
+            });
+            if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], this, ptrToData)){
+                auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[gpuId], this, ptrToData);
+                for(auto toRemove : candidates){
+                    assert(toRemove != this);
+                    reinterpret_cast<SpDataHandle*>(toRemove)->lock();
+                    reinterpret_cast<SpDataHandle*>(toRemove)->removeFromGpu(memManagers, gpuId);
+                    reinterpret_cast<SpDataHandle*>(toRemove)->unlock();
+                }
+            }
+            copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], this, ptrToData);
+            if(idxGpuSrcIter != copies.end()){
+                const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
+                if(memManagers[gpuId].isConnectedTo(otherGpu)){
+                    deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], this, copies[gpuId], copies[otherGpu], otherGpu);
+                }
+                else{
+                    syncCpuDataIfNeeded(memManagers);
+                    deviceDataOp->copyFromHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+                }
+            }
+            else{
+                assert(cpuDataOk);
+                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+            }
+        }
+        return copies[gpuId];
+    }
+#endif // SPECX_COMPILE_WITH_CUDA || SPECX_COMPILE_WITH_HIP
+
+	void lock() {
+		handleLock.lock();
+	}
     
-    void *getRawPtr() {
+    void unlock() {
+		handleLock.unlock();
+	}
+    
+    void* getRawPtr() {
         return ptrToData;
     }
 

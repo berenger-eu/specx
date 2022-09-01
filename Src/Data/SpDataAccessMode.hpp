@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPDATAACCESSMODE_HPP
@@ -7,6 +7,7 @@
 
 #include <type_traits>
 #include <array>
+#include <utility>
 
 #include "Config/SpConfig.hpp"
 #include "Utils/SpArrayView.hpp"
@@ -14,6 +15,7 @@
 #include "Data/SpDataDuplicator.hpp"
 #include "Utils/SpArrayAccessor.hpp"
 #include "Utils/small_vector.hpp"
+#include "Utils/SpUtils.hpp"
 
 ////////////////////////////////////////////////////////
 /// All possible data access modes
@@ -69,7 +71,7 @@ public:
     // The raw data type (no const not ref)
     using RawHandleType = std::remove_const_t<std::remove_reference_t<HandleTypeRef>>;
     static_assert(!std::is_reference<RawHandleType>::value && !std::is_const<RawHandleType>::value, "HandleTypeNoRef should be without reference");
-private:
+protected:
     // The reference on the data
     HandleTypePtr ptrToData;
 
@@ -275,19 +277,17 @@ struct is_plus_equal_compatible<T,
 /// Test if a type has the getView method
 ////////////////////////////////////////////////////////
 
-template<class...> using void_t = void;
-
-template<class, class = void>
-struct has_getView : std::false_type {};
+template <class T>
+using has_getView_Test = decltype(std::declval<T>().getView());
 
 template<class T>
-struct has_getView<T, void_t<decltype(std::declval<T>().getView())>> : std::true_type {};
+using has_getView = SpUtils::detect<T, has_getView_Test>;
 
-template<class, class = void>
-struct has_getAllData : std::false_type {};
+template <class T>
+using has_getAllData_Test = decltype(std::declval<T>().getAllData());
 
 template<class T>
-struct has_getAllData<T, void_t<decltype(std::declval<T>().getAllData())>> : std::true_type {};
+using has_getAllData = SpUtils::detect<T, has_getAllData_Test>;
 
 template <SpDataAccessMode dam1, SpDataAccessMode dam2>
 struct access_modes_are_equal_internal : std::conditional_t<dam1==dam2, std::true_type, std::false_type> {};
@@ -300,15 +300,17 @@ struct access_modes_are_equal<dam1, T, std::void_t<decltype(T::AccessMode)>> : a
        
 enum class SpCallableType {
     CPU=0,
-    GPU        
+    CUDA  ,
+    HIP
 };
 
-template <bool compileWithCuda, class T, SpCallableType ct>
+template <bool compileWithType, class T, SpCallableType ct>
 class SpCallableWrapper {
 private:
     using CallableTy = std::remove_reference_t<T>;
     CallableTy callable; 
 public:
+    static constexpr bool compileWithType_v = compileWithType;
     static constexpr auto callable_type = ct;
     
     template <typename T2, typename=std::enable_if_t<std::is_same<std::remove_reference_t<T2>, CallableTy>::value>> 
@@ -322,6 +324,8 @@ public:
 template <class T, SpCallableType ct>
 class SpCallableWrapper<false, T, ct> {
 public:
+    static constexpr bool compileWithType_v = false;
+
     template<typename T2>
     SpCallableWrapper(T2&&) {}
 };
@@ -332,8 +336,13 @@ auto SpCpu(T &&callable) {
 }
 
 template <class T>
-auto SpGpu(T&& callable) {
-    return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::GPU>(std::forward<T>(callable));
+auto SpCuda(T&& callable) {
+    return SpCallableWrapper<SpConfig::CompileWithCuda, T, SpCallableType::CUDA>(std::forward<T>(callable));
+}
+
+template <class T>
+auto SpHip(T&& callable) {
+    return SpCallableWrapper<SpConfig::CompileWithHip, T, SpCallableType::HIP>(std::forward<T>(callable));
 }
 
 template <class T0>

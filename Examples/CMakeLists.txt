@@ -1,16 +1,16 @@
 ###########################################################################
-# SPETABARU - Berenger Bramas MPCDF - 2016
+# SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-project(EXAMPLES_SPETABARU CXX)
+project(EXAMPLES_SPECX CXX)
 
-OPTION( SPETABARU_BUILD_EXAMPLES  "Set to ON to build examples" ON )
+OPTION( SPECX_BUILD_EXAMPLES  "Set to ON to build examples" ON )
 
 if($ENV{VERBOSE})
-    MESSAGE(STATUS "Examples -- SPETABARU_BUILD_EXAMPLES = ${SPETABARU_BUILD_EXAMPLES}")
+    MESSAGE(STATUS "Examples -- SPECX_BUILD_EXAMPLES = ${SPECX_BUILD_EXAMPLES}")
 endif()
 
-if( SPETABARU_BUILD_EXAMPLES )
+if( SPECX_BUILD_EXAMPLES )
     file(GLOB all_examples ./*)
 
     foreach(example_name ${all_examples})

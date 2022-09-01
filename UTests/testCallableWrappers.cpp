@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 
@@ -39,29 +39,29 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         [](int& param_a){
             param_a++;
         },
-        SpGpu([](int& param_a){
-            param_a++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }));
         
         runtime.task(SpWrite(a),
         SpCpu([](int& param_a){
             param_a++;
         }),
-        SpGpu([](int& param_a){
-            param_a++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }));
 
         runtime.task(SpWrite(a),
-        SpGpu([](int& param_a){
-            param_a++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }),
         [](int& param_a){
             param_a++;
         });
         
         runtime.task(SpWrite(a),
-        SpGpu([](int& param_a){
-            param_a++;
+        SpCuda([](SpDeviceDataView<int> param_a){
+            (*param_a.objPtr())++;
         }),
         SpCpu([](int& param_a){
             param_a++;

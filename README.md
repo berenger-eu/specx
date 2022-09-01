@@ -1,10 +1,12 @@
-[![pipeline status](https://gitlab.inria.fr/bramas/spetabaru/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/spetabaru/commits/master)
-[![coverage report](https://gitlab.inria.fr/bramas/spetabaru/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/spetabaru/)
+[![pipeline status](https://gitlab.inria.fr/bramas/specx/badges/master/pipeline.svg)](https://gitlab.inria.fr/bramas/specx/commits/master)
+[![coverage report](https://gitlab.inria.fr/bramas/specx/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/specx/)
 
 
 # Introduction
-SPETABARU is a task-based runtime system, which is
-capable of executing tasks in advance if some others are not certain to modify
+SPECX is a task-based runtime system.
+It shares several similarities with StarPU but is written in modern C++.
+It also supports speculative execution, which is
+the capability of executing tasks in advance if some others are not certain to modify
 the data.
 
 The project was originally designed for Monte Carlo and
@@ -14,10 +16,10 @@ This is an on-going project under development.
 
 # Installation requirements
 1. C++17 standard compliant toolchain
-2. CMake (version 2.8.3 or after)
+2. CMake (version 3.20 or after)
 
 # Installation
-1. First create a new directory outside of SPETABARU's source tree with mkdir <dir_name>
+1. First create a new directory outside of SPECX's source tree with mkdir <dir_name>
 2. cd into the newly created directory.
 3. Create a subdirectory with a name of your choice
 4. Run cmake -DCMAKE_INSTALL_PREFIX=<path_to_directory_created_in_step_3> -DCMAKE_BUILD_TYPE=<build_type> ..
@@ -26,20 +28,20 @@ This is an on-going project under development.
 
 `<build_type>` can take one of two values : `Release` or `Debug`.
 
-If you want to install the static SPETABARU library and its header files to your default user
+If you want to install the static SPECX library and its header files to your default user
 library location you can remove the DCMAKE_INSTALL_PREFIX flag in step 4.
 
-If you want to create the build directory inside SPETABARU's source tree, we recommend
+If you want to create the build directory inside SPECX's source tree, we recommend
 to call it "build" as this name has been explicitly marked as to be ignored by Git.
 
 # Examples
 
 Several examples are given in the `Examples` and `UTests` directories.
-Setting the environment variable `SPETABARU_DEBUG_PRINT` to `TRUE` will enable debug information output. 
+Setting the environment variable `SPECX_DEBUG_PRINT` to `TRUE` will enable debug information output. 
 
 # Support
-Please leave an issue on the SPETABARU repository:
-https://gitlab.inria.fr/bramas/spetabaru
+Please leave an issue on the SPECX repository:
+https://gitlab.inria.fr/bramas/specx
 
 # Citing
 
@@ -156,7 +158,7 @@ You can find the source file for this example at [Examples/Basic/getting-started
 
 # Detailed overview
 ## Workflow
-Workflow in Spetabaru mainly revolves around three interfaces:
+Workflow in Specx mainly revolves around three interfaces:
 - the runtime interface
 - the data dependency interface
 - the task viewer interface
@@ -235,7 +237,7 @@ and work with v1 and v2 directly. You can however capture any variable that does
 The runtime will store addresses to the data elements appearing in the data dependency list and will take care of calling the callable with the
 appropriate corresponding arguments. In the example given above, assuming the task call is the sole task call in the entire program, the runtime will take
 the addresses of v1 and v2 (since these are the data elements that appear in the data dependency list) and when the task executes it will call the lambda
-with arguments \*v1 and \*v2. Note that since Spetabaru is a speculative task-based runtime system it will also happen that the callable gets called with
+with arguments \*v1 and \*v2. Note that since Specx is a speculative task-based runtime system it will also happen that the callable gets called with
 copies of the data elements (sampled at different points in time) rather then the original data elements.  
 The callables for normal tasks can return any value.
 The callables for potential tasks must however all return a boolean. This boolean is used to inform the runtime of whether the task has written
@@ -244,7 +246,7 @@ true if the task wrote to its maybe-write data dependencies and false otherwise.
 In overload (1) the callable is passed as is to the task call. It will implicitly be interpreted by the runtime as CPU code.  
 In overload (2) the callable c1 is explictly tagged as CPU code by being wrapped inside a SpCpuCode object (see subsection on callable wrapper objects 
 in section Data dependency interface below). Overload (2) additionally permits the user to provide a GPU version of the code (in this case the callable
-should be wrapped inside a SpGpuCode object). When both CPU and GPU versions of the code are provided, the Spetabaru runtime will decide at runtime
+should be wrapped inside a SpGpuCode object). When both CPU and GPU versions of the code are provided, the Specx runtime will decide at runtime
 which one of the two to execute.           
 
 - void setSpeculationTest(std::function<bool(int,const SpProbability&)> inFormula)
@@ -364,7 +366,7 @@ request awr1 on data x does not have to wait for awr1 to be fulfilled in order t
 Multiple successive atomic writes will be performed in any order.
 As an example, if two tasks atomically write to data x, the runtime does not enforce an order as to which tasks gets to atomically write first and
 the two tasks will be able to execute in parallel. The atomic writes will be committed to memory in whatever order they will be committed at
-runtime, the point is that the Spetabaru runtime does not enforce an order on the atomic writes.  
+runtime, the point is that the Specx runtime does not enforce an order on the atomic writes.  
 Atomic writes are ordered by the runtime with respect to reads, writes, maybe-writes and commutative writes.
 The order is the order in which the data accesses have been requested at runtime.
 
@@ -429,4 +431,173 @@ By default the task will be named as the demangled string of the typeid name of 
 
 Retrieves the name of the task.  
 Speculative versions of tasks will have an apostrophe appended to their name.
+
+# GPU/CUDA (Work-in-progress)
+
+The CMake variable `SPECX_COMPILE_WITH_CUDA` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_CUDA=ON`.
+If CMake is not able to find nvcc, one must set `CUDACXX` env variable or the CMake variable `CMAKE_CUDA_COMPILER` to the path to nvcc.
+On can set `CMAKE_CUDA_ARCHITECTURES` to select the CUDA sm to compile for.
+
+Here is an example of a task on CUDA GPU:
+```cpp
+tg.task(SpWrite(a),// Dependencies are expressed as usually
+    SpCuda([](SpDeviceDataView<std::vector<int>> paramA) { // Each parameter is converted into an SpDeviceDataView
+        // The kernel call be called using the dedicated stream
+        inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
+                                                           paramA.nbElements());
+    })
+);
+```
+Currently, the call to a CUDA kernel must be done in a `.cu` file.
+There are three types of `SpDeviceDataView` that offer different methods: one for the `is_trivially_copyable` objects, one for the `std::vectors` of `is_trivially_copyable` objects, and one customize by the users.
+In the latest, it is required to provide the following methods:
+```cpp
+    std::size_t memmovNeededSize() const{
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+```
+Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
+This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
+
+# GPU/HIP (Work-in-progress)
+
+The CMake variable `SPECX_COMPILE_WITH_HIP` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
+The C++ compiler must also be set with for example `CXX=hipcc`, so a working command line should be `CXX=hipcc cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
+On can set `GPU_TARGETS` to select the HIP sm to compile for.
+
+Here is an example of a task on HIP GPU:
+```cpp
+tg.task(SpWrite(a),// Dependencies are expressed as usually
+    SpHip([](SpDeviceDataView<std::vector<int>> paramA) { // Each parameter is converted into an SpDeviceDataView
+        // The kernel call be called using the dedicated stream
+        inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
+                                                           paramA.nbElements());
+    })
+);
+```
+Currently, the call to a HIP kernel must be done in a `.cu` file.
+There are three types of `SpDeviceDataView` that offer different methods: one for the `is_trivially_copyable` objects, one for the `std::vectors` of `is_trivially_copyable` objects, and one customize by the users.
+In the latest, it is required to provide the following methods:
+```cpp
+    std::size_t memmovNeededSize() const{
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    ...
+    }
+```
+Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
+This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
+
+
+# MPI
+
+The CMake variable `SPECX_COMPILE_WITH_MPI` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_MPI=ON`.
+
+## Data Serialization and Deserialization
+Data can be send to target MPI processes using the `mpiSend` and `mpiRecv` methods of the `SpTaskGraph` object.
+
+To be moved across computing nodes, the objects must be one of the following types:
+1. Be an instance of a class that inherits `SpAbstractSerializable` (see below for more details).
+2. Supports the methods `getRawDataSize`, `getRawData` and `restoreRawData`, which will be used to extract the data to be sent, and restore them.
+3. Be a POD type (well, have `is_standard_layout_v` and `is_trivial_v` returning true, which means that having a pointer in a struct will not be detected and could be an issue).
+4. Be a vector of the types defined in 1, 2 or 3.
+
+It is the function `SpGetSerializationType` that performs the detection and assigns the corresponding `SpSerializationType` value to each object.
+The detection is performed in the order written above.
+
+For examples, refer to the unit tests under `UTests/MPI`.
+
+### Type 3 - POD
+For built-in and POD types these methods work automatically:
+```cpp
+SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+int a = 1;
+int b = 0;
+...
+tg.mpiSend(b, 1, 0);
+tg.mpiRecv(b, 1, 1);
+```
+
+### Type 1 - SpAbstractSerializable
+However, user-defined types must enable support for MPI serialization and deserialization. To do that they must implement these steps.
+1. Include "MPI/SpSerializer.hpp"
+2. Make the class a public subclass of the SpAbstractSerializable class
+3. Provide a constructor that takes as argument a non-const referene to SpDeserializer. This constructor allows an object of the class to be constructed from the deserialization.
+4. Provide a public method "serialize" with argument a non-const reference to SpSerializer. This method serializes the object into the input SpSerializer object.
+
+These steps in detail are shown in the following example:
+```cpp
+#include "MPI/SpSerializer.hpp"
+
+class int_data_holder : public SpAbstractSerializable {
+public:
+	int_data_holder(int value = 0) : value{value} {}
+	int_data_holder(SpDeserializer &deserializer) : value(deserializer.restore<decltype(value)>("value")) {
+	}
+	
+	void serialize(SpSerializer &serializer) const final {
+		serializer.append(value, "value");
+	}
+
+	int get() const { return value; }
+	void set(int value) {
+		this->value = value;
+	}
+private:
+	int value;
+};
+...
+SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+int_data_holder a = 1;
+int_data_holder b = 0;
+...
+tg.mpiSend(b, 1, 0);
+tg.mpiRecv(b, 1, 1);
+```
+
+### Type 2 - Direct access
+
+```cpp
+class DirectAccessClass {
+    int key;
+public:
+    const unsigned char* getRawData() const {
+        return reinterpret_cast<const unsigned char*>(&key);
+    }
+    std::size_t getRawDataSize() const {
+        return sizeof(key);
+    }
+
+    void restoreRawData(const unsigned char* ptr, std::size_t size){
+        assert(sizeof(key) == size);
+        key = *reinterpret_cast<const int*>(ptr);
+    }
+
+    int& value(){
+        return key;
+    }
+
+    const int& value() const{
+        return key;
+    }
+};
+```
 

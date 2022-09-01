@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPUTILS_HPP
@@ -118,7 +118,7 @@ namespace SpUtils{
 
     template <typename CallableTy, typename TupleTy, std::size_t... Is,
     std::enable_if_t<sizeof...(Is) == 0 || std::conjunction_v<std::is_invocable<CallableTy, std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
-    static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
+    inline void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
         if constexpr(sizeof...(Is) > 0) {
             using RetTy = std::invoke_result_t<CallableTy, std::tuple_element_t<0, std::remove_reference_t<TupleTy>>>;
 
@@ -133,7 +133,7 @@ namespace SpUtils{
     template <typename CallableTy, typename TupleTy, std::size_t... Is,
     std::enable_if_t<sizeof...(Is) != 0 && std::conjunction_v<std::is_invocable<CallableTy, std::integral_constant<size_t, Is>,
     std::tuple_element_t<Is, std::remove_reference_t<TupleTy>>>...>, int> = 0>
-    static void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
+    inline void foreach_in_tuple_impl(CallableTy &&c, TupleTy &&t, std::index_sequence<Is...>) {
         if constexpr(sizeof...(Is) > 0) {
             using RetTy = std::invoke_result_t<CallableTy, std::integral_constant<size_t, 0>, std::tuple_element_t<0, std::remove_reference_t<TupleTy>>>;
 
@@ -146,13 +146,25 @@ namespace SpUtils{
     }
 
     template <typename CallableTy, typename TupleTy>
-    static void foreach_in_tuple(CallableTy &&c, TupleTy &&t) {
+    inline void foreach_in_tuple(CallableTy &&c, TupleTy &&t) {
         foreach_in_tuple_impl(std::forward<CallableTy>(c), std::forward<TupleTy>(t), std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<TupleTy>>>{});
     }
+    
+    template <typename Func, std::size_t... Is>
+	static void foreach_index(Func&& f, std::index_sequence<Is...>) {
+		((void)std::invoke(std::forward<Func>(f), std::integral_constant<std::size_t, Is>{}), ...);
+	}
+
+    template <typename T, template<typename T2> class Test, typename=std::void_t<>>
+    struct detect : std::false_type {};
+    
+    template <typename T, template <typename T2> class Test>
+    struct detect<T, Test, std::void_t<Test<T>>> : std::true_type {};
+    
 }
 
-#define spetabaru_xstr(s) spetabaru_str(s)
-#define spetabaru_str(s) #s
-#define always_assert(X) SpUtils::CheckCorrect(spetabaru_str(X), (X), __LINE__, __FILE__)
+#define specx_xstr(s) specx_str(s)
+#define specx_str(s) #s
+#define always_assert(X) SpUtils::CheckCorrect(specx_str(X), (X), __LINE__, __FILE__)
 
 #endif

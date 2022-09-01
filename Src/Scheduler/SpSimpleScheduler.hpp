@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPSCHEDULER_HPP
@@ -11,7 +11,7 @@
 #include "Task/SpPriority.hpp"
 
 
-//! The runtime is the main component of spetabaru.
+//! The runtime is the main component of specx.
 class SpSimpleScheduler{
     //! To protect the tasksReady list
     mutable std::mutex mutexReadyTasks;

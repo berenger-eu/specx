@@ -10,7 +10,11 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+#include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
+#endif
 #include "Utils/small_vector.hpp"
+#include "Config/SpConfig.hpp"
 
 class SpAbstractTaskGraph;
 
@@ -22,15 +26,27 @@ private:
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
+#else
     SpPrioScheduler prioSched;
+#endif
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
     SpWorker::SpWorkerType workerTypeToMigrate;
     SpComputeEngine* ceToMigrateTo;
     long int nbAvailableCpuWorkers;
-    long int nbAvailableGpuWorkers;
     long int totalNbCpuWorkers;
-    long int totalNbGpuWorkers;
+    #ifdef SPECX_COMPILE_WITH_CUDA
+    long int nbAvailableCudaWorkers;
+    long int totalNbCudaWorkers;
+    #endif
+    #ifdef SPECX_COMPILE_WITH_HIP
+    long int nbAvailableHipWorkers;
+    long int totalNbHipWorkers;
+    #endif
     bool hasBeenStopped;
 
 private:
@@ -52,8 +68,14 @@ private:
             switch(wt) {
                 case SpWorker::SpWorkerType::CPU_WORKER:
                     return compute(totalNbCpuWorkers, nbAvailableCpuWorkers, allowBusyWorkersToBeDetached, maxCount);
-                case SpWorker::SpWorkerType::GPU_WORKER:
-                    return compute(totalNbGpuWorkers, nbAvailableGpuWorkers, allowBusyWorkersToBeDetached, maxCount);
+                    #ifdef SPECX_COMPILE_WITH_CUDA
+                case SpWorker::SpWorkerType::CUDA_WORKER:
+                    return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+                case SpWorker::SpWorkerType::HIP_WORKER:
+                     return compute(totalNbHipWorkers, nbAvailableHipWorkers, allowBusyWorkersToBeDetached, maxCount);
+#endif
                 default:
                     return static_cast<long int>(0);
             }
@@ -129,16 +151,16 @@ private:
         return nbWorkersToMigrate.load(std::memory_order_acquire) > 0;
     }
     
-    bool areThereAnyReadyTasks() const {
-        return prioSched.getNbTasks() > 0;
+    bool areThereAnyReadyTasksForWorkerType(SpWorker::SpWorkerType wt) const {
+        return prioSched.getNbReadyTasksForWorkerType(wt) > 0;
     }
     
     bool areWorkersToMigrateOfType(SpWorker::SpWorkerType inWt) {
         return workerTypeToMigrate == inWt;
     }
     
-    SpAbstractTask* getTask() {
-        return prioSched.pop();
+    SpAbstractTask* getTaskForWorkerType(const SpWorker::SpWorkerType wt) {
+        return prioSched.popForWorkerType(wt);
     }
     
     template <const bool updateTotalCounter, const bool updateAvailableCounter>
@@ -149,18 +171,31 @@ private:
                     totalNbCpuWorkers += addend;
                 }
                 if constexpr(updateAvailableCounter) {
-                    nbAvailableGpuWorkers += addend;
+                    nbAvailableCpuWorkers += addend;
                 }
                 break;
-            case SpWorker::SpWorkerType::GPU_WORKER:
+                #ifdef SPECX_COMPILE_WITH_CUDA
+            case SpWorker::SpWorkerType::CUDA_WORKER:
                 if constexpr(updateTotalCounter) {
-                    totalNbGpuWorkers += addend;
+                    totalNbCudaWorkers += addend;
                 }
                 
                 if constexpr(updateAvailableCounter) {
-                    nbAvailableGpuWorkers += addend;
+                    nbAvailableCudaWorkers += addend;
                 }
                 break;
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+case SpWorker::SpWorkerType::HIP_WORKER:
+if constexpr(updateTotalCounter) {
+    totalNbHipWorkers += addend;
+}
+
+if constexpr(updateAvailableCounter) {
+    nbAvailableHipWorkers += addend;
+}
+break;
+#endif
             default:
                 break;
         }
@@ -194,7 +229,14 @@ public:
     explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers)
     : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorker::SpWorkerType::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
-      nbAvailableGpuWorkers(0), totalNbCpuWorkers(0), totalNbGpuWorkers(0), hasBeenStopped(false) {
+      totalNbCpuWorkers(0),
+      #ifdef SPECX_COMPILE_WITH_CUDA
+      nbAvailableCudaWorkers(0), totalNbCudaWorkers(0),
+  #endif
+  #ifdef SPECX_COMPILE_WITH_HIP
+  nbAvailableHipWorkers(0), totalNbHipWorkers(0),
+#endif
+      hasBeenStopped(false) {
         addWorkers(std::move(inWorkers));
     }
     

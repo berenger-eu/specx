@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPSVGTRACE_HPP
@@ -70,7 +70,7 @@ inline void GenerateTrace(const std::string& outputFilename, const std::list<SpA
     svgfile << "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"" << hdim << "\" height=\"" << vdim << "\">\n";
     svgfile << "  <title>Execution trace</title>\n";
     svgfile << "  <desc>\n";
-    svgfile << "    Spetabaru traces for " << tasksFinished.size() << " tasks\n";
+    svgfile << "    Specx traces for " << tasksFinished.size() << " tasks\n";
     svgfile << "  </desc>\n";
     svgfile << "\n";
     // Back

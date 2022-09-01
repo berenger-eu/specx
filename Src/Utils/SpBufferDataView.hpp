@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPBUFFERDATAVIEW_HPP
@@ -43,12 +43,12 @@ class SpDataBufferCore{
         return false;
     }
 
-    ~SpDataBufferCore(){
-    }
-
 public:
     explicit SpDataBufferCore(SpAbstractBufferManager<TargetType>* inBufferManager = nullptr)
         : bufferManager(inBufferManager), underUsage(true), dataUseLimitCounter(0), dataPtr(nullptr), dataUseCounter(0), nbOfPossibleDeleter(0){
+    }
+    
+    ~SpDataBufferCore(){
     }
 
     SpDataBufferCore(const SpDataBufferCore&) = delete;

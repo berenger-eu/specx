@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// Spetabaru - Berenger Bramas MPCDF - 2017
+// Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
 ///////////////////////////////////////////////////////////////////////////
 #ifndef SPABSTRACTTASK_HPP
@@ -89,7 +89,15 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
+    #ifdef SPECX_COMPILE_WITH_MPI
+    bool isMpiTaskCom;
+#endif
+protected:
+    static void SetCurrentTask(SpAbstractTask* inCurrentTask);
 public:
+    static SpAbstractTask* GetCurrentTask();
+
+
     explicit SpAbstractTask(SpAbstractTaskGraph* const inAtg, const SpTaskActivation initialAtivationState, const SpPriority& inPriority):
         taskId(TaskIdsCounter++), hasBeenExecuted(false),
                                currentState(SpTaskState::NOT_INITIALIZED),
@@ -97,7 +105,11 @@ public:
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
-                               atg(inAtg) {
+                               atg(inAtg)
+                         #ifdef SPECX_COMPILE_WITH_MPI
+                             ,isMpiTaskCom(false)
+    #endif
+    {
     }
 
     virtual ~SpAbstractTask(){}
@@ -114,6 +126,8 @@ public:
 
     virtual long int getNbParams() = 0;
     virtual bool dependencesAreReady() const = 0;
+    virtual void preTaskExecution(SpCallableType ct) = 0;
+    virtual void postTaskExecution(SpAbstractTaskGraph&, SpCallableType ct) = 0;
     virtual void executeCore(SpCallableType ct) = 0;
     virtual void releaseDependences(small_vector_base<SpAbstractTask*>* potentialReady) = 0;
     virtual void getDependences(small_vector_base<SpAbstractTask*>* allDeps) const = 0;
@@ -272,13 +286,22 @@ public:
         originalTask = inOriginal;
     }
 
-    bool isEnable() const{
+    bool isEnable() const {
         return isEnabled == SpTaskActivation::ENABLE;
     }
     
-    SpAbstractTaskGraph* getAbstractTaskGraph() {
+    SpAbstractTaskGraph* getAbstractTaskGraph() const {
         return atg;
     }
+
+#ifdef SPECX_COMPILE_WITH_MPI
+    bool isMpiCom() const{
+        return isMpiTaskCom;
+    }
+    void setIsMpiCom(const bool inIsMpiCom){
+        isMpiTaskCom = inIsMpiCom;
+    }
+#endif
 };
 
 
