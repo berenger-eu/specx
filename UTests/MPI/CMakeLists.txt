@@ -43,5 +43,6 @@ foreach(exec ${source_tests_files})
 		specx
 		${SPECX_LIBRARIES}
 		)
-	add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
+	# add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
+	add_test(${execname} mpirun -np 2 ${CMAKE_CURRENT_BINARY_DIR}/${execname})
 endforeach(exec)
