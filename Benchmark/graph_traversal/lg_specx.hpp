@@ -19,12 +19,26 @@ void traverse_level_graph_specx(LevelGraph& graph, unsigned num_threads){
         for(size_t i=0; i<graph.length(); i++){
             Node& n = graph.node_at(l, i);
 
-            tg.task(SpReadArray(n._in_edges.data(),SpArrayView(n._in_edges.size())),
-                         SpWriteArray(n._out_edges.data(),SpArrayView(n._out_edges.size())),
-                         [nptr=&n]([[maybe_unused]] const SpArrayAccessor<const std::pair<int, int>>& inNodes,
-                                   [[maybe_unused]] SpArrayAccessor<int>& outNodes){
-                nptr->mark();
-            });
+            if( n._in_edges.size() && n._out_edges.size()){
+                tg.task(SpReadArray(n._in_edges.data(),SpArrayView(n._in_edges.size())),
+                             SpWriteArray(n._out_edges.data(),SpArrayView(n._out_edges.size())),
+                             [nptr=&n]([[maybe_unused]] const SpArrayAccessor<const std::pair<int, int>>& inNodes,
+                                       [[maybe_unused]] SpArrayAccessor<int>& outNodes){
+                    nptr->mark();
+                });
+            }
+            else if(n._in_edges.size()){
+                tg.task(SpReadArray(n._in_edges.data(),SpArrayView(n._in_edges.size())),
+                             [nptr=&n]([[maybe_unused]] const SpArrayAccessor<const std::pair<int, int>>& inNodes){
+                    nptr->mark();
+                });
+            }
+            else{
+                tg.task(SpWriteArray(n._out_edges.data(),SpArrayView(n._out_edges.size())),
+                             [nptr=&n]([[maybe_unused]] SpArrayAccessor<int>& outNodes){
+                    nptr->mark();
+                });
+            }
         }
     }
 
