@@ -7,7 +7,6 @@
 
 #include <functional>
 #include <list>
-#include <unordered_map>
 #include <memory>
 #include <unistd.h>
 #include <fstream>

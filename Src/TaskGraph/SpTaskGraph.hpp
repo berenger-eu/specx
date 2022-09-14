@@ -328,7 +328,7 @@ protected:
                           }, std::forward<TupleTy>(t));
     }
 
-    explicit SpTaskGraphCommon() : allDataHandles() {}
+    explicit SpTaskGraphCommon() : allDataHandles(2048) {}
 
     // No copy and no move
     SpTaskGraphCommon(const SpTaskGraphCommon&) = delete;
