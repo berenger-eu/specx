@@ -110,13 +110,15 @@ public:
         return Printer(*this);
     }
 
-    bool isEnable() const{        
 #ifdef SPECX_DEBUG_PRINT
+    bool isEnable() const{
         return hasBeenEnabled;
-#else
-        return false;
-#endif
     }
+#else
+    constexpr bool isEnable() const{
+        return false;
+    }
+#endif
 
     long int getThreadId() const;
 
