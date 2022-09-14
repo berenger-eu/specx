@@ -4,7 +4,7 @@
 #include "UTester.hpp"
 
 class TestArrayView : public UTester< TestArrayView > {
-    using Parent = UTester< TestArrayView >;
+    using Parent = UTesteviewr< TestArrayView >;
 
     void CompareWithArray(const SpArrayView& view,
                           small_vector_base<long int> &shouldBe,
