@@ -16,12 +16,13 @@ class SpSimpleScheduler{
     //! To protect the tasksReady list
     mutable std::mutex mutexReadyTasks;
     //! Contains the tasks that can be executed
-    std::list<SpAbstractTask*> tasksReady;
+    std::vector<SpAbstractTask*> tasksReady;
     
     std::atomic<int> nbReadyTasks;
 
 public:
     explicit SpSimpleScheduler() : mutexReadyTasks(), tasksReady(), nbReadyTasks(0) {
+        tasksReady.resize(128);
     }
 
     // No copy or move

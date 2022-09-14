@@ -20,6 +20,7 @@
  * the output at runtime.
  */
 class SpDebug {
+#ifdef SPECX_DEBUG_PRINT
     const bool hasBeenEnabled;
     std::mutex outputMutex;
     const bool toFile;
@@ -28,6 +29,9 @@ class SpDebug {
         : hasBeenEnabled(getenv("SPECX_DEBUG_PRINT") && strcmp(getenv("SPECX_DEBUG_PRINT"),"TRUE") == 0?true:false),
           toFile(false){
     }
+#else
+    SpDebug(){}
+#endif
 
     SpDebug(const SpDebug&) = delete;
     SpDebug(SpDebug&&) = delete;
@@ -40,19 +44,23 @@ public:
     class Printer {
         SpDebug& master;
 
+#ifdef SPECX_DEBUG_PRINT
         std::stringstream buffer;
-
+#endif
         explicit Printer(SpDebug& inMaster) : master(inMaster){
+#ifdef SPECX_DEBUG_PRINT
             if(master.isEnable()){                
 #ifdef SPECX_COMPILE_WITH_MPI
                 buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
 #endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
+#endif
         }
 
     public:
-        ~Printer(){
+        ~Printer(){            
+#ifdef SPECX_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << "\n";
                 const std::string toOutput = buffer.str();
@@ -65,6 +73,7 @@ public:
                     master.outputMutex.unlock();
                 }
             }
+#endif
         }
 
         Printer(const Printer&) = delete;
@@ -73,14 +82,17 @@ public:
         Printer& operator=(Printer&&) = delete;
 
         template <class Param>
-        Printer& operator<<(Param&& toOutput){
+        Printer& operator<<([[maybe_unused]] Param&& toOutput){
+#ifdef SPECX_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << toOutput;
             }
+#endif
             return *this;
         }
 
         void lineBreak(){
+#ifdef SPECX_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << '\n';
 #ifdef SPECX_COMPILE_WITH_MPI
@@ -88,6 +100,7 @@ public:
 #endif
                 buffer << "[THREAD-" << master.getThreadId() << "] ";
             }
+#endif
         }
 
         friend SpDebug;
@@ -97,8 +110,12 @@ public:
         return Printer(*this);
     }
 
-    bool isEnable() const{
+    bool isEnable() const{        
+#ifdef SPECX_DEBUG_PRINT
         return hasBeenEnabled;
+#else
+        return false;
+#endif
     }
 
     long int getThreadId() const;

@@ -187,6 +187,8 @@ else()
   set(SPECX_CXX_FLAGS "${SPECX_CXX_FLAGS} -Wold-style-cast")
 endif()
 
+option(SPECX_USE_DEBUG_PRINT "Should be ON to enable debug print mechanism" ON)
+
 #===========================================================================
 # Generate config
 #===========================================================================
