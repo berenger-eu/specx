@@ -10,6 +10,7 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
+#include "Scheduler/SpSimpleScheduler.hpp"
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
 #include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
 #endif
@@ -31,7 +32,7 @@ private:
 #elif defined(SPECX_COMPILE_WITH_HIP)
     std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
 #else
-    SpPrioScheduler prioSched;
+    SpSimpleScheduler prioSched;
 #endif
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;

@@ -89,9 +89,12 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
+    mutable std::atomic<SpAbstractTask*> ptrNextList;
+
     #ifdef SPECX_COMPILE_WITH_MPI
     bool isMpiTaskCom;
 #endif
+
 protected:
     static void SetCurrentTask(SpAbstractTask* inCurrentTask);
 public:
@@ -105,7 +108,8 @@ public:
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
-                               atg(inAtg)
+                               atg(inAtg),
+                               ptrNextList(nullptr)
                          #ifdef SPECX_COMPILE_WITH_MPI
                              ,isMpiTaskCom(false)
     #endif
@@ -302,6 +306,14 @@ public:
         isMpiTaskCom = inIsMpiCom;
     }
 #endif
+
+
+    std::atomic<SpAbstractTask*>& getPtrNextList(){
+        return ptrNextList;
+    }
+    std::atomic<SpAbstractTask*>& getPtrNextList() const {
+        return ptrNextList;
+    }
 };
 
 
