@@ -70,6 +70,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! Callables
     CallableTupleTy callables;
 
+    //! Name
+    mutable std::unique_ptr<std::string> name;
+
     ///////////////////////////////////////////////////////////////////////////////
     /// Methods to call the task function with a conversion from handle to data
     ///////////////////////////////////////////////////////////////////////////////
@@ -320,22 +323,33 @@ public:
         ((void) t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
+    }
 
+    std::string coreGetTaskName() const final{
+        if(!name){
+            std::string cmpName;
 #ifdef __GNUG__
-        // if GCC then we ask for a clean type as default task name
-        int status;
-        char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
-        if(status == 0){
-            assert(demangledName);
-            Parent::setTaskName(demangledName);
-        }
-        else{
-            Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
-        }
-        free(demangledName);
+            // if GCC then we ask for a clean type as default task name
+            int status;
+            char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
+            if(status == 0){
+                assert(demangledName);
+                cmpName = (demangledName);
+            }
+            else{
+                cmpName = (typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
+            }
+            free(demangledName);
 #else
-        Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
+            cmpName = (typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
 #endif
+            name.reset(new std::string(std::move(cmpName)));
+        }
+        return *name;
+    }
+
+    void setTaskName(std::string inName) final{
+        name.reset(new std::string(std::move(inName)));
     }
 
     DataDependencyTupleTy& getDataDependencyTupleRef() {

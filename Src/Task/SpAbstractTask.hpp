@@ -63,9 +63,6 @@ class SpAbstractTask{
     //! Current state of the task
     std::atomic<SpTaskState> currentState;
 
-    //! Task name
-    std::string taskName;
-
     //! When the task has been created (construction time)
     SpTimePoint creationTime;
     //! When a task has been ready
@@ -142,6 +139,8 @@ public:
     virtual void executeCallback() = 0;
     virtual bool hasCallableOfType(const SpCallableType sct) const = 0;
     virtual std::string getTaskBodyString() = 0;
+    virtual std::string coreGetTaskName() const = 0;
+    virtual void setTaskName(std::string inName) = 0;
 
     void useDependences() {
         useDependences(nullptr);
@@ -231,15 +230,11 @@ public:
     // Not const ref because of the original name build on the fly
     std::string getTaskName() const{
         if(originalTask){
-            return originalTask->taskName + "'";
+            return originalTask->coreGetTaskName() + "'";
         }
         else{
-            return taskName;
+            return coreGetTaskName();
         }
-    }
-
-    void setTaskName(const std::string& inTaskName){
-        taskName = inTaskName;
     }
 
     const SpTimePoint& getCreationTime() const{
