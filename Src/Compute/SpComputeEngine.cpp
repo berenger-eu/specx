@@ -27,8 +27,10 @@ void SpComputeEngine::stopIfNotAlreadyStopped() {
 }
 
 void SpComputeEngine::wait(SpWorker& worker, SpAbstractTaskGraph* atg) {
+    nbWaitingWorkers += 1;
     std::unique_lock<std::mutex> ceLock(ceMutex);
     updateWorkerCounters<false, true>(worker.getType(), +1);
     ceCondVar.wait(ceLock, [&]() { return worker.hasBeenStopped() || areThereAnyWorkersToMigrate() || areThereAnyReadyTasksForWorkerType(worker.getType()) || (atg && atg->isFinished());});
     updateWorkerCounters<false, true>(worker.getType(), -1);
+    nbWaitingWorkers += 1;
 }
