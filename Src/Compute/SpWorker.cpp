@@ -51,6 +51,9 @@ SpWorker* SpWorker::getWorkerForThread() {
 }
 
 void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
+    const long int nbNullTasksBeforeWait = 10000000;
+    long int nullTasksCounter = 0;
+
     while(!stopFlag.load(std::memory_order_relaxed) && (!inAtg || !inAtg->isFinished())) {
         SpComputeEngine* saveCe = nullptr;
         
@@ -106,11 +109,17 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         assert(0);
                     }
                     
+                    nullTasksCounter = 0;
                     continue;
                 }
             }
             
-            waitOnCe(saveCe, inAtg);
+            if(nullTasksCounter == nbNullTasksBeforeWait){
+                waitOnCe(saveCe, inAtg);
+            }
+            else{
+                nullTasksCounter += 1;
+            }
         } else {
             idleWait();
         }
