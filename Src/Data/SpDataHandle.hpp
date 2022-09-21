@@ -47,7 +47,7 @@ private:
     std::mutex handleLock;
 
     //! All the dependences on the current data
-    small_vector<SpDependence> dependencesOnData;
+    small_vector<SpDependence, 16> dependencesOnData;
 
     //! To ensure safe access to the dependencesOnData vector
     mutable std::mutex mutexDependences;

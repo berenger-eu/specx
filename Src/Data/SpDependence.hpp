@@ -24,7 +24,7 @@ class SpDependence{
     //! Id of task if it is a write mode
     SpAbstractTask* idTaskWrite;
     //! Ids of all tasks for all other modes (that are concurent safe)
-    small_vector<SpAbstractTask*> idTasksMultiple;
+    small_vector<SpAbstractTask*, 16> idTasksMultiple;
 
     //! Number of tasks that use and have used the data
     long int nbTasksInUsed;
