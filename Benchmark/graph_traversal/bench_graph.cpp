@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
             << std::setw(12) << "Runtime"
              << '\n';
 
-  for(int i=1; i<=/*451*/255; i += 15) {
+  for(int i=1; i<=/*451*/256; i += 15) {
 
     double runtime {0.0};
 

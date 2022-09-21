@@ -201,6 +201,8 @@ class LevelGraph {
 
     Node& node_at(size_t level, size_t index){ return _graph[level][index]; }
 
+    std::vector<Node>& nodes_at(size_t level){ return _graph[level]; }
+
     size_t level(){ return _level_num; }
     size_t length() { return _length_num;  }
 

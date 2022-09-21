@@ -102,6 +102,31 @@ public:
         }
     }
 
+    template <class IdxType>
+    SpArrayView(const std::vector<IdxType>& inIdxs){
+        if(inIdxs.size() == 0){
+            return;
+        }
+
+        Interval currentInterval{static_cast<long int>(inIdxs[0]),
+                                 static_cast<long int>(inIdxs[0]+1),
+                                 1};
+
+        for(long int idx = 1 ; idx < static_cast<long int>(inIdxs.size()) ; ++idx){
+            if(currentInterval.lastIdx == static_cast<long int>(inIdxs[idx])){
+                currentInterval.lastIdx += 1;
+            }
+            else{
+                intervals.emplace_back(currentInterval);
+                currentInterval = Interval{static_cast<long int>(inIdxs[idx]),
+                                           static_cast<long int>(inIdxs[idx]+1),
+                                           1};
+            }
+        }
+
+        intervals.emplace_back(currentInterval);
+    }
+
     Iterator begin() const {
         return Iterator(*this);
     }
