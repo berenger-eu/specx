@@ -128,6 +128,10 @@ public:
         return getSize();
     }
 
+    bool empty() const{
+        return getSize() == 0;
+    }
+
     bool remove(const KeyType& inKey){
         const std::size_t hkey = hasher(inKey);
         const bool hasBeenRemoved = buckets[hkey%BucketSize].remove(hkey, inKey);

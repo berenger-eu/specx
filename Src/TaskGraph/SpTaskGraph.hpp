@@ -401,7 +401,7 @@ private:
         std::shared_ptr<SpAbstractDeleter> deleter;
     };
 
-    using CopyMapTy = SpMap<const void*, SpCurrentCopy>;
+    using CopyMapTy = std::unordered_map<const void*, SpCurrentCopy>;
     using CopyMapPtrTy = CopyMapTy*;
 
     //! Current speculation group
@@ -417,7 +417,7 @@ private:
     using ExecutionPathSharedPtrTy = std::shared_ptr<small_vector<CopyMapTy>>;
 
     //! Map mapping original addresses to execution paths
-    SpMap<const void*, ExecutionPathSharedPtrTy, 2048> hashMap;
+    std::unordered_map<const void*, ExecutionPathSharedPtrTy> hashMap;
 
     //! Predicate function used to decide if a speculative task and any of its
     //  dependent speculative tasks should be allowed to run
@@ -803,7 +803,7 @@ private:
 
             for(; it != copyMaps.end(); ++it) {
 
-                SpMap<const void*, SpCurrentCopy, 128> l1, l2, l1p;
+                std::unordered_map<const void*, SpCurrentCopy> l1, l2, l1p;
 
                 auto groups = getCorrespondingCopyGroups(*it, std::forward<DataDependencyTupleTy>(dataDepTuple));
                 bool oneGroupDisableOrFailed = false;
@@ -926,7 +926,7 @@ private:
             if constexpr(isPotentialTask) {
                 specGroupNormalTask->setProbability(inProbability);
 
-                SpMap<const void*, SpCurrentCopy, 128> l1p;
+                std::unordered_map<const void*, SpCurrentCopy> l1p;
 
                 currentSpecGroup = specGroupNormalTask.get();
                 if constexpr(SpecModel == SpSpeculativeModel::SP_MODEL_1) {
@@ -1086,7 +1086,7 @@ private:
 
     //! Copy an object and return this related info (the task is created and submited)
     template <class ObjectType>
-    SpCurrentCopy coreCopyCreationCore(SpMap<const void*, SpCurrentCopy, 128>& copyMapToLookInto,
+    SpCurrentCopy coreCopyCreationCore(std::unordered_map<const void*, SpCurrentCopy>& copyMapToLookInto,
                                        const SpTaskActivation initialActivationState,
                                        const SpPriority& inPriority,
                                        ObjectType& objectToCopy) {
@@ -1101,9 +1101,9 @@ private:
         const TargetParamType* sourcePtr = originPtr;
 
         // Use the latest version of the data
-        if(auto found = copyMapToLookInto.find(originPtr) ; found){
-            assert(found.latestAdress);
-            sourcePtr = reinterpret_cast<TargetParamType*>(found.latestAdress);
+        if(auto found = copyMapToLookInto.find(originPtr) ; found != copyMapToLookInto.end()){
+            assert(found->second.latestAdress);
+            sourcePtr = reinterpret_cast<TargetParamType*>(found->second.latestAdress);
         }
 
         if(SpDebug::Controller.isEnable()){
@@ -1140,7 +1140,7 @@ private:
                       const Tuple& args){
         static_assert(N > 0, "coreCopyIfAccess -- You must provide at least one copy map for inspection.");
 
-        SpMap<const void*, SpCurrentCopy, 128> res;
+        std::unordered_map<const void*, SpCurrentCopy> res;
 
         SpUtils::foreach_in_tuple(
             [&, this, initialActivationState](auto&& scalarOrContainerData) {
@@ -1164,7 +1164,7 @@ private:
                         SpDataHandle* h1 = hh[indexHh];
 
                         bool doCopy = false;
-                        SpMap<const void*, SpCurrentCopy, 128>* mPtr = nullptr;
+                        std::unordered_map<const void*, SpCurrentCopy>* mPtr = nullptr;
 
                         if constexpr (copyIfAlreadyDuplicate) { // always copy regardless of the fact that the data might have been previously copied
                             doCopy = true;
@@ -1278,8 +1278,8 @@ private:
                     assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-                    if(auto found = hashMap.find(ptr) ; found){
-                        res.push_back(found);
+                    if(auto found = hashMap.find(ptr); found != hashMap.end()){
+                        res.push_back(found->second);
                     }
 
                     indexHh += 1;
@@ -1371,7 +1371,7 @@ private:
     }
 
     template <class Tuple>
-    void manageReadDuplicate(SpMap<const void*, SpCurrentCopy, 128>& copyMap, Tuple& args){
+    void manageReadDuplicate(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args){
         SpUtils::foreach_in_tuple(
             [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
@@ -1387,8 +1387,8 @@ private:
                         assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-                        if(auto found = copyMap.find(ptr); found
-                                && found.usedInRead){
+                        if(auto found = copyMap.find(ptr); found != copyMap.end()
+                                && found->second.usedInRead){
                                 assert(std::is_copy_assignable<TargetParamType>::value);
 
                                 SpCurrentCopy& cp = found->second;
@@ -1415,7 +1415,7 @@ private:
     }
 
     template <class Tuple>
-    auto getCorrespondingCopyGroups(SpMap<const void*, SpCurrentCopy, 128>& copyMap, Tuple& args){
+    auto getCorrespondingCopyGroups(std::unordered_map<const void*, SpCurrentCopy>& copyMap, Tuple& args){
         small_vector<SpGeneralSpecGroup<SpecModel>*> res;
 
         SpUtils::foreach_in_tuple(
@@ -1429,7 +1429,7 @@ private:
                     assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-                    if(auto found = copyMap.find(ptr); found){
+                    if(auto found = copyMap.find(ptr); found != copyMap.end()){
                         assert(found->second.lastestSpecGroup);
                         res.emplace_back(found->second.lastestSpecGroup);
                     }
@@ -1446,7 +1446,7 @@ private:
     }
 
     template <bool updateIsUniquePtr, class Tuple>
-    void removeAllGeneric(SpMap<const void*, SpCurrentCopy, 128>& copyMapToLookInto, Tuple& args){
+    void removeAllGeneric(std::unordered_map<const void*, SpCurrentCopy>& copyMapToLookInto, Tuple& args){
         SpUtils::foreach_in_tuple(
             [&, this](auto&& scalarOrContainerData) {
                 using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
@@ -1463,7 +1463,7 @@ private:
                         assert(ptr == this->getDataHandleCore(*ptr)->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                         assert(hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>() == ptr);
 
-                        if(auto found = copyMapToLookInto.find(ptr); found){
+                        if(auto found = copyMapToLookInto.find(ptr); found != copyMapToLookInto.end()){
                             assert(std::is_copy_assignable<TargetParamType>::value);
                             SpCurrentCopy& cp = found->second;
                             if(found->second.isUniquePtr.use_count() == 1) {
@@ -1502,12 +1502,12 @@ private:
     }
 
     template <class Tuple>
-    void removeAllCopiesReadFrom(SpMap<const void*, SpCurrentCopy, 128>& copyMapToLookInto, Tuple& args){
+    void removeAllCopiesReadFrom(std::unordered_map<const void*, SpCurrentCopy>& copyMapToLookInto, Tuple& args){
         removeAllGeneric<false>(copyMapToLookInto, args);
     }
 
     template <class Tuple>
-    void removeAllCorrespondingCopies(SpMap<const void*, SpCurrentCopy, 128>& copyMapToLookInto, Tuple& args){
+    void removeAllCorrespondingCopies(std::unordered_map<const void*, SpCurrentCopy>& copyMapToLookInto, Tuple& args){
         removeAllGeneric<true>(copyMapToLookInto, args);
     }
 
