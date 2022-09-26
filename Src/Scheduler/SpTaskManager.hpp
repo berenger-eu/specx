@@ -7,7 +7,6 @@
 
 #include <functional>
 #include <list>
-#include <unordered_map>
 #include <memory>
 #include <unistd.h>
 #include <fstream>
@@ -63,7 +62,9 @@ class SpTaskManager{
         if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
             aTask->takeControl();
             if(aTask->isState(SpTaskState::WAITING_TO_BE_READY)){
-                SpDebugPrint() << "[insertIfReady] Is waiting to be ready, id " << aTask->getId();
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "[insertIfReady] Is waiting to be ready, id " << aTask->getId();
+                }
                 const bool hasCommutativeAccessMode = aTask->hasMode(SpDataAccessMode::COMMUTATIVE_WRITE);
                 if(hasCommutativeAccessMode){
                     mutexCommutative.lock();
@@ -73,7 +74,9 @@ class SpTaskManager{
                     if(hasCommutativeAccessMode){
                         mutexCommutative.unlock();
                     }
-                    SpDebugPrint() << "[insertIfReady] Was not in ready list, id " << aTask->getId();
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "[insertIfReady] Was not in ready list, id " << aTask->getId();
+                    }
 
                     nbReadyTasks++;
 
@@ -82,12 +85,16 @@ class SpTaskManager{
 
 #ifdef SPECX_COMPILE_WITH_MPI
                     if(aTask->isMpiCom()){
-                        SpDebugPrint() << "[insertIfReady] is mpi task " << aTask->getId();
+                        if(SpDebug::Controller.isEnable()){
+                            SpDebugPrint() << "[insertIfReady] is mpi task " << aTask->getId();
+                        }
                         this->preMPITaskExecution(aTask);
                         aTask->executeCore(SpCallableType::CPU);
                     }
                     else{
-                        SpDebugPrint() << "[insertIfReady] is normal task " << aTask->getId();
+                        if(SpDebug::Controller.isEnable()){
+                            SpDebugPrint() << "[insertIfReady] is normal task " << aTask->getId();
+                        }
 #endif
                         auto l = listener.load();
 
@@ -105,7 +112,9 @@ class SpTaskManager{
 #endif
                 }
                 else{
-                    SpDebugPrint() << "[insertIfReady] not ready yet, id " << aTask->getId();
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "[insertIfReady] not ready yet, id " << aTask->getId();
+                    }
                     aTask->releaseControl();
                     if(hasCommutativeAccessMode){
                        mutexCommutative.unlock();
@@ -158,7 +167,9 @@ public:
     void waitAllTasks(){
         {
             std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-            SpDebugPrint() << "Waiting for  " << tasksFinished.size() << " to finish over " << nbPushedTasks << " created tasks";
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "Waiting for  " << tasksFinished.size() << " to finish over " << nbPushedTasks << " created tasks";
+            }
             conditionAllTasksOver.wait(locker, [&](){return static_cast<long int>(tasksFinished.size()) == nbPushedTasks;});
         }
         
@@ -168,7 +179,9 @@ public:
     //! Wait until windowSize or less tasks are pending
     void waitRemain(const long int windowSize){
         std::unique_lock<std::mutex> locker(mutexFinishedTasks);
-        SpDebugPrint() << "Waiting for  " << tasksFinished.size() << " to finish over " << nbPushedTasks << " created tasks";
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "Waiting for  " << tasksFinished.size() << " to finish over " << nbPushedTasks << " created tasks";
+        }
         conditionAllTasksOver.wait(locker, [&](){return nbPushedTasks - static_cast<long int>(tasksFinished.size()) <= windowSize;});
     }
 
@@ -209,7 +222,9 @@ public:
 #include "TaskGraph/SpAbstractTaskGraph.hpp"
 
 inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
-    SpDebugPrint() << "[preTaskExecution] task " << t->getId();
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[preTaskExecution] task " << t->getId();
+    }
 	nbReadyTasks--;
 	nbRunningTasks += 1;
 	t->takeControl();
@@ -234,7 +249,9 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 		}
 	}
 
-	SpDebugPrint() << "Execute task with ID " << t->getId();
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "Execute task with ID " << t->getId();
+    }
 	assert(t->isState(SpTaskState::READY));
 
 	t->setState(SpTaskState::RUNNING);
@@ -242,14 +259,18 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 
 #ifdef SPECX_COMPILE_WITH_MPI
 inline void SpTaskManager::preMPITaskExecution(SpAbstractTask* t) {
-    SpDebugPrint() << "[preMPITaskExecution] task " << t->getId();
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[preMPITaskExecution] task " << t->getId();
+    }
     nbReadyTasks--;
     nbRunningTasks += 1;
     t->takeControl();
 
     t->preTaskExecution(SpCallableType::CPU);
 
-    SpDebugPrint() << "Execute task with ID " << t->getId();
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "Execute task with ID " << t->getId();
+    }
     assert(t->isState(SpTaskState::READY));
 
     t->setState(SpTaskState::RUNNING);
@@ -283,13 +304,18 @@ break;
 	small_vector<SpAbstractTask*> candidates;
 	t->releaseDependences(&candidates);
 
-    SpDebugPrint() << "[postTaskExecution] Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
-	for(auto otherId : candidates){
-        SpDebugPrint() << "[postTaskExecution] Test task id " << otherId->getId();
-		insertIfReady<true>(otherId);
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[postTaskExecution] Proceed candidates from after " << t->getId() << ", they are " << candidates.size();
+    }
+    for(auto otherId : candidates){
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[postTaskExecution] Test task id " << otherId->getId();
+        }
+        insertIfReady<true>(otherId);
 	}
-    SpDebugPrint() << "[postTaskExecution] nbReadyTasks is now " << nbReadyTasks;
-	
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[postTaskExecution] nbReadyTasks is now " << nbReadyTasks;
+    }
 	t->setState(SpTaskState::FINISHED);
 	t->releaseControl();
 	
@@ -330,13 +356,18 @@ inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbst
     small_vector<SpAbstractTask*> candidates;
     t->releaseDependences(&candidates);
 
-    SpDebugPrint() << "[postMPITaskExecution] Proceed candidates from after MPI " << t->getId() << ", they are " << candidates.size();
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[postMPITaskExecution] Proceed candidates from after MPI " << t->getId() << ", they are " << candidates.size();
+    }
     for(auto otherId : candidates){
-        SpDebugPrint() << "Test " << otherId->getId();
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "Test " << otherId->getId();
+        }
         insertIfReady<true>(otherId);
     }
-    SpDebugPrint() << "[postMPITaskExecution] nbReadyTasks is now " << nbReadyTasks;
-
+    if(SpDebug::Controller.isEnable()){
+        SpDebugPrint() << "[postMPITaskExecution] nbReadyTasks is now " << nbReadyTasks;
+    }
     t->setState(SpTaskState::FINISHED);
     t->releaseControl();
 
@@ -358,7 +389,9 @@ inline void SpTaskManager::postMPITaskExecution(SpAbstractTaskGraph& atg, SpAbst
         std::unique_lock<std::mutex> locker(mutexFinishedTasks);
         tasksFinished.emplace_back(t);
 
-        SpDebugPrint() << "[postMPITaskExecution] => task "  << t->getId() << " tasksFinished.size " << tasksFinished.size() << " nbPushedTasks " << nbPushedTasks;
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[postMPITaskExecution] => task "  << t->getId() << " tasksFinished.size " << tasksFinished.size() << " nbPushedTasks " << nbPushedTasks;
+        }
         // We notify conditionAllTasksOver every time because of
         // waitRemain
         conditionAllTasksOver.notify_one();

@@ -9,6 +9,7 @@
 // #cmakedefine SPECX_USE_X
 // @SPECX_X@
 
+#cmakedefine SPECX_USE_DEBUG_PRINT
 #cmakedefine SPECX_COMPILE_WITH_CUDA
 #cmakedefine SPECX_COMPILE_WITH_MPI
 #cmakedefine SPECX_COMPILE_WITH_HIP

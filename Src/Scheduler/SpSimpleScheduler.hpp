@@ -5,23 +5,22 @@
 #ifndef SPSCHEDULER_HPP
 #define SPSCHEDULER_HPP
 
-#include <list>
+#include <atomic>
 
 #include "Task/SpAbstractTask.hpp"
 #include "Task/SpPriority.hpp"
+#include "Utils/small_vector.hpp"
+#include "Speculation/SpSpeculativeModel.hpp"
+#include "Compute/SpWorker.hpp"
 
 
 //! The runtime is the main component of specx.
 class SpSimpleScheduler{
-    //! To protect the tasksReady list
-    mutable std::mutex mutexReadyTasks;
-    //! Contains the tasks that can be executed
-    std::list<SpAbstractTask*> tasksReady;
-    
+    std::atomic<SpAbstractTask*> tasksReady;
     std::atomic<int> nbReadyTasks;
 
 public:
-    explicit SpSimpleScheduler() : mutexReadyTasks(), tasksReady(), nbReadyTasks(0) {
+    explicit SpSimpleScheduler() : tasksReady(nullptr), nbReadyTasks(0) {
     }
 
     // No copy or move
@@ -30,28 +29,53 @@ public:
     SpSimpleScheduler& operator=(const SpSimpleScheduler&) = delete;
     SpSimpleScheduler& operator=(SpSimpleScheduler&&) = delete;
 
-    int getNbTasks() const{
-        return nbReadyTasks;
+    int getNbReadyTasksForWorkerType(const SpWorker::SpWorkerType wt) const{
+        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+            return nbReadyTasks;
+        }
+
+        return 0;
     }
 
     int push(SpAbstractTask* newTask){
-        std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        nbReadyTasks++;
-        tasksReady.push_back(newTask);
+        int cpt = nbReadyTasks;
+        while(!nbReadyTasks.compare_exchange_strong(cpt, cpt+1)){
+        }
+        SpAbstractTask* expectedTask = tasksReady;
+        newTask->getPtrNextList() = expectedTask;
+        while(!tasksReady.compare_exchange_strong(expectedTask, newTask)){
+            newTask->getPtrNextList() = expectedTask;
+        }
         return 1;
     }
 
-    SpAbstractTask* pop(){
-        std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        if(tasksReady.size()){
-            nbReadyTasks--;
-            SpAbstractTask* newTask = tasksReady.back();
-            tasksReady.pop_back();
-            return newTask;
+    int pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
+        for(auto tk : tasks){
+            push(tk);
         }
-        else{
-            return nullptr;
+        return int(tasks.size());
+    }
+
+    SpAbstractTask* popForWorkerType(const SpWorker::SpWorkerType wt){
+        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+            while(true){
+                int ticket = nbReadyTasks;
+                if(ticket == 0){
+                    return nullptr;
+                }
+                if(nbReadyTasks.compare_exchange_strong(ticket, ticket-1)){
+                    SpAbstractTask* task = tasksReady;
+                    while(task == nullptr || !tasksReady.compare_exchange_strong(task, task->getPtrNextList())){
+                        if(task == nullptr){
+                            task = tasksReady;
+                        }
+                    }
+                    task->getPtrNextList() = nullptr;
+                    return task;
+                }
+            }
         }
+        return nullptr;
     }
 };
 

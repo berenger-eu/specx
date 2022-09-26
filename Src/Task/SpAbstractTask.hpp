@@ -63,9 +63,6 @@ class SpAbstractTask{
     //! Current state of the task
     std::atomic<SpTaskState> currentState;
 
-    //! Task name
-    std::string taskName;
-
     //! When the task has been created (construction time)
     SpTimePoint creationTime;
     //! When a task has been ready
@@ -89,9 +86,12 @@ class SpAbstractTask{
     
     SpAbstractTaskGraph* const atg;
 
+    mutable std::atomic<SpAbstractTask*> ptrNextList;
+
     #ifdef SPECX_COMPILE_WITH_MPI
     bool isMpiTaskCom;
 #endif
+
 protected:
     static void SetCurrentTask(SpAbstractTask* inCurrentTask);
 public:
@@ -105,7 +105,8 @@ public:
                                isEnabled(initialAtivationState),
                                specTaskGroup(nullptr),
                                originalTask(nullptr),
-                               atg(inAtg)
+                               atg(inAtg),
+                               ptrNextList(nullptr)
                          #ifdef SPECX_COMPILE_WITH_MPI
                              ,isMpiTaskCom(false)
     #endif
@@ -138,6 +139,8 @@ public:
     virtual void executeCallback() = 0;
     virtual bool hasCallableOfType(const SpCallableType sct) const = 0;
     virtual std::string getTaskBodyString() = 0;
+    virtual std::string coreGetTaskName() const = 0;
+    virtual void setTaskName(std::string inName) = 0;
 
     void useDependences() {
         useDependences(nullptr);
@@ -227,15 +230,11 @@ public:
     // Not const ref because of the original name build on the fly
     std::string getTaskName() const{
         if(originalTask){
-            return originalTask->taskName + "'";
+            return originalTask->coreGetTaskName() + "'";
         }
         else{
-            return taskName;
+            return coreGetTaskName();
         }
-    }
-
-    void setTaskName(const std::string& inTaskName){
-        taskName = inTaskName;
     }
 
     const SpTimePoint& getCreationTime() const{
@@ -302,6 +301,14 @@ public:
         isMpiTaskCom = inIsMpiCom;
     }
 #endif
+
+
+    std::atomic<SpAbstractTask*>& getPtrNextList(){
+        return ptrNextList;
+    }
+    std::atomic<SpAbstractTask*>& getPtrNextList() const {
+        return ptrNextList;
+    }
 };
 
 

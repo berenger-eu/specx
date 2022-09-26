@@ -4,7 +4,6 @@
 #include <functional>
 #include <list>
 #include <map>
-#include <unordered_map>
 #include <memory>
 #include <unistd.h>
 #include <cmath>
@@ -13,6 +12,7 @@
 
 #include "Config/SpConfig.hpp"
 #include "Utils/SpUtils.hpp"
+#include "Utils/SpMap.hpp"
 #include "Task/SpAbstractTask.hpp"
 #include "Task/SpTask.hpp"
 #include "Data/SpDependence.hpp"
@@ -39,7 +39,7 @@ template <const bool isSpeculativeTaskGraph>
 class SpTaskGraphCommon : public SpAbstractTaskGraph {
 protected:
     //! Map of all data handles
-    std::unordered_map<void*, std::unique_ptr<SpDataHandle>> allDataHandles;
+    SpMap<void*, std::unique_ptr<SpDataHandle>, 2048> allDataHandles;
 
     ///////////////////////////////////////////////////////////////////////////
     /// Data handle management
@@ -48,20 +48,25 @@ protected:
     template <class ParamsType>
     SpDataHandle* getDataHandleCore(ParamsType& inParam){
         auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
-        if(iterHandleFound == allDataHandles.end()){
-            SpDebugPrint() << "SpTaskGraph -- => Not found";
+        if(bool(iterHandleFound) == false){
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "SpTaskGraph -- => Not found";
+            }
             // Create a new data handle
             auto newHandle = std::make_unique<SpDataHandle>(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
             // Save the ptr
             SpDataHandle* newHandlePtr = newHandle.get();
             // Move in the map
-            allDataHandles[const_cast<std::remove_const_t<ParamsType>*>(&inParam)] = std::move(newHandle);
+            allDataHandles.add(const_cast<std::remove_const_t<ParamsType>*>(&inParam), std::move(newHandle));
             // Return the ptr
             return newHandlePtr;
         }
-        SpDebugPrint() << "SpTaskGraph -- => Found";
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- => Found";
+        }
         // Exists, return the pointer
-        return iterHandleFound->second.get();
+        assert(iterHandleFound.value().get().get());
+        return iterHandleFound.value().get().get();
     }
 
     template <class ParamsType>
@@ -69,8 +74,10 @@ protected:
     getDataHandle(ParamsType& scalarData){
         static_assert(std::tuple_size<decltype(scalarData.getAllData())>::value, "Size must be one for scalar");
         typename ParamsType::HandleTypePtr ptrToObject = scalarData.getAllData()[0];
-        SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with mode provided " << SpModeToStr(ParamsType::AccessMode)
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with mode provided " << SpModeToStr(ParamsType::AccessMode)
                        << " scalarData address " << &scalarData;
+        }
         return small_vector<SpDataHandle*, 1>{getDataHandleCore(*ptrToObject)};
     }
 
@@ -79,8 +86,11 @@ protected:
     getDataHandle(ParamsType& containerData){
         small_vector<SpDataHandle*> handles;
         for(typename ParamsType::HandleTypePtr ptrToObject : containerData.getAllData()){
-            SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with array view in getDataHandleExtra";
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "SpTaskGraph -- Look for " << ptrToObject << " with array view in getDataHandleExtra";
+            }
             SpDataHandle* handle = getDataHandleCore(*ptrToObject);
+            assert(handle);
             handles.emplace_back(handle);
         }
         return handles;
@@ -479,7 +489,9 @@ private:
                     }
 
                     if(!foundAddressInCopies) {
-                        SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
+                        if(SpDebug::Controller.isEnable()){
+                            SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
+                        }
                     }
 
                     const long int handleKey = h->addDependence(aTask, accessMode);
@@ -523,8 +535,9 @@ private:
              std::size_t N, typename... T>
     auto coreTaskCreationAux(const SpTaskActivation inActivation, const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple,
                              CallableTupleTy& callableTuple, [[maybe_unused]] const std::array<CopyMapPtrTy, N>& copyMapsToLookInto, T... additionalArgs){
-        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
-
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
+        }
         auto createCopyTupleFunc =
         [](auto& tupleOfRefs) {
             return [&tupleOfRefs]() {
@@ -581,8 +594,9 @@ private:
 
         aTask->releaseControl();
 
-        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
-
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
+        }
         // Push to the scheduler
         this->scheduler.addNewTask(aTask);
 
@@ -1092,14 +1106,18 @@ private:
             sourcePtr = reinterpret_cast<TargetParamType*>(found->second.latestAdress);
         }
 
-        SpDebugPrint() << "SpTaskGraph -- coreCopyCreationCore -- setup copy from " << sourcePtr << " to " << &ptr;
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- coreCopyCreationCore -- setup copy from " << sourcePtr << " to " << &ptr;
+        }
         SpAbstractTaskWithReturn<void>::SpTaskViewer taskView = taskInternal(std::array<CopyMapPtrTy, 1>{std::addressof(copyMapToLookInto)},
                                                                             initialActivationState,
                                                                             inPriority,
                                                                             SpWrite(*ptr),
                                                                             SpRead(*sourcePtr),
                                                                             [](TargetParamType& output, const TargetParamType& input){
-                SpDebugPrint() << "SpTaskGraph -- coreCopyCreationCore -- execute copy from " << &input << " to " << &output;
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "SpTaskGraph -- coreCopyCreationCore -- execute copy from " << &input << " to " << &output;
+                }
                 output = input;
         });
 
@@ -1556,8 +1574,9 @@ private:
     ///////////////////////////////////////////////////////////////////////////
 
     void thisTaskIsReady(SpAbstractTask* aTask, const bool isNotCalledInAContextOfTaskCreation) final {
-        SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- will test ";
-
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- will test ";
+        }
         if(isNotCalledInAContextOfTaskCreation){
             specGroupMutex.lock();
         }
@@ -1567,7 +1586,9 @@ private:
         if(specGroup && specGroup->isSpeculationNotSet()){
             if(specFormula){
                 if(specFormula(this->scheduler.getNbReadyTasks(), specGroup->getAllProbability())){
-                    SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
+                    }
                     specGroup->setSpeculationActivation(true);
                 }
                 else{
@@ -1575,7 +1596,9 @@ private:
                 }
             }
             else if(this->scheduler.getNbReadyTasks() == 0){
-                SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "SpTaskGraph -- thisTaskIsReady -- enableSpeculation ";
+                }
                 specGroup->setSpeculationActivation(true);
             }
             else{
@@ -1664,8 +1687,9 @@ private:
                     assert(ptr == hh[indexHh]->template castPtr<typename ScalarOrContainerType::RawHandleType>());
                     SpDataHandle* h = hh[indexHh];
 
-                    SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
-
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "accessMode in runtime to add dependence -- => " << SpModeToStr(accessMode);
+                    }
                     const long int handleKey = h->addDependence(aTask, accessMode);
                     if(indexHh == 0){
                         aTask->template setDataHandle<index>(h, handleKey);
@@ -1701,8 +1725,9 @@ private:
 
     template <class DataDependencyTupleTy, class CallableTupleTy>
     auto coreTaskCreation(const SpPriority& inPriority, DataDependencyTupleTy& dataDepTuple, CallableTupleTy& callableTuple) {
-        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
-
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- coreTaskCreation";
+        }
         auto createCopyTupleFunc =
         [](auto& tupleOfRefs) {
             return [&tupleOfRefs]() {
@@ -1753,10 +1778,12 @@ private:
 
         aTask->releaseControl();
 
-        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " of id " << aTask->getId();
 #ifdef SPECX_COMPILE_WITH_MPI
-        SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " is mpi " << (currentTaskIsMpiCom?"TRUE":"FALSE");
+            SpDebugPrint() << "SpTaskGraph -- coreTaskCreation => " << aTask << " is mpi " << (currentTaskIsMpiCom?"TRUE":"FALSE");
 #endif
+        }
 
         // Push to the scheduler
         this->scheduler.addNewTask(aTask);

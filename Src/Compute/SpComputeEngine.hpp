@@ -10,6 +10,7 @@
 
 #include "Compute/SpWorker.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
+#include "Scheduler/SpSimpleScheduler.hpp"
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
 #include "Scheduler/SpHeterogeneousPrioScheduler.hpp"
 #endif
@@ -31,7 +32,7 @@ private:
 #elif defined(SPECX_COMPILE_WITH_HIP)
     std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
 #else
-    SpPrioScheduler prioSched;
+    SpSimpleScheduler prioSched;
 #endif
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
@@ -48,6 +49,7 @@ private:
     long int totalNbHipWorkers;
     #endif
     bool hasBeenStopped;
+    std::atomic<long int> nbWaitingWorkers;
 
 private:
     
@@ -236,7 +238,8 @@ public:
   #ifdef SPECX_COMPILE_WITH_HIP
   nbAvailableHipWorkers(0), totalNbHipWorkers(0),
 #endif
-      hasBeenStopped(false) {
+      hasBeenStopped(false),
+      nbWaitingWorkers(0){
         addWorkers(std::move(inWorkers));
     }
     
@@ -279,10 +282,12 @@ public:
     void stopIfNotAlreadyStopped();
     
     void wakeUpWaitingWorkers() {
-        {
-            std::unique_lock<std::mutex> ceLock(ceMutex);
+        if(nbWaitingWorkers.load(std::memory_order_acquire)){
+            {
+                std::unique_lock<std::mutex> ceLock(ceMutex);
+            }
+            ceCondVar.notify_all();
         }
-        ceCondVar.notify_all();
     }
 };
 

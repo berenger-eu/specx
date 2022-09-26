@@ -37,9 +37,10 @@ class SpMpiBackgroundWorker {
     /// Interface to mpi isend
     template <class ObjectType>
     static MPI_Request Isend(const ObjectType data[], const int nbElements, const int dest, const int tag, const MPI_Comm inCom){
-        SpDebugPrint() << "[SpMpiUtils::Isend] => nbElements " << nbElements << " dest " << dest
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiUtils::Isend] => nbElements " << nbElements << " dest " << dest
                        << " tag " << tag;
-
+        }
         MPI_Request request;
         SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>::type, dest,
                               tag,
@@ -50,9 +51,10 @@ class SpMpiBackgroundWorker {
     /// Interface to mpi irecv
     template <class ObjectType>
     static MPI_Request Irecv(ObjectType data[], const int nbElements, const int src, const int tag, const MPI_Comm inCom){
-        SpDebugPrint() << "[SpMpiUtils::Irecv] => nbElements " << nbElements << " src " << src
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiUtils::Irecv] => nbElements " << nbElements << " src " << src
                        << " tag " << tag;
-
+        }
         MPI_Request request;
         SpAssertMpi(MPI_Irecv(data, nbElements, SpGetMpiType<ObjectType>::type, src,
                               tag,

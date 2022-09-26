@@ -45,12 +45,9 @@ private:
 #endif // SPECX_COMPILE_WITH_CUDA
     //! Lock the data
     std::mutex handleLock;
-    
-    //! Original data type name
-    const std::string datatypeName;
 
     //! All the dependences on the current data
-    small_vector<SpDependence> dependencesOnData;
+    small_vector<SpDependence, 4> dependencesOnData;
 
     //! To ensure safe access to the dependencesOnData vector
     mutable std::mutex mutexDependences;
@@ -72,8 +69,12 @@ public:
           deviceDataOp(new SpDeviceDataCopier<DataType, SpHipManager::SpHipMemManager>()),
           cpuDataOk(true),
       #endif
-          datatypeName(typeid(DataType).name()), dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
-        SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
+        dependencesOnData(), mutexDependences(), currentDependenceCursor(0){
+
+        if(SpDebug::Controller.isEnable()){
+            const std::string datatypeName(typeid(DataType).name());
+            SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
+        }
     }
     
     //! Cannot be copied or moved
@@ -241,8 +242,10 @@ public:
     bool canBeUsedByTask(const SpAbstractTask* inTask, const long int inDependenceIdx) const {
         std::unique_lock<std::mutex> lock(mutexDependences);
         assert(inDependenceIdx < static_cast<long int>(dependencesOnData.size()));
-        SpDebugPrint() << "[SpDataHandle] " << this << " canBeUsedByTask inDependenceIdx " << inDependenceIdx << " currentDependenceCursor " << currentDependenceCursor
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpDataHandle] " << this << " canBeUsedByTask inDependenceIdx " << inDependenceIdx << " currentDependenceCursor " << currentDependenceCursor
                        << " mode " << SpModeToStr(dependencesOnData[inDependenceIdx].getMode()) << " address " << ptrToData;
+        }
         assert(currentDependenceCursor <= inDependenceIdx);
         // Return true if current execution cursor is set to the dependence and that dependence return true to canBeUsedByTask
         if(inDependenceIdx == currentDependenceCursor && dependencesOnData[inDependenceIdx].canBeUsedByTask(inTask)){
@@ -255,8 +258,10 @@ public:
     //! canBeUsedByTask must be true for the same parameter
     void setUsedByTask(SpAbstractTask* inTask, const long int inDependenceIdx){
         assert(canBeUsedByTask(inTask, inDependenceIdx));
-        SpDebugPrint() << "[SpDataHandle] " << this << " setUsedByTask inDependenceIdx " << inDependenceIdx << " currentDependenceCursor " << currentDependenceCursor
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpDataHandle] " << this << " setUsedByTask inDependenceIdx " << inDependenceIdx << " currentDependenceCursor " << currentDependenceCursor
                        << " mode " << SpModeToStr(dependencesOnData[inDependenceIdx].getMode()) << " address " << ptrToData;
+        }
         std::unique_lock<std::mutex> lock(mutexDependences);
         dependencesOnData[inDependenceIdx].setUsedByTask(inTask);
     }
@@ -268,8 +273,9 @@ public:
     bool releaseByTask(SpAbstractTask* inTask, const long int inDependenceIdx){
         std::unique_lock<std::mutex> lock(mutexDependences);
         assert(inDependenceIdx == currentDependenceCursor);
-        SpDebugPrint() << "[SpDataHandle] " << this << " releaseByTask " << inTask << " inDependenceIdx " << inDependenceIdx << " address " << ptrToData;
-        
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpDataHandle] " << this << " releaseByTask " << inTask << " inDependenceIdx " << inDependenceIdx << " address " << ptrToData;
+        }
         // Release memory access request on dependency slot. As a return value we get a boolean flag
         // telling us if there are still any unfulfilled memory access requests registered on the dependency slot.
         const bool thereStillAreUnfulfilledMemoryAccessRequestsOnTheDependencySlot = dependencesOnData[inDependenceIdx].releaseByTask(inTask);
@@ -282,8 +288,9 @@ public:
             currentDependenceCursor += 1;
             
             // Mask as available
-            SpDebugPrint() << "[SpDataHandle] releaseByTask isOver dependencesOnData true currentDependenceCursor " << currentDependenceCursor << " dependencesOnData.size() " << dependencesOnData.size();
-            
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "[SpDataHandle] releaseByTask isOver dependencesOnData true currentDependenceCursor " << currentDependenceCursor << " dependencesOnData.size() " << dependencesOnData.size();
+            }
             // Return true if we still have not fulfilled all memory access requests on the data handle  
             return (currentDependenceCursor != static_cast<long int>(dependencesOnData.size()));
             

@@ -161,6 +161,21 @@ namespace SpUtils{
     template <typename T, template <typename T2> class Test>
     struct detect<T, Test, std::void_t<Test<T>>> : std::true_type {};
     
+
+    template<class T> struct is_stdvector : public std::false_type {};
+
+    template<class T, class Alloc>
+    struct is_stdvector<std::vector<T, Alloc>> : public std::true_type {
+        using _T = T;
+    };
+
+
+    template<class T> struct is_unique_ptr : public std::false_type {};
+
+    template<class T, class Deleter>
+    struct is_unique_ptr<std::unique_ptr<T, Deleter>> : public std::true_type {
+        using _T = T;
+    };
 }
 
 #define specx_xstr(s) specx_str(s)

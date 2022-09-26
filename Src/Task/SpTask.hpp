@@ -70,6 +70,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     //! Callables
     CallableTupleTy callables;
 
+    //! Name
+    mutable std::unique_ptr<std::string> name;
+
     ///////////////////////////////////////////////////////////////////////////////
     /// Methods to call the task function with a conversion from handle to data
     ///////////////////////////////////////////////////////////////////////////////
@@ -320,22 +323,33 @@ public:
         ((void) t, ...);
         std::fill_n(dataHandles.data(), NbParams, nullptr);
         std::fill_n(dataHandlesKeys.data(), NbParams, UndefinedKey());
+    }
 
+    std::string coreGetTaskName() const final{
+        if(!name){
+            std::string cmpName;
 #ifdef __GNUG__
-        // if GCC then we ask for a clean type as default task name
-        int status;
-        char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
-        if(status == 0){
-            assert(demangledName);
-            Parent::setTaskName(demangledName);
-        }
-        else{
-            Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
-        }
-        free(demangledName);
+            // if GCC then we ask for a clean type as default task name
+            int status;
+            char *demangledName = abi::__cxa_demangle(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name(), 0, 0, &status);
+            if(status == 0){
+                assert(demangledName);
+                cmpName = (demangledName);
+            }
+            else{
+                cmpName = (typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
+            }
+            free(demangledName);
 #else
-        Parent::setTaskName(typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
+            cmpName = (typeid(std::remove_reference_t<decltype(std::get<0>(callables))>).name());
 #endif
+            name.reset(new std::string(std::move(cmpName)));
+        }
+        return *name;
+    }
+
+    void setTaskName(std::string inName) final{
+        name.reset(new std::string(std::move(inName)));
     }
 
     DataDependencyTupleTy& getDataDependencyTupleRef() {
@@ -346,7 +360,9 @@ public:
     template <long int HandleIdx>
     void setDataHandle(SpDataHandle* inData, const long int inHandleKey){
         static_assert(HandleIdx < NbParams, "Cannot set more handle the NbParams");
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " setDataHandle " <<  HandleIdx << " at " << inData;
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " setDataHandle " <<  HandleIdx << " at " << inData;
+        }
         assert(dataHandles[HandleIdx] == nullptr);
         dataHandles[HandleIdx] = inData;
         dataHandlesKeys[HandleIdx] = inHandleKey;
@@ -355,7 +371,9 @@ public:
     //! Add a dependence (extra), can be done at runtime
     template <long int HandleIdx>
     void addDataHandleExtra(SpDataHandle* inData, const long int inHandleKey){
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " addDataHandleExtra at " << inData;
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " addDataHandleExtra at " << inData;
+        }
         assert(dataHandles[HandleIdx] != nullptr);
         dataHandlesExtra.emplace_back(inData);
         dataHandlesKeysExtra.emplace_back(inHandleKey);
@@ -381,8 +399,10 @@ public:
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
             if(dataHandles[idxDeps]->canBeUsedByTask(this, dataHandlesKeys[idxDeps]) == false){
-                SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady FALSE, at index " << idxDeps << " " << dataHandles[idxDeps]
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady FALSE, at index " << idxDeps << " " << dataHandles[idxDeps]
                                   << " address " << dataHandles[idxDeps]->template castPtr<int>() << "\n";
+                }
                 return false;
             }
             SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady TRUE, at index " << idxDeps << " " << dataHandles[idxDeps] << "\n";
@@ -390,34 +410,44 @@ public:
         if(dataHandlesExtra.size()){
             for(long int idxDeps = 0 ; idxDeps < static_cast<long int>(dataHandlesExtra.size()) ; ++idxDeps){
                 if(dataHandlesExtra[idxDeps]->canBeUsedByTask(this, dataHandlesKeysExtra[idxDeps]) == false){
-                SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady FALSE, at index extra " << idxDeps << " " << dataHandlesExtra[idxDeps]
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady FALSE, at index extra " << idxDeps << " " << dataHandlesExtra[idxDeps]
                                   << " address " << dataHandlesExtra[idxDeps]->template castPtr<int>() << "\n";
+                    }
                     return false;
                 }
             }
         }
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady TRUE";
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " dependencesAreReady TRUE";
+        }
         return true;
     }
 
     //! Tell the dependences that they are used by the current task
     void useDependences(std::unordered_set<SpDataHandle*>* exceptionList) final{
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences";
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences";
+        }
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
             if((exceptionList == nullptr || exceptionList->find(dataHandles[idxDeps]) == exceptionList->end())){
                 dataHandles[idxDeps]->setUsedByTask(this, dataHandlesKeys[idxDeps]);
-                SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences at index " << idxDeps << " " << dataHandles[idxDeps]
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences at index " << idxDeps << " " << dataHandles[idxDeps]
                                   << " address " << dataHandles[idxDeps]->template castPtr<int>() << "\n";
+                }
             }
         }
         if(dataHandlesExtra.size()){
             for(long int idxDeps = 0 ; idxDeps < static_cast<long int>(dataHandlesExtra.size()) ; ++idxDeps){
                 if( exceptionList == nullptr || exceptionList->find(dataHandles[idxDeps]) == exceptionList->end()){
                     dataHandlesExtra[idxDeps]->setUsedByTask(this, dataHandlesKeysExtra[idxDeps]);
-                    SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences at index " << idxDeps << " " << dataHandlesExtra[idxDeps]
+                    if(SpDebug::Controller.isEnable()){
+                        SpDebugPrint() << "SpTask -- " << Parent::getId() << " useDependences at index " << idxDeps << " " << dataHandlesExtra[idxDeps]
                                       << " address " << dataHandlesExtra[idxDeps]->template castPtr<int>() << "\n";
+                    }
                 }
             }
         }
@@ -434,20 +464,26 @@ public:
         // requests.
         std::array<bool, NbParams> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles;
         small_vector<bool> curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra(dataHandlesExtra.size());
-        
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences";
+
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences";
+        }
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());
             curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandles[idxDeps] = dataHandles[idxDeps]->releaseByTask(this, dataHandlesKeys[idxDeps]);
-            SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandles[idxDeps]
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandles[idxDeps]
                               << " address " << dataHandles[idxDeps]->template castPtr<int>() << "\n";
+            }
         }
         if(dataHandlesExtra.size()){
             for(long int idxDeps = 0 ; idxDeps < static_cast<long int>(dataHandlesExtra.size()) ; ++idxDeps){
                 curPoinToDepSlotContainsAnyUnfulMemoryAccReqDataHandlesExtra[idxDeps] = dataHandlesExtra[idxDeps]->releaseByTask(this, dataHandlesKeysExtra[idxDeps]);
-                SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandlesExtra[idxDeps]
+                if(SpDebug::Controller.isEnable()){
+                    SpDebugPrint() << "SpTask -- " << Parent::getId() << " releaseDependences FALSE, at index " << idxDeps << " " << dataHandlesExtra[idxDeps]
                                   << " address " << dataHandlesExtra[idxDeps]->template castPtr<int>();
+                }
             }
         }
 
@@ -497,7 +533,9 @@ public:
 
     //! Return true if at least one dependence is in mode inMode
     bool hasMode(const SpDataAccessMode inMode) const final{
-        SpDebugPrint() << "SpTask -- " << Parent::getId() << " hasMode";
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "SpTask -- " << Parent::getId() << " hasMode";
+        }
         for(long int idxDeps = 0 ; idxDeps < NbParams ; ++idxDeps){
             assert(dataHandles[idxDeps]);
             assert(dataHandlesKeys[idxDeps] != UndefinedKey());

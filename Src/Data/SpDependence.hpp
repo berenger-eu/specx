@@ -24,7 +24,7 @@ class SpDependence{
     //! Id of task if it is a write mode
     SpAbstractTask* idTaskWrite;
     //! Ids of all tasks for all other modes (that are concurent safe)
-    small_vector<SpAbstractTask*> idTasksMultiple;
+    small_vector<SpAbstractTask*, 4> idTasksMultiple;
 
     //! Number of tasks that use and have used the data
     long int nbTasksInUsed;
@@ -34,7 +34,9 @@ class SpDependence{
 public:
     explicit SpDependence(SpAbstractTask* inFirstTaskId, const SpDataAccessMode inMode)
         : accessMode(inMode) ,idTaskWrite(nullptr),  nbTasksInUsed(0) , nbTasksReleased(0){
-        SpDebugPrint() << "[SpDependence] => " << inFirstTaskId << " mode " << SpModeToStr(inMode);
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpDependence] => " << inFirstTaskId << " mode " << SpModeToStr(inMode);
+        }
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             idTaskWrite = inFirstTaskId;
         }
@@ -66,7 +68,9 @@ public:
         SpDebugPrint() << "[SpDependence]canBeUsedByTask " << useTaskId;
         if(accessMode == SpDataAccessMode::WRITE || accessMode == SpDataAccessMode::POTENTIAL_WRITE){
             // If it is write
-            SpDebugPrint() << "[SpDependence]Is in write, next task is " << idTaskWrite;
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "[SpDependence]Is in write, next task is " << idTaskWrite;
+            }
             // Must not have been already used
             assert(nbTasksInUsed == 0);
             // The task id must be the one register
@@ -81,9 +85,11 @@ public:
             assert(nbTasksInUsed-nbTasksReleased >= 0 && nbTasksInUsed-nbTasksReleased <= 1);
             // The given task must exist in the list
             assert(std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
-            SpDebugPrint() << "[SpDependence]Is in commute, test existence among " << idTasksMultiple.size() << " tasks";
-            SpDebugPrint() << "[SpDependence]Found " << (std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
-            SpDebugPrint() << "[SpDependence]nbTasksInUsed " << nbTasksInUsed << " nbTasksReleased " << nbTasksReleased;
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "[SpDependence]Is in commute, test existence among " << idTasksMultiple.size() << " tasks";
+                SpDebugPrint() << "[SpDependence]Found " << (std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
+                SpDebugPrint() << "[SpDependence]nbTasksInUsed " << nbTasksInUsed << " nbTasksReleased " << nbTasksReleased;
+            }
             // Return true if no task uses the data
             return nbTasksInUsed-nbTasksReleased == 0;
         }
@@ -93,8 +99,10 @@ public:
             assert(nbTasksInUsed < static_cast<long int>(idTasksMultiple.size()));
             // The given task must exist in the list
             assert(std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
-            SpDebugPrint() << "[SpDependence]Is not in commutative and not in write, test existence among " << idTasksMultiple.size() << " tasks";
-            SpDebugPrint() << "[SpDependence]Found " << (std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
+            if(SpDebug::Controller.isEnable()){
+                SpDebugPrint() << "[SpDependence]Is not in commutative and not in write, test existence among " << idTasksMultiple.size() << " tasks";
+                SpDebugPrint() << "[SpDependence]Found " << (std::find(idTasksMultiple.begin(), idTasksMultiple.end(), useTaskId) != idTasksMultiple.end());
+            }
             return true;
         }
     }
