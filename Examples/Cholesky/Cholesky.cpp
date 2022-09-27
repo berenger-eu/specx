@@ -6,11 +6,8 @@
 #include <memory>
 #include <limits>
 
-#include "Utils/SpModes.hpp"
 #include "Utils/SpUtils.hpp"
-
-#include "Tasks/SpTask.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 
 #include "CholeskyFunctionsWrapper.hpp"
@@ -42,6 +39,20 @@ std::unique_ptr<double[]> generatePositiveDefinitMatrix(const int inMatrixDim){
 
     for(int idxDiag = 0 ; idxDiag < inMatrixDim ; ++idxDiag){
         matrix[idxDiag*inMatrixDim+idxDiag] += inMatrixDim;
+    }
+
+    return matrix;
+}
+
+std::unique_ptr<double[]> generateMatrixLikeStarpu(const int inMatrixDim){
+    std::unique_ptr<double[]> matrix(new double[inMatrixDim*inMatrixDim]());
+
+    srand48(0);
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            matrix[idxCol*inMatrixDim+idxRow] = (1.0/double(1+idxRow+idxCol)) + ((idxRow == idxCol)?double(inMatrixDim):0.0);
+        }
     }
 
     return matrix;
@@ -172,7 +183,7 @@ void choleskyFactorization(Block blocks[], const int inMatrixDim, const int inBl
 
             for(int m = k+1 ; m < nbBlocks ; ++m){
                 // GEMM( R A(m, k), R A(n, k), RW A(m, n))
-                runtime.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
+                runtime.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[m*nbBlocks+n]),
                         [inBlockDim](const Block& blockA, const Block& blockB, Block& blockC){
                     Cholesky::gemm( Cholesky::Transa::NORMAL, Cholesky::Transa::TRANSPOSE,
                                     inBlockDim, inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
@@ -189,11 +200,11 @@ void choleskyFactorization(Block blocks[], const int inMatrixDim, const int inBl
 }
 
 int main(){
-    const int MatrixSize = 4;
+    const int MatrixSize = 16;
     const int BlockSize = 2;
-    const bool printValues = (MatrixSize <= 12);
+    const bool printValues = (MatrixSize <= 16);
     /////////////////////////////////////////////////////////
-    auto matrix = generatePositiveDefinitMatrix(MatrixSize);
+    auto matrix = generateMatrixLikeStarpu(MatrixSize);// generatePositiveDefinitMatrix(MatrixSize);
     if(printValues){
         std::cout << "Matrix:\n";
         printMatrix(matrix.get(), MatrixSize);

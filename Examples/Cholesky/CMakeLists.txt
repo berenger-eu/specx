@@ -1,18 +1,18 @@
 ###########################################################################
-# SPETABARU - Berenger Bramas MPCDF - 2016
+# SPECX - Berenger Bramas MPCDF - 2016
 # Under LGPL Licence, please you must read the LICENCE file.
 ###########################################################################
-project(PATTERNS_SPETABARU CXX)
+project(CHOLESKY_SPECX CXX)
 
-ADD_DEFINITIONS(${SPETABARU_CXX_FLAGS})
+ADD_DEFINITIONS(${SPECX_CXX_FLAGS})
 
 
-if(SPETABARU_BUILD_EXAMPLES)
-    OPTION( SPETABARU_BUILD_CHOLESKY_EXAMPLES  "Set to ON to build cholesky example" ON )
+if(SPECX_BUILD_EXAMPLES)
+    OPTION( SPECX_BUILD_CHOLESKY_EXAMPLES  "Set to ON to build cholesky example" ON )
 
-    if(SPETABARU_BUILD_CHOLESKY_EXAMPLES)
+    if(SPECX_BUILD_CHOLESKY_EXAMPLES)
         if($ENV{VERBOSE})
-            MESSAGE(STATUS "Examples -- SPETABARU_CXX_FLAGS   : ${SPETABARU_CXX_FLAGS}")
+            MESSAGE(STATUS "Examples -- SPECX_CXX_FLAGS   : ${SPECX_CXX_FLAGS}")
         endif()
 
         # Find all code files
@@ -25,8 +25,8 @@ if(SPETABARU_BUILD_EXAMPLES)
 
         # Adding the project sources dir as an include dir
         INCLUDE_DIRECTORIES(
-             ${SPETABARU_BINARY_DIR}/Src    
-             ${SPETABARU_SOURCE_DIR}/Src
+             ${SPECX_BINARY_DIR}/Src    
+             ${SPECX_SOURCE_DIR}/Src
         )
 
         LINK_DIRECTORIES(
@@ -54,8 +54,8 @@ if(SPETABARU_BUILD_EXAMPLES)
             )
             target_link_libraries(
                 ${execname}
-                spetabaru
-	            ${SPETABARU_LIBRARIES}
+                specx
+	            ${SPECX_LIBRARIES}
                 "-llapack -lblas"
                 ) 
         endforeach(exec)
