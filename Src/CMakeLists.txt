@@ -15,7 +15,7 @@ INCLUDE_DIRECTORIES(
 INSTALL(DIRECTORY ./ DESTINATION include/ )
 
 if(SPECX_DO_INSTALL)
-    INSTALL( FILES "${SPECX_BINARY_DIR}/Src/SPECXConfig.h" DESTINATION include/Src )
+    INSTALL( FILES "${SPECX_BINARY_DIR}/Src/Config/SpConfig.hpp" DESTINATION include/Src/Config/ )
 endif()
 
 
