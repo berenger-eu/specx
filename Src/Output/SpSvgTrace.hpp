@@ -8,6 +8,7 @@
 #include <fstream>
 #include <cmath>
 #include <iterator>
+#include <unordered_map>
 
 #include "Task/SpAbstractTask.hpp"
 #include "Utils/SpTimePoint.hpp"
