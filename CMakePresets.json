@@ -1,0 +1,104 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "displayName": "Default Config",
+            "description": "Default config",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "SPECX_DO_INSTALL": "ON",
+                "SPECX_BUILD_TESTS": "ON"
+            },
+            "vendor": {
+                "example.com/ExampleIDE/1.0": {
+                    "autoFormat": true
+                }
+            }
+        },
+        {
+            "name": "install-usrlocal",
+            "inherits": "default",
+            "displayName": "Build and Install system",
+            "description": "Build and Install in /usr/local",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/install-local",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_INSTALL_PREFIX": "/usr/local"
+            },
+            "vendor": {
+                "example.com/ExampleIDE/1.0": {
+                    "autoFormat": true
+                }
+            }
+        },
+        {
+            "name": "install",
+            "inherits": "default",
+            "displayName": "Build and Install in user land",
+            "description": "Build and Install in user land",
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/install",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/"
+            },
+            "vendor": {
+                "example.com/ExampleIDE/1.0": {
+                    "autoFormat": true
+                }
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "default",
+            "configurePreset": "default",
+            "jobs": 10
+        },
+        {
+            "name": "install-usrlocal",
+            "configurePreset": "install-usrlocal",
+            "inherits": "default",
+            "targets": [
+                "all","install","package"
+            ]
+        },
+        {
+            "name": "install",
+            "configurePreset": "install",
+            "inherits": "default",
+            "targets": [
+                "all",
+                "install",
+                "package"
+            ]
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "default",
+            "configurePreset": "default",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            }
+        }
+    ],
+    "vendor": {
+        "example.com/ExampleIDE/1.0": {
+            "autoFormat": false
+        }
+    }
+}

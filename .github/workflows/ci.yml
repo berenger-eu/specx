@@ -1,0 +1,113 @@
+name: CI
+
+on: [push]
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    if: |
+      github.repository == 'feelpp/specx' &&
+      !startsWith(github.event.head_commit.message, 'Release ') &&
+      !contains(github.event.head_commit.message, 'ci skip')
+    steps:
+    - run: echo ok go
+
+  build:
+    needs: activate
+    runs-on: self-ubuntu-22.04
+    name: Build, Install, Package code
+    if: "!contains(github.event.head_commit.message, 'code skip')"
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        lfs: true
+        recursive: true
+    - 
+      name: Build 
+      run: |
+        cmake --preset default
+        cmake --build --preset default
+    - 
+      name: Check build
+      run: |
+        ctest --preset default
+    - 
+      name: Package
+      run: |
+        cmake --build --preset default -t package
+    - name: Upload 
+      uses: actions/upload-artifact@v2
+      with:
+        # Artifact name
+        name: artifacts
+        # Directory containing files to upload
+        path: build/default/specx-*
+
+  check:
+    needs: build_code
+    runs-on: ubuntu-22.04
+    name: Check Build, Install, Run
+    steps:
+    - name: Download 
+      uses: actions/download-artifact@v2
+      with:
+        # Artifact name
+        name: artifacts
+        # Directory containing files to upload
+        path: build/default/
+    - name: Display Artifact
+      run: ls -R
+      working-directory: build/default/
+
+  deliver:
+    runs-on: ubuntu-22.04
+    needs: check
+    name: Docker Build, Tag, Push
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        lfs: true
+        submodules: 'recursive'
+    - name: Download 
+      uses: actions/download-artifact@v2
+      with:
+        # Artifact name
+        name: artifacts
+        path: artifacts/
+    -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ghcr.io/feelpp/specx
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+    -
+      name: Set up QEMU
+      uses: docker/setup-qemu-action@v1.1.0
+    -
+      name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1.3.0        
+    - 
+      name: Login to GitHub Container Registry
+      uses: docker/login-action@v1.9.0 
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.CR_PAT }}
+    - 
+      name: Build container image
+      uses: docker/build-push-action@v2
+      with: 
+        context: artifacts
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        file: ./Dockerfile
+        

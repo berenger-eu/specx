@@ -10,6 +10,8 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 # Project Declaration
 #===========================================================================
 project(specx LANGUAGES CXX VERSION 1.0.0)
+set(SPECX_SOURCE_DIR ${specx_SOURCE_DIR} )
+set(SPECX_BINARY_DIR ${specx_BINARY_DIR} )
 
 include(CheckLanguage)
 check_language(CUDA)
