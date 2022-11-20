@@ -45,7 +45,7 @@ jobs:
         path: build/default/specx-*
 
   check:
-    needs: build_code
+    needs: build
     runs-on: ubuntu-22.04
     name: Check Build, Install, Run
     steps:
