@@ -6,6 +6,9 @@ project(BENCHMARK_LG_SPECX CXX)
 
 ADD_DEFINITIONS(${SPECX_CXX_FLAGS})
 
+message(CHECK_START "check OpenMP support")
+if (NOT APPLE)
+
 find_package(OpenMP)
 if (OPENMP_FOUND)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -13,6 +16,7 @@ if (OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
+message(CHECK_PASS "found")
 
 if($ENV{VERBOSE})
     MESSAGE(STATUS "Benchmark -- SPECX_CXX_FLAGS   : ${BENCHMARK_LG_SPECX_CXX_FLAGS}")
@@ -59,3 +63,6 @@ foreach(exec ${source_tests_files})
         ${SPECX_LIBRARIES}
         )
 endforeach(exec)
+else()
+ message(CHECK_FAIL "not supported on APPLE")
+endif(NOT APPLE)
