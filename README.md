@@ -14,6 +14,10 @@ Replica Exchange Monte Carlo (RMC/Parallel tempering).
 
 This is an on-going project under development.
 
+# GitHub Actions
+
+[![CI](https://github.com/feelpp/specx/actions/workflows/ci.yml/badge.svg)](https://github.com/feelpp/specx/actions/workflows/ci.yml)
+
 # Installation requirements
 1. C++17 standard compliant toolchain
 2. CMake (version 3.20 or after)

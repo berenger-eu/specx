@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <functional>
+#include <optional>
+
 
 #include "small_vector.hpp"
 
