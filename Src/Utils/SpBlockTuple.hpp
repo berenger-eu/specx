@@ -75,7 +75,10 @@ public:
 		std::size_t totalSize = 0;
 		
 		SpUtils::foreach_index(
-		[&](auto&& index) {
+		[&](auto&& nc_index) {
+                        // Implicit converstion from nc_index should be fined, but gcc complained.
+                        // Maybe not useful in the futur
+			constexpr auto index = nc_index.value;
 			totalSizeNbEltsAndOffsets[NbBlocks + index] = totalSize;
 			
 			using BlockTy = std::tuple_element_t<index, TupleTy>;
