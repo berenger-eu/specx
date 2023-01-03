@@ -120,10 +120,10 @@ public:
 };
 
 #ifdef SPECX_USE_CUDA
-__global__ void p2p_gpu(int* ptr, int size){
-    for(int idx = blockIdx.x*blockDim.x + threadIdx.x ; idx < size ; idx += blockDim.x*gridDim.x){
-        ptr[idx]++;
-    }
+__global__ void p2p_gpu(ParticlesGroup::View& paramA){
+//    for(int idx = blockIdx.x*blockDim.x + threadIdx.x ; idx < size ; idx += blockDim.x*gridDim.x){
+//        ptr[idx]++;
+//    }
 }
 #endif
 
@@ -143,18 +143,16 @@ int main(){
     SpTaskGraph tg;
 
     tg.computeOn(ce);
-/*
-    tg.task(SpWrite(a),
-            SpCuda([](SpDeviceDataView<int> paramA) {
-            #ifndef SPECX_EMUL_GPU
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
-            #else
-                (*paramA.objPtr())++;
-            #endif
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-            })
-            );
 
+    ParticlesGroup particles;
+#ifdef SPECX_USE_CUDA
+    tg.task(SpWrite(particles),
+            SpCuda([](ParticlesGroup::View& paramA) {
+                p2p_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA);
+            })
+    );
+#endif
+    /*
     tg.task(SpWrite(b),
             SpCuda([](SpDeviceDataView<int> paramB) {
             #ifndef SPECX_EMUL_GPU
@@ -216,3 +214,4 @@ int main(){
 
     return 0;
 }
+
