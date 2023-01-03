@@ -17,8 +17,8 @@ public:
     virtual bool hasEnoughSpace(AllocatorClass& allocator, void* key, void* rawHostPtr)  = 0;
     virtual std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* key,  void* rawHostPtr) = 0;
     virtual SpDeviceData  allocate(AllocatorClass& allocator, void* key, void* hostPtr) = 0;
-    virtual void  copyFromHostToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtr, void* hostPtr) = 0;
-    virtual void  copyFromDeviceToHost(AllocatorClass& allocator, void* key, void* hostPtr, SpDeviceData devicePtr) = 0;
+    virtual void  copyHostToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtr, void* hostPtr) = 0;
+    virtual void  copyDeviceToHost(AllocatorClass& allocator, void* key, void* hostPtr, SpDeviceData devicePtr) = 0;
     virtual void  copyFromDeviceToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtrDst, SpDeviceData devicePtrSrc, int srcId) = 0;
     virtual void  freeGroup(AllocatorClass& allocator, void* key, void* rawHostPtr) = 0;
 };
@@ -113,10 +113,10 @@ public:
                && std::size_t(devicePtr) + size <= std::size_t(basedDevicePtr) + memBlockSize);
         memManager.copyHostToDevice(devicePtr, hostPtr, size);
     }
-    void  copyFromDeviceToHost(void* hostPtr, void* devicePtr, std::size_t size){
+    void  copyDeviceToHost(void* hostPtr, void* devicePtr, std::size_t size){
         assert(std::size_t(devicePtr) >= std::size_t(basedDevicePtr)
                && std::size_t(devicePtr) + size <= std::size_t(basedDevicePtr) + memBlockSize);
-        memManager.DeviceToHost(hostPtr, devicePtr, size);
+        memManager.copyDeviceToHost(hostPtr, devicePtr, size);
     }
 };
 
@@ -401,7 +401,7 @@ public:
         copy.ptr =  allocator.allocateWithKey(key, copy.size, alignof(DataType));
         return copy;
     }
-    void  copyFromHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override{
+    void  copyHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
@@ -420,7 +420,7 @@ public:
             assert(0);
         }
     }
-    void  copyFromDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override{
+    void  copyDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override{
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
         if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
             SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);

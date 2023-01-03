@@ -115,7 +115,7 @@ public:
             });
             assert(idxGpuSrcIter != copies.end());
             const int idxGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
-            deviceDataOp->copyFromDeviceToHost(memManagers[idxGpu], this, ptrToData, copies[idxGpu]);
+            deviceDataOp->copyDeviceToHost(memManagers[idxGpu], this, ptrToData, copies[idxGpu]);
             return idxGpu;
         }
         return -1;
@@ -158,12 +158,12 @@ public:
                 }
                 else{
                     syncCpuDataIfNeeded(memManagers);
-                    deviceDataOp->copyFromHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+                    deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
                 }
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp->copyFromHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+                deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
             }
         }
         return copies[gpuId];

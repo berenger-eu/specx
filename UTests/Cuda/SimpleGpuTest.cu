@@ -24,19 +24,22 @@ __global__ void inc_var(int* ptr, int size){
 }
 
 class MemmovClassExample{
+    int data[10];
 public:
     std::size_t memmovNeededSize() const{
-        return 10;
+        return 10*sizeof(int);
     }
 
     template <class DeviceMemmov>
     void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10);
+        assert(size == 10*sizeof(int));
+        mover.copyHostToDevice(reinterpret_cast<int*>(devicePtr), &data[0], 10*sizeof(int));
     }
 
     template <class DeviceMemmov>
     void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10);
+        assert(size == 10*sizeof(int));
+        mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr), 10*sizeof(int));
     }
 
     struct View{
