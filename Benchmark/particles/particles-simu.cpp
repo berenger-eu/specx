@@ -105,11 +105,19 @@ public:
     template <class DeviceMemmov>
     void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            mover.copyHostToDevice(&doubleDevicePtr[idxValueType*nbParticles], values[idxValueType].data(), nbParticles*sizeof(double));
+        }
     }
 
     template <class DeviceMemmov>
     void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            mover.copyDeviceToHost(values[idxValueType].data(), &doubleDevicePtr[idxValueType*nbParticles], nbParticles*sizeof(double));
+        }
     }
 
     struct View{
@@ -119,8 +127,8 @@ public:
     using DeviceDataType = View;
 };
 
-#ifdef SPECX_USE_CUDA
-__global__ void p2p_gpu(ParticlesGroup::View& paramA){
+#ifdef SPECX_COMPILE_WITH_CUDA
+__global__ void p2p_gpu(void* data, std::size_t size){
 //    for(int idx = blockIdx.x*blockDim.x + threadIdx.x ; idx < size ; idx += blockDim.x*gridDim.x){
 //        ptr[idx]++;
 //    }
@@ -134,7 +142,7 @@ void p2p_cpu(int* ptr, int size){
 
 
 int main(){
-#ifdef SPECX_USE_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
 #else
@@ -145,10 +153,10 @@ int main(){
     tg.computeOn(ce);
 
     ParticlesGroup particles;
-#ifdef SPECX_USE_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
     tg.task(SpWrite(particles),
-            SpCuda([](ParticlesGroup::View& paramA) {
-                p2p_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA);
+            SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                p2p_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
     );
 #endif
