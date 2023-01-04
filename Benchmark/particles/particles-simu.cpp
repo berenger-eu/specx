@@ -53,6 +53,51 @@ public:
         return nbParticles;
     }
 
+    void computeSelf(ParticlesGroup& inOther){
+        for(std::size_t idxTarget = 0 ; idxTarget < getNbParticles() ; ++idxTarget){
+            const double tx = double(values[X][idxTarget]);
+            const double ty = double(values[Y][idxTarget]);
+            const double tz = double(values[Z][idxTarget]);
+            const double tv = double(values[PHYSICAL][idxTarget]);
+
+            double  tfx = double(0.);
+            double  tfy = double(0.);
+            double  tfz = double(0.);
+            double  tpo = double(0.);
+
+            for(std::size_t idxSource = idxTarget+1  ; idxSource < nbParticles ; ++idxSource){
+                double dx = tx - double(values[X][idxSource]);
+                double dy = ty - double(values[Y][idxSource]);
+                double dz = tz - double(values[Z][idxSource]);
+
+                double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
+                const double inv_distance = sqrt(inv_square_distance);
+
+                inv_square_distance *= inv_distance;
+                inv_square_distance *= tv * double(values[PHYSICAL][idxSource]);
+
+                dx *= - inv_square_distance;
+                dy *= - inv_square_distance;
+                dz *= - inv_square_distance;
+
+                tfx += dx;
+                tfy += dy;
+                tfz += dz;
+                tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+
+                values[FX][idxSource] -= dx;
+                values[FY][idxSource] -= dy;
+                values[FZ][idxSource] -= dz;
+                values[POTENTIAL][idxSource] += inv_distance * tv;
+            }
+
+            values[FX][idxTarget] += tfx;
+            values[FY][idxTarget] += tfy;
+            values[FZ][idxTarget] += tfz;
+            values[POTENTIAL][idxTarget] += tpo;
+        }
+    }
+
     void compute(ParticlesGroup& inOther){
         for(std::size_t idxTarget = 0 ; idxTarget < inOther.getNbParticles() ; ++idxTarget){
             const double tx = double(inOther.values[X][idxTarget]);
@@ -65,7 +110,7 @@ public:
             double  tfz = double(0.);
             double  tpo = double(0.);
 
-            for(std::size_t idxSource = 0  ; idxSource < nbParticles ; idxSource += 1){
+            for(std::size_t idxSource = 0  ; idxSource < nbParticles ; ++idxSource){
                 double dx = tx - double(values[X][idxSource]);
                 double dy = ty - double(values[Y][idxSource]);
                 double dz = tz - double(values[Z][idxSource]);
@@ -128,17 +173,184 @@ public:
 };
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-__global__ void p2p_gpu(void* data, std::size_t size){
-//    for(int idx = blockIdx.x*blockDim.x + threadIdx.x ; idx < size ; idx += blockDim.x*gridDim.x){
-//        ptr[idx]++;
-//    }
+__global__ void p2p_inner_gpu(void* data, std::size_t size){
+    const std::size_t nbParticles = size/sizeof(double)/NB_VALUE_TYPES;
+    std::array<double*, NB_VALUE_TYPES> values;
+    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+        values[idxValueType] = reinterpret_cast<double*>(data)+idxValueType*nbParticles;
+    }
+
+    constexpr std::size_t SHARED_MEMORY_SIZE = 128;
+    const std::size_t nbThreads = blockDim.x*gridDim.x;
+    const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticles+gridDim.x-1 ; idxTarget += nbThreads){
+        const bool threadCompute = (idxTarget<nbParticles);
+
+        double tx;
+        double ty;
+        double tz;
+        double tv;
+
+        if(threadCompute){
+            tx = double(values[X][idxTarget]);
+            ty = double(values[Y][idxTarget]);
+            tz = double(values[Z][idxTarget]);
+            tv = double(values[PHYSICAL][idxTarget]);
+        }
+
+        double  tfx = double(0.);
+        double  tfy = double(0.);
+        double  tfz = double(0.);
+        double  tpo = double(0.);
+
+        for(std::size_t idxCopy = 0 ; idxCopy < nbParticles ; idxCopy += SHARED_MEMORY_SIZE){
+            __shared__ double sourcesX[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesY[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesZ[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesPhys[SHARED_MEMORY_SIZE];
+
+            const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticles-idxCopy);
+            for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
+                sourcesX[idx] = values[X][idx+idxCopy];
+                sourcesY[idx] = values[Y][idx+idxCopy];
+                sourcesZ[idx] = values[Z][idx+idxCopy];
+                sourcesPhys[idx] = values[PHYSICAL][idx+idxCopy];
+            }
+
+            __syncthreads();
+
+            if(threadCompute){
+                for(std::size_t otherIndex = 0; otherIndex < nbCopies; ++otherIndex) {
+                    if(idxCopy + otherIndex != idxTarget){
+                        double dx = tx - sourcesX[otherIndex];
+                        double dy = ty - sourcesY[otherIndex];
+                        double dz = tz - sourcesZ[otherIndex];
+
+                        double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
+                        const double inv_distance = sqrt(inv_square_distance);
+
+                        inv_square_distance *= inv_distance;
+                        inv_square_distance *= tv * sourcesPhys[otherIndex];
+
+                        dx *= - inv_square_distance;
+                        dy *= - inv_square_distance;
+                        dz *= - inv_square_distance;
+
+                        tfx += dx;
+                        tfy += dy;
+                        tfz += dz;
+                        tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+                    }
+                }
+            }
+
+            __syncthreads();
+        }
+
+        if( threadCompute ){
+            values[FX][idxTarget] += tfx;
+            values[FY][idxTarget] += tfy;
+            values[FZ][idxTarget] += tfz;
+            values[POTENTIAL][idxTarget] += tpo;
+        }
+
+        __syncthreads();
+    }
 }
+
+__global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
+                              void* dataTgt, std::size_t sizeTgt){
+    const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/NB_VALUE_TYPES;
+    std::array<double*, NB_VALUE_TYPES> valuesTgt;
+    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+        valuesTgt[idxValueType] = reinterpret_cast<double*>(dataTgt)+idxValueType*nbParticlesTgt;
+    }
+
+    const std::size_t nbParticlesSrc = sizeSrc/sizeof(double)/NB_VALUE_TYPES;
+    std::array<double*, NB_VALUE_TYPES> valuesSrc;
+    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+        valuesSrc[idxValueType] = reinterpret_cast<double*>(dataSrc)+idxValueType*nbParticlesSrc;
+    }
+
+    constexpr std::size_t SHARED_MEMORY_SIZE = 128;
+    const std::size_t nbThreads = blockDim.x*gridDim.x;
+    const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticlesTgt+gridDim.x-1 ; idxTarget += nbThreads){
+        const bool threadCompute = (idxTarget<nbParticlesTgt);
+
+        double tx;
+        double ty;
+        double tz;
+        double tv;
+
+        if(threadCompute){
+            tx = double(valuesTgt[X][idxTarget]);
+            ty = double(valuesTgt[Y][idxTarget]);
+            tz = double(valuesTgt[Z][idxTarget]);
+            tv = double(valuesTgt[PHYSICAL][idxTarget]);
+        }
+
+        double  tfx = double(0.);
+        double  tfy = double(0.);
+        double  tfz = double(0.);
+        double  tpo = double(0.);
+
+        for(std::size_t idxCopy = 0 ; idxCopy < nbParticlesSrc ; idxCopy += SHARED_MEMORY_SIZE){
+            __shared__ double sourcesX[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesY[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesZ[SHARED_MEMORY_SIZE];
+            __shared__ double sourcesPhys[SHARED_MEMORY_SIZE];
+
+            const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticlesSrc-idxCopy);
+            for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
+                sourcesX[idx] = valuesSrc[X][idx+idxCopy];
+                sourcesY[idx] = valuesSrc[Y][idx+idxCopy];
+                sourcesZ[idx] = valuesSrc[Z][idx+idxCopy];
+                sourcesPhys[idx] = valuesSrc[PHYSICAL][idx+idxCopy];
+            }
+
+            __syncthreads();
+
+            if(threadCompute){
+                for(std::size_t otherIndex = 0; otherIndex < nbCopies; ++otherIndex) {
+                    double dx = tx - sourcesX[otherIndex];
+                    double dy = ty - sourcesY[otherIndex];
+                    double dz = tz - sourcesZ[otherIndex];
+
+                    double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
+                    const double inv_distance = sqrt(inv_square_distance);
+
+                    inv_square_distance *= inv_distance;
+                    inv_square_distance *= tv * sourcesPhys[otherIndex];
+
+                    dx *= - inv_square_distance;
+                    dy *= - inv_square_distance;
+                    dz *= - inv_square_distance;
+
+                    tfx += dx;
+                    tfy += dy;
+                    tfz += dz;
+                    tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+                }
+            }
+
+            __syncthreads();
+        }
+
+        if( threadCompute ){
+            values[FX][idxTarget] += tfx;
+            values[FY][idxTarget] += tfy;
+            values[FZ][idxTarget] += tfz;
+            values[POTENTIAL][idxTarget] += tpo;
+        }
+
+        __syncthreads();
+    }
+}
+
 #endif
-
-void p2p_cpu(int* ptr, int size){
-
-}
-
 
 
 int main(){
@@ -152,72 +364,29 @@ int main(){
 
     tg.computeOn(ce);
 
-    ParticlesGroup particles;
-#ifdef SPECX_COMPILE_WITH_CUDA
+    ParticlesGroup particles(100);
+    ParticlesGroup particlesB(100);
     tg.task(SpWrite(particles),
-            SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
-                p2p_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+            SpCpu([](ParticlesGroup& particlesW) {
+    })
+        #ifdef SPECX_COMPILE_WITH_CUDA
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
+        #endif
     );
-#endif
-    /*
-    tg.task(SpWrite(b),
-            SpCuda([](SpDeviceDataView<int> paramB) {
-            #ifndef SPECX_EMUL_GPU
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramB.objPtr(), 1);
-            #else
-                (*paramB.objPtr())++;
-            #endif
-            })
-            );
 
-    tg.task(SpRead(a), SpWrite(b),
-            SpCpu([](const int& paramA, int& paramB) {
-        paramB = paramA + paramB;
+    tg.task(SpWrite(particles),SpRead(particlesB),
+            SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
     })
-            );
-
-    tg.task(SpWrite(a),
-            SpCpu([](int& paramA) {
-        paramA++;
-    }),
-            SpCuda(
-                [](SpDeviceDataView<int> paramA) {
-            #ifndef SPECX_EMUL_GPU
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
-            #else
-                (*paramA.objPtr())++;
-            #endif
+        #ifdef SPECX_COMPILE_WITH_CUDA
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })
-            );
+        #endif
+    );
 
-    tg.task(SpWrite(a), SpWrite(b),
-            SpCpu([](int& paramA, int& paramB) {
-        paramA++;
-        paramB++;
-    })
-            );
-
-
-    static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,
-            "should be memmov");
-
-    MemmovClassExample obj;
-
-    tg.task(SpWrite(obj),
-            SpCuda([](SpDeviceDataView<MemmovClassExample> objv) {
-            })
-            );
-
-    tg.task(SpWrite(a),
-            SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
-                inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
-                paramA.nbElements());
-
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-            })
-            );
-*/
     tg.waitAllTasks();
 
     return 0;
