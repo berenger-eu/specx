@@ -149,7 +149,7 @@ public:
     }
 
     template <class DeviceMemmov>
-    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    mutable void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
@@ -158,7 +158,7 @@ public:
     }
 
     template <class DeviceMemmov>
-    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    mutable void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
@@ -169,6 +169,7 @@ public:
     struct View{
         View(){}
         View(void* devicePtr, std::size_t size){}
+        View(const void* devicePtr, std::size_t size){}
     };
     using DeviceDataType = View;
 };
