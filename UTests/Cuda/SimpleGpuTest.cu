@@ -135,6 +135,12 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.computeOn(ce);
 
+// TODO
+//        tg.task(SpRead(a),
+//            SpCuda([]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
+//            })
+//        );
+
         tg.task(SpWrite(a),
             SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
                 inc_var<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.array(),
@@ -206,8 +212,13 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         MemmovClassExample obj;
 
+        tg.task(SpRead(obj),
+            SpCuda([]([[maybe_unused]] SpDeviceDataView<const MemmovClassExample> objv) {
+            })
+        );
+
         tg.task(SpWrite(obj),
-            SpCuda([](SpDeviceDataView<MemmovClassExample> objv) {
+            SpCuda([]([[maybe_unused]] SpDeviceDataView<MemmovClassExample> objv) {
             })
         );
 
