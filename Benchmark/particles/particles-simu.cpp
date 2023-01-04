@@ -211,7 +211,7 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
             __shared__ double sourcesZ[SHARED_MEMORY_SIZE];
             __shared__ double sourcesPhys[SHARED_MEMORY_SIZE];
 
-            const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticles-idxCopy);
+            const std::size_t nbCopies = std::min(SHARED_MEMORY_SIZE, nbParticles-idxCopy);
             for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
                 sourcesX[idx] = values[ParticlesGroup::X][idx+idxCopy];
                 sourcesY[idx] = values[ParticlesGroup::Y][idx+idxCopy];
@@ -241,7 +241,7 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
                         tfx += dx;
                         tfy += dy;
                         tfz += dz;
-                        tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
+                        tpo += inv_distance * sourcesPhys[otherIndex];
                     }
                 }
             }
@@ -304,7 +304,7 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
             __shared__ double sourcesZ[SHARED_MEMORY_SIZE];
             __shared__ double sourcesPhys[SHARED_MEMORY_SIZE];
 
-            const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticlesSrc-idxCopy);
+            const std::size_t nbCopies = std::min(SHARED_MEMORY_SIZE, nbParticlesSrc-idxCopy);
             for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
                 sourcesX[idx] = valuesSrc[ParticlesGroup::X][idx+idxCopy];
                 sourcesY[idx] = valuesSrc[ParticlesGroup::Y][idx+idxCopy];
@@ -333,7 +333,7 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
                     tfx += dx;
                     tfy += dy;
                     tfz += dz;
-                    tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
+                    tpo += inv_distance * sourcesPhys[otherIndex];
                 }
             }
 
