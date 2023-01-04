@@ -70,6 +70,11 @@ struct is_stdvector<std::vector<T, Alloc>> : public std::true_type {
     using _T = T;
 };
 
+template<class T, class Alloc>
+struct is_stdvector<const std::vector<T, Alloc>> : public std::true_type {
+    using _T = T;
+};
+
 ///////////////////
 
 //template<class K, class T, class Comp, class Alloc>
@@ -86,6 +91,11 @@ template<class T> struct is_trivial_stdvector : public std::false_type {};
 
 template<class T, class Alloc>
 struct is_trivial_stdvector<std::vector<T, Alloc>> : public SpDeviceDataTrivialCopyTest<T> {
+    using _T = T;
+};
+
+template<class T, class Alloc>
+struct is_trivial_stdvector<const std::vector<T, Alloc>> : public SpDeviceDataTrivialCopyTest<T> {
     using _T = T;
 };
 
@@ -131,6 +141,7 @@ enum class DeviceMovableType{
 
 template <class DataType>
 DeviceMovableType constexpr GetDeviceMovableType(){
+    static_assert(is_trivial_stdvector<DataType>::value, "to remove");// TODO
     if constexpr(class_has_memmovNeededSize<DataType>::value
                 && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
                 && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
