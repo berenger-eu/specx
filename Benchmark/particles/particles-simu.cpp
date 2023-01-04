@@ -388,11 +388,11 @@ int main(){
         #endif
     );
 
-    tg.task(SpWrite(particles),SpWrite(particlesB),
-            SpCpu([](ParticlesGroup& particlesW, /*const*/ ParticlesGroup& particlesR) {
+    tg.task(SpWrite(particles),SpRead(particlesB),
+            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView</*const*/ ParticlesGroup> paramB) {
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
 //                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
 //                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })

@@ -62,8 +62,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.computeOn(ce);
 
-        tg.task(SpRead(a),
-                    SpCuda([]([[maybe_unused]] SpDeviceDataView<const int> paramA) {
+        tg.task(SpWrite(a), SpRead(b),
+                    SpCuda([]([[maybe_unused]] SpDeviceDataView<int> paramA,
+                              [[maybe_unused]] SpDeviceDataView<const int> paramB) {
                         std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
@@ -135,11 +136,10 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.computeOn(ce);
 
-// TODO
-//        tg.task(SpRead(a),
-//            SpCuda([]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
-//            })
-//        );
+        tg.task(SpRead(a),
+            SpCuda([]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
+            })
+        );
 
         tg.task(SpWrite(a),
             SpCuda([](SpDeviceDataView<std::vector<int>> paramA) {
