@@ -260,8 +260,8 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     }
 }
 
-__global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
-                              const void* dataTgt, std::size_t sizeTgt){
+__global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
+                              void* dataTgt, std::size_t sizeTgt){
     const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
     std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesTgt;
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
