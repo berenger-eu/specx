@@ -17,8 +17,7 @@
 
 
 class ParticlesGroup{
-    std::size_t nbParticles;
-
+public:
     enum ValueTypes{
         PHYSICAL,
         X,
@@ -31,6 +30,8 @@ class ParticlesGroup{
         NB_VALUE_TYPES
     };
 
+private:
+    std::size_t nbParticles;
     std::vector<double> values[NB_VALUE_TYPES];
 
 public:
@@ -174,9 +175,9 @@ public:
 
 #ifdef SPECX_COMPILE_WITH_CUDA
 __global__ void p2p_inner_gpu(void* data, std::size_t size){
-    const std::size_t nbParticles = size/sizeof(double)/NB_VALUE_TYPES;
-    std::array<double*, NB_VALUE_TYPES> values;
-    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+    const std::size_t nbParticles = size/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
+    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> values;
+    for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = reinterpret_cast<double*>(data)+idxValueType*nbParticles;
     }
 
@@ -193,10 +194,10 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
         double tv;
 
         if(threadCompute){
-            tx = double(values[X][idxTarget]);
-            ty = double(values[Y][idxTarget]);
-            tz = double(values[Z][idxTarget]);
-            tv = double(values[PHYSICAL][idxTarget]);
+            tx = double(values[ParticlesGroup::X][idxTarget]);
+            ty = double(values[ParticlesGroup::Y][idxTarget]);
+            tz = double(values[ParticlesGroup::Z][idxTarget]);
+            tv = double(values[ParticlesGroup::PHYSICAL][idxTarget]);
         }
 
         double  tfx = double(0.);
@@ -212,10 +213,10 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
 
             const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticles-idxCopy);
             for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
-                sourcesX[idx] = values[X][idx+idxCopy];
-                sourcesY[idx] = values[Y][idx+idxCopy];
-                sourcesZ[idx] = values[Z][idx+idxCopy];
-                sourcesPhys[idx] = values[PHYSICAL][idx+idxCopy];
+                sourcesX[idx] = values[ParticlesGroup::X][idx+idxCopy];
+                sourcesY[idx] = values[ParticlesGroup::Y][idx+idxCopy];
+                sourcesZ[idx] = values[ParticlesGroup::Z][idx+idxCopy];
+                sourcesPhys[idx] = values[ParticlesGroup::PHYSICAL][idx+idxCopy];
             }
 
             __syncthreads();
@@ -240,7 +241,7 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
                         tfx += dx;
                         tfy += dy;
                         tfz += dz;
-                        tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+                        tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
                     }
                 }
             }
@@ -249,10 +250,10 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
         }
 
         if( threadCompute ){
-            values[FX][idxTarget] += tfx;
-            values[FY][idxTarget] += tfy;
-            values[FZ][idxTarget] += tfz;
-            values[POTENTIAL][idxTarget] += tpo;
+            values[ParticlesGroup::FX][idxTarget] += tfx;
+            values[ParticlesGroup::FY][idxTarget] += tfy;
+            values[ParticlesGroup::FZ][idxTarget] += tfz;
+            values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
         }
 
         __syncthreads();
@@ -261,15 +262,15 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
 
 __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
                               void* dataTgt, std::size_t sizeTgt){
-    const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/NB_VALUE_TYPES;
-    std::array<double*, NB_VALUE_TYPES> valuesTgt;
-    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+    const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
+    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesTgt;
+    for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         valuesTgt[idxValueType] = reinterpret_cast<double*>(dataTgt)+idxValueType*nbParticlesTgt;
     }
 
-    const std::size_t nbParticlesSrc = sizeSrc/sizeof(double)/NB_VALUE_TYPES;
-    std::array<double*, NB_VALUE_TYPES> valuesSrc;
-    for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+    const std::size_t nbParticlesSrc = sizeSrc/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
+    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesSrc;
+    for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         valuesSrc[idxValueType] = reinterpret_cast<double*>(dataSrc)+idxValueType*nbParticlesSrc;
     }
 
@@ -286,10 +287,10 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
         double tv;
 
         if(threadCompute){
-            tx = double(valuesTgt[X][idxTarget]);
-            ty = double(valuesTgt[Y][idxTarget]);
-            tz = double(valuesTgt[Z][idxTarget]);
-            tv = double(valuesTgt[PHYSICAL][idxTarget]);
+            tx = double(valuesTgt[ParticlesGroup::X][idxTarget]);
+            ty = double(valuesTgt[ParticlesGroup::Y][idxTarget]);
+            tz = double(valuesTgt[ParticlesGroup::Z][idxTarget]);
+            tv = double(valuesTgt[ParticlesGroup::PHYSICAL][idxTarget]);
         }
 
         double  tfx = double(0.);
@@ -305,10 +306,10 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
 
             const std::size_t nbCopies = Min(SHARED_MEMORY_SIZE, nbParticlesSrc-idxCopy);
             for(std::size_t idx = threadIdx.x ; idx < nbCopies ; idx += blockDim.x){
-                sourcesX[idx] = valuesSrc[X][idx+idxCopy];
-                sourcesY[idx] = valuesSrc[Y][idx+idxCopy];
-                sourcesZ[idx] = valuesSrc[Z][idx+idxCopy];
-                sourcesPhys[idx] = valuesSrc[PHYSICAL][idx+idxCopy];
+                sourcesX[idx] = valuesSrc[ParticlesGroup::X][idx+idxCopy];
+                sourcesY[idx] = valuesSrc[ParticlesGroup::Y][idx+idxCopy];
+                sourcesZ[idx] = valuesSrc[ParticlesGroup::Z][idx+idxCopy];
+                sourcesPhys[idx] = valuesSrc[ParticlesGroup::PHYSICAL][idx+idxCopy];
             }
 
             __syncthreads();
@@ -332,7 +333,7 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
                     tfx += dx;
                     tfy += dy;
                     tfz += dz;
-                    tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+                    tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
                 }
             }
 
@@ -340,10 +341,10 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
         }
 
         if( threadCompute ){
-            values[FX][idxTarget] += tfx;
-            values[FY][idxTarget] += tfy;
-            values[FZ][idxTarget] += tfz;
-            values[POTENTIAL][idxTarget] += tpo;
+            values[ParticlesGroup::FX][idxTarget] += tfx;
+            values[ParticlesGroup::FY][idxTarget] += tfy;
+            values[ParticlesGroup::FZ][idxTarget] += tfz;
+            values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
         }
 
         __syncthreads();
