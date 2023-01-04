@@ -182,7 +182,7 @@ public:
 #ifdef SPECX_COMPILE_WITH_CUDA
 __global__ void p2p_inner_gpu(void* data, std::size_t size){
     const std::size_t nbParticles = size/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
-    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> values;
+    double* values[ParticlesGroup::NB_VALUE_TYPES];
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = reinterpret_cast<double*>(data)+idxValueType*nbParticles;
     }
@@ -269,13 +269,13 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
 __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
                               void* dataTgt, std::size_t sizeTgt){
     const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
-    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesTgt;
+    double* valuesTgt[ParticlesGroup::NB_VALUE_TYPES];
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         valuesTgt[idxValueType] = reinterpret_cast<double*>(dataTgt)+idxValueType*nbParticlesTgt;
     }
 
     const std::size_t nbParticlesSrc = sizeSrc/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
-    std::array<const double*, ParticlesGroup::NB_VALUE_TYPES> valuesSrc;
+    const double* valuesSrc[ParticlesGroup::NB_VALUE_TYPES];
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         valuesSrc[idxValueType] = reinterpret_cast<const double*>(dataSrc)+idxValueType*nbParticlesSrc;
     }
