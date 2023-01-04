@@ -261,7 +261,7 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
 }
 
 __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
-                              void* dataTgt, std::size_t sizeTgt){
+                              const void* dataTgt, std::size_t sizeTgt){
     const std::size_t nbParticlesTgt = sizeTgt/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
     std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesTgt;
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
@@ -269,9 +269,9 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
     }
 
     const std::size_t nbParticlesSrc = sizeSrc/sizeof(double)/ParticlesGroup::NB_VALUE_TYPES;
-    std::array<double*, ParticlesGroup::NB_VALUE_TYPES> valuesSrc;
+    std::array<const double*, ParticlesGroup::NB_VALUE_TYPES> valuesSrc;
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
-        valuesSrc[idxValueType] = reinterpret_cast<double*>(dataSrc)+idxValueType*nbParticlesSrc;
+        valuesSrc[idxValueType] = reinterpret_cast<const double*>(dataSrc)+idxValueType*nbParticlesSrc;
     }
 
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
@@ -381,7 +381,7 @@ int main(){
             SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<const ParticlesGroup> paramB) {
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
 //                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
 //                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })
