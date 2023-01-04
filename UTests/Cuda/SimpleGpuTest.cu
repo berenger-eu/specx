@@ -62,6 +62,12 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.computeOn(ce);
 
+        tg.task(SpRead(a),
+                    SpCuda([]([[maybe_unused]] SpDeviceDataView<const int> paramA) {
+                        std::this_thread::sleep_for(std::chrono::seconds(2));
+                    })
+        );
+
         tg.task(SpWrite(a),
                     SpCuda([](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
