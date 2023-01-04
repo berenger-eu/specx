@@ -381,7 +381,7 @@ int main(){
             SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<ParticlesGroup> paramB) {
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<const ParticlesGroup> paramB) {
 //                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
 //                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })
