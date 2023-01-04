@@ -181,7 +181,7 @@ public:
 
 #ifdef SPECX_COMPILE_WITH_CUDA
 template <class T>
-__global__ constexpr auto CuMin(const T& v1, const T& v2){
+__global__ auto CuMin(const T& v1, const T& v2){
     return v1 < v2 ? v1 : v2;
 }
 
