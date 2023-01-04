@@ -341,10 +341,10 @@ __global__ void p2p_neigh_gpu(void* dataSrc, std::size_t sizeSrc,
         }
 
         if( threadCompute ){
-            values[ParticlesGroup::FX][idxTarget] += tfx;
-            values[ParticlesGroup::FY][idxTarget] += tfy;
-            values[ParticlesGroup::FZ][idxTarget] += tfz;
-            values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
+            valuesTgt[ParticlesGroup::FX][idxTarget] += tfx;
+            valuesTgt[ParticlesGroup::FY][idxTarget] += tfy;
+            valuesTgt[ParticlesGroup::FZ][idxTarget] += tfz;
+            valuesTgt[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
         }
 
         __syncthreads();
@@ -378,10 +378,10 @@ int main(){
     );
 
     tg.task(SpWrite(particles),SpRead(particlesB),
-            SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
+            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<ParticlesGroup> paramB) {
                 p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
             })
