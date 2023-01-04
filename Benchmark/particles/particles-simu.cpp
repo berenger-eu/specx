@@ -372,7 +372,7 @@ int main(){
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
-                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                //p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
     );
@@ -382,8 +382,8 @@ int main(){
     })
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<ParticlesGroup> paramB) {
-                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
-                                                                         paramB.getRawPtr(), paramB.getRawSize());
+//                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+//                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })
         #endif
     );
