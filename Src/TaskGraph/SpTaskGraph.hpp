@@ -672,7 +672,7 @@ private:
                 vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
             }
 
-            auto it = vectorExecutionPaths.begin();
+            [[maybe_unused]] auto it = vectorExecutionPaths.begin();
 
             while(true) {
 

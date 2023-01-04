@@ -42,6 +42,11 @@ public:
         }
     }
 
+    ParticlesGroup(const ParticlesGroup&) = default;
+    ParticlesGroup(ParticlesGroup&&) = default;
+    ParticlesGroup& operator=(const ParticlesGroup&) = default;
+    ParticlesGroup& operator=(ParticlesGroup&&) = default;
+
     void setParticleValues(const std::size_t inIdxParticle,
                            const std::array<double, NB_VALUE_TYPES>& inValues){
         assert(inIdxParticle < nbParticles);
@@ -149,7 +154,7 @@ public:
     }
 
     template <class DeviceMemmov>
-    mutable void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
@@ -158,7 +163,7 @@ public:
     }
 
     template <class DeviceMemmov>
-    mutable void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
         assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
