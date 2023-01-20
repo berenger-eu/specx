@@ -139,8 +139,10 @@ enum class DeviceMovableType{
     ERROR
 };
 
-template <class DataType>
+template <class RawDataType>
 DeviceMovableType constexpr GetDeviceMovableType(){
+    using DataType = std::remove_const_t<std::remove_reference_t<RawDataType>>;
+
     if constexpr(class_has_memmovNeededSize<DataType>::value
                 && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
                 && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
