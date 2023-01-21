@@ -35,8 +35,8 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWor
 }
 
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
-                                             const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams(),
-                                             const int nbCudaWorkers = SpCudaUtils::GetNbDevices()) {
+                                             const int nbCudaWorkers = SpCudaUtils::GetNbDevices(),
+                                             const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams()) {
     small_vector<std::unique_ptr<SpWorker>> res;
     res.reserve(nbCpuWorkers + nbWorkerPerCudas*nbCudaWorkers);
 
