@@ -116,6 +116,7 @@ public:
             assert(idxGpuSrcIter != copies.end());
             const int idxGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
             deviceDataOp->copyDeviceToHost(memManagers[idxGpu], this, ptrToData, copies[idxGpu]);
+            cpuDataOk = true;
             return idxGpu;
         }
         return -1;
