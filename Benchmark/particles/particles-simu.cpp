@@ -68,6 +68,14 @@ public:
     }
 
     void computeSelf(){
+
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            for(int idxP = 0 ; idxP < nbParticles ; ++idxP){// TODO
+                printf("%e ", values[idxValueType][idxP]);
+            }
+            printf("\n");// TODO
+        }
+
         for(std::size_t idxTarget = 0 ; idxTarget < getNbParticles() ; ++idxTarget){
             const double tx = double(values[X][idxTarget]);
             const double ty = double(values[Y][idxTarget]);
@@ -105,7 +113,7 @@ public:
                 values[POTENTIAL][idxSource] += inv_distance * tv;
 
                 printf("CPU -- interaction between source %e %e %e and target %e %e %e\n",
-                       values[X], values[Y], values[Z],
+                       values[X][idxSource], values[Y][idxSource], values[Z][idxSource],
                        tx, ty, tz);
 
                 printf("CPU -- source dx %e dy %e dz %e pot %e\n", values[FX][idxSource],
@@ -208,6 +216,10 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     double* values[ParticlesGroup::NB_VALUE_TYPES];
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = reinterpret_cast<double*>(data)+idxValueType*nbParticles;
+        for(int idxP = 0 ; idxP < nbParticles ; ++idxP){// TODO
+            printf("%e ", values[idxValueType][idxP]);
+        }
+        printf("\n");// TODO
     }
 
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
