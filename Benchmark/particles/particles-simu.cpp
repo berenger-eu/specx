@@ -435,6 +435,7 @@ ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& in
         const auto p2 = inGroup2.getParticle(idx);
 
         for(std::size_t idxVal = 0 ; idxVal < ParticlesGroup::NB_VALUE_TYPES ; ++idxVal){
+            printf("%lu/%lu, %e %e\n", idx, idxVal, p1[idxVal], p2[idxVal]);// TODO
             maxDiff = std::max(maxDiff, std::abs((p1[idxVal] - p2[idxVal])/(p1[idxVal] == 0? 1 : p1[idxVal])));
         }
     }
@@ -454,7 +455,7 @@ int main(){
 
     tg.computeOn(ce);
 
-    const std::size_t NbParticles = 2;
+    const std::size_t NbParticles = 100;
     ParticlesGroup particles(NbParticles);
     FillRandomValues(particles, 0);
     ParticlesGroup particlesB(NbParticles);
@@ -466,45 +467,48 @@ int main(){
     particles.computeSelf();
     particlesB.computeSelf();
 
-    //particles.compute(particlesB);
+    particles.compute(particlesB);
 
-    tg.task(SpWrite(cu_particles),
-//            SpCpu([](ParticlesGroup& particlesW) {
-//                particlesW.computeSelf();
-//    })
+    tg.task(SpWrite(cu_particles)/*,
+            SpCpu([](ParticlesGroup& particlesW) {
+                particlesW.computeSelf();
+    })*/
         #ifdef SPECX_COMPILE_WITH_CUDA
-            /*,*/ SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
-                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
     );
 
-    tg.task(SpWrite(cu_particlesB),
+    tg.task(SpWrite(cu_particlesB)/*,
             SpCpu([](ParticlesGroup& particlesW) {
                 particlesW.computeSelf();
-    })
-//        #ifdef SPECX_COMPILE_WITH_CUDA
-//            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
-//                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
-//            })
-//        #endif
+    })*/
+        #ifdef SPECX_COMPILE_WITH_CUDA
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+            })
+        #endif
     );
 
-//    tg.task(SpWrite(cu_particles),SpRead(cu_particlesB),
-//            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
-//                particlesW.compute(particlesR);
-//    })
-//        #ifdef SPECX_COMPILE_WITH_CUDA
-//            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
-//                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
-//                                                                         paramB.getRawPtr(), paramB.getRawSize());
-//            })
-//        #endif
-//    );
+    tg.task(SpWrite(cu_particles),SpRead(cu_particlesB)/*,
+            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+                particlesW.compute(particlesR);
+    })*/
+        #ifdef SPECX_COMPILE_WITH_CUDA
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
+                p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
+                                                                         paramA.getRawPtr(), paramA.getRawSize());
+            })
+        #endif
+    );
 
     tg.task(SpWrite(cu_particles),
             SpCpu([](ParticlesGroup& particlesW) {
-                particlesW.computeSelf();
+            })
+    );
+    tg.task(SpWrite(cu_particlesB),
+            SpCpu([](ParticlesGroup& particlesW) {
             })
     );
 
