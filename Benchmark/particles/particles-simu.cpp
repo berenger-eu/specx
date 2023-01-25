@@ -55,11 +55,19 @@ public:
         }
     }
 
+    auto getParticle(const std::size_t inIdxParticle) const {
+        std::array<double, NB_VALUE_TYPES> valuesPart;
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            valuesPart[idxValueType] = values[idxValueType][inIdxParticle];
+        }
+        return valuesPart;
+    }
+
     auto getNbParticles() const{
         return nbParticles;
     }
 
-    void computeSelf(ParticlesGroup& inOther){
+    void computeSelf(){
         for(std::size_t idxTarget = 0 ; idxTarget < getNbParticles() ; ++idxTarget){
             const double tx = double(values[X][idxTarget]);
             const double ty = double(values[Y][idxTarget]);
@@ -95,16 +103,26 @@ public:
                 values[FY][idxSource] -= dy;
                 values[FZ][idxSource] -= dz;
                 values[POTENTIAL][idxSource] += inv_distance * tv;
+
+                printf("CPU -- interaction between source %e %e %e and target %e %e %e\n",
+                       values[X], values[Y], values[Z],
+                       tx, ty, tz);
+
+                printf("CPU -- source dx %e dy %e dz %e pot %e\n", values[FX][idxSource],
+                       values[FY][idxSource], values[FZ][idxSource], values[POTENTIAL][idxSource]);
             }
 
             values[FX][idxTarget] += tfx;
             values[FY][idxTarget] += tfy;
             values[FZ][idxTarget] += tfz;
             values[POTENTIAL][idxTarget] += tpo;
+
+            printf("CPU -- target dx %e dy %e dz %e pot %e\n", values[FX][idxTarget],
+                   values[FY][idxTarget], values[FZ][idxTarget], values[POTENTIAL][idxTarget]);
         }
     }
 
-    void compute(ParticlesGroup& inOther){
+    void compute(const ParticlesGroup& inOther){
         for(std::size_t idxTarget = 0 ; idxTarget < inOther.getNbParticles() ; ++idxTarget){
             const double tx = double(inOther.values[X][idxTarget]);
             const double ty = double(inOther.values[Y][idxTarget]);
@@ -142,10 +160,10 @@ public:
                 values[POTENTIAL][idxSource] += inv_distance * tv;
             }
 
-            inOther.values[FX][idxTarget] += tfx;
-            inOther.values[FY][idxTarget] += tfy;
-            inOther.values[FZ][idxTarget] += tfz;
-            inOther.values[POTENTIAL][idxTarget] += tpo;
+//            inOther.values[FX][idxTarget] += tfx;
+//            inOther.values[FY][idxTarget] += tfy;
+//            inOther.values[FZ][idxTarget] += tfz;
+//            inOther.values[POTENTIAL][idxTarget] += tpo;
         }
     }
 
@@ -253,6 +271,10 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
                         tfy += dy;
                         tfz += dz;
                         tpo += inv_distance * sourcesPhys[otherIndex];
+
+                        printf("GPU -- interaction between source %e %e %e and target %e %e %e\n",
+                               sourcesX[otherIndex], sourcesY[otherIndex], sourcesZ[otherIndex],
+                               tx, ty, tz);
                     }
                 }
             }
@@ -265,6 +287,9 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
             values[ParticlesGroup::FY][idxTarget] += tfy;
             values[ParticlesGroup::FZ][idxTarget] += tfz;
             values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
+
+            printf("GPU -- target dx %e dy %e dz %e pot %e\n", values[ParticlesGroup::FX][idxTarget],
+                   values[ParticlesGroup::FY][idxTarget], values[ParticlesGroup::FZ][idxTarget], values[ParticlesGroup::POTENTIAL][idxTarget]);
         }
 
         __syncthreads();
@@ -365,6 +390,47 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
 #endif
 
 
+#include <random>
+
+template <class NumType = double>
+void FillRandomValues(ParticlesGroup& inGroup, const int inSeed,
+                      const NumType inPhysicalValue = 0.1,
+                      const NumType inMinPos = 0, const NumType inMaxPos = 1){
+    std::mt19937 gen(inSeed);
+    std::uniform_real_distribution<> distrib(inMinPos, inMaxPos);
+
+    std::array<double, ParticlesGroup::NB_VALUE_TYPES> vecPart;
+    std::fill(vecPart.begin(), vecPart.end(), 0);
+    vecPart[ParticlesGroup::PHYSICAL] = inPhysicalValue;
+
+    for(std::size_t idxPart = 0 ; idxPart < inGroup.getNbParticles() ; ++idxPart){
+        vecPart[ParticlesGroup::X] = distrib(gen);
+        vecPart[ParticlesGroup::Y] = distrib(gen);
+        vecPart[ParticlesGroup::Z] = distrib(gen);
+        inGroup.setParticleValues(idxPart, vecPart);
+    }
+}
+
+template <class ValueType = double>
+ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& inGroup2){
+    if(inGroup1.getNbParticles() != inGroup2.getNbParticles()){
+        return std::numeric_limits<ValueType>::infinity();
+    }
+
+    ValueType maxDiff = 0;
+    for(std::size_t idx = 0 ; idx < inGroup1.getNbParticles() ; ++idx){
+        const auto p1 = inGroup1.getParticle(idx);
+        const auto p2 = inGroup2.getParticle(idx);
+
+        for(std::size_t idxVal = 0 ; idxVal < ParticlesGroup::NB_VALUE_TYPES ; ++idxVal){
+            maxDiff = std::max(maxDiff, std::abs((p1[idxVal] - p2[idxVal])/(p1[idxVal] == 0? 1 : p1[idxVal])));
+        }
+    }
+    return maxDiff;
+}
+
+#include <iostream>
+
 int main(){
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
@@ -376,30 +442,64 @@ int main(){
 
     tg.computeOn(ce);
 
-    ParticlesGroup particles(100);
-    ParticlesGroup particlesB(100);
-    tg.task(SpWrite(particles),
-            SpCpu([](ParticlesGroup& particlesW) {
-    })
+    const std::size_t NbParticles = 2;
+    ParticlesGroup particles(NbParticles);
+    FillRandomValues(particles, 0);
+    ParticlesGroup particlesB(NbParticles);
+    FillRandomValues(particlesB, 1);
+
+    ParticlesGroup cu_particles(particles);
+    ParticlesGroup cu_particlesB(particlesB);
+
+    particles.computeSelf();
+    particlesB.computeSelf();
+
+    //particles.compute(particlesB);
+
+    tg.task(SpWrite(cu_particles),
+//            SpCpu([](ParticlesGroup& particlesW) {
+//                particlesW.computeSelf();
+//    })
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
-                //p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+            /*,*/ SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
     );
 
-    tg.task(SpWrite(particles),SpRead(particlesB),
-            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+    tg.task(SpWrite(cu_particlesB),
+            SpCpu([](ParticlesGroup& particlesW) {
+                particlesW.computeSelf();
     })
-        #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
+//        #ifdef SPECX_COMPILE_WITH_CUDA
+//            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+//                p2p_inner_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+//            })
+//        #endif
+    );
+
+//    tg.task(SpWrite(cu_particles),SpRead(cu_particlesB),
+//            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+//                particlesW.compute(particlesR);
+//    })
+//        #ifdef SPECX_COMPILE_WITH_CUDA
+//            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
 //                p2p_neigh_gpu<<<1,1,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
 //                                                                         paramB.getRawPtr(), paramB.getRawSize());
+//            })
+//        #endif
+//    );
+
+    tg.task(SpWrite(cu_particles),
+            SpCpu([](ParticlesGroup& particlesW) {
+                particlesW.computeSelf();
             })
-        #endif
     );
 
     tg.waitAllTasks();
+
+    std::cout << "Error particles = " << ChechAccuracy(particles, cu_particles) << std::endl;
+    std::cout << "Error particles = " << ChechAccuracy(particlesB, cu_particlesB) << std::endl;
 
     return 0;
 }
