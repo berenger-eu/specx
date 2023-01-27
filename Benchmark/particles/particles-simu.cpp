@@ -197,12 +197,19 @@ public:
         }
     }
 
-    struct View{
-        View(){}
-        View(void* devicePtr, std::size_t size){}
-        View(const void* devicePtr, std::size_t size){}
+    class DataDescr {
+        std::size_t nbParticles;
+    public:
+        explicit DataDescr(const std::size_t inNbParticles = 0) : nbParticles(inNbParticles){}
+
+        auto getNbParticles() const{
+            return nbParticles;
+        }
     };
-    using DeviceDataType = View;
+
+    auto getDeviceDataDescription() const{
+        return DataDescr(nbParticles);
+    }
 };
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -475,6 +482,7 @@ int main(){
     })*/
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
@@ -486,6 +494,7 @@ int main(){
     })*/
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
@@ -497,6 +506,8 @@ int main(){
     })*/
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
+                [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
                                                                          paramA.getRawPtr(), paramA.getRawSize());
             })

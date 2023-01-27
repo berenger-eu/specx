@@ -2,6 +2,7 @@
 #define SPDEVICEDATA_HPP
 
 #include <type_traits>
+#include <vector>
 #include "SpAbstractDeviceMemManager.hpp"
 
 struct SpDeviceData {
@@ -100,6 +101,32 @@ struct is_trivial_stdvector<const std::vector<T, Alloc>> : public SpDeviceDataTr
 };
 
 ///////////////////
+
+// See http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4502.pdf.
+template <typename...>
+using void_t = void;
+
+// Primary template handles all types not supporting the operation.
+template <typename, template <typename> class, typename = void_t<>>
+struct detect : std::false_type {};
+
+// Specialization recognizes/validates only types supporting the archetype.
+template <typename T, template <typename> class Op>
+struct detect<T, Op, void_t<Op<T>>> : std::true_type {};
+
+template <typename T>
+using setDataDescr_test = decltype(std::declval<T>().setDataDescr(nullptr));
+
+template <typename T>
+using class_has_setDataDescr = detect<T, setDataDescr_test>;
+
+template <typename T>
+using getDeviceDataDescription_test = decltype(std::declval<T>().getDeviceDataDescription());
+
+template <typename T>
+using class_has_getDeviceDataDescription = detect<T, getDeviceDataDescription_test>;
+
+///////////////////
 template <class AllocatorClass>
 class SpDeviceMemmov{
     AllocatorClass& memManager;
@@ -145,7 +172,8 @@ DeviceMovableType constexpr GetDeviceMovableType(){
 
     if constexpr(class_has_memmovNeededSize<DataType>::value
                 && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
-                && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
+                && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
+                && class_has_getDeviceDataDescription<DataType>::value){
         return DeviceMovableType::MEMMOV;
     }
     else if constexpr(is_trivial_stdvector<DataType>::value){
@@ -264,7 +292,7 @@ public:
 template <class DataType>
 class SpDeviceDataView<DataType,
         typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV>>{
-    using DeviceDataType = typename DataType::DeviceDataType;
+    using DeviceDataType = std::remove_reference_t<decltype(std::declval<DataType>().getDeviceDataDescription())>;
     void *rawPtr;
     std::size_t rawSize;
     DeviceDataType deviceData;
@@ -278,8 +306,11 @@ public:
      void reset(void* ptr, std::size_t size){
         rawPtr = ptr;
         rawSize = size;
-        deviceData = DeviceDataType(ptr, size);
      }
+
+   void setDataDescr(const void* hostPtr){
+        deviceData = reinterpret_cast<const DataType*>(hostPtr)->getDeviceDataDescription();
+   }
 
     void* getRawPtr(){
         assert(0);

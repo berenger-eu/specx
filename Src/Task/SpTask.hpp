@@ -144,6 +144,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
                     std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescr<decltype(std::get<index>(cudaCallableArgs))>::value){
+                        std::get<index>(cudaCallableArgs).setDataDescr(h->getRawPtr());
+                    }
                 }
                 else{
                     assert(0);
@@ -198,6 +201,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
                     std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescr<decltype(std::get<index>(cudaCallableArgs))>::value){
+                        std::get<index>(cudaCallableArgs).setDataDescr(h->getRawPtr());
+                    }
                 }
                 else{
                     assert(0);

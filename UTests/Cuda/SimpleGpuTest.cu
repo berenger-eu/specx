@@ -42,11 +42,13 @@ public:
         mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr), 10*sizeof(int));
     }
 
-    struct View{
-        View(){}
-        View(void* devicePtr, std::size_t size){}
+    struct DataDescr{
+        DataDescr(){}
     };
-    using DeviceDataType = View;
+
+    auto getDeviceDataDescription() const{
+        return DataDescr();
+    }
 };
 
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
