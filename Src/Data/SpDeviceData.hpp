@@ -176,14 +176,21 @@ DeviceMovableType constexpr GetDeviceMovableType(){
                 && class_has_getDeviceDataDescription<DataType>::value){
         return DeviceMovableType::MEMMOV;
     }
-    else if constexpr(is_trivial_stdvector<DataType>::value){
-        return DeviceMovableType::STDVEC;
-    }
-    else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
-        return DeviceMovableType::RAW_COPY;
-    }
-    else {
-        return DeviceMovableType::ERROR;
+    else{
+        static_assert(!class_has_memmovNeededSize<DataType>::value
+                && !class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
+                && !class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
+                && !class_has_getDeviceDataDescription<DataType>::value,
+                "Error, class has method of type MEMMOV but not all of them...");
+        if constexpr(is_trivial_stdvector<DataType>::value){
+            return DeviceMovableType::STDVEC;
+        }
+        else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return DeviceMovableType::RAW_COPY;
+        }
+        else {
+            return DeviceMovableType::ERROR;
+        }
     }
 }
 
