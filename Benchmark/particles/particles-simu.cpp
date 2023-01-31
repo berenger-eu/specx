@@ -68,14 +68,6 @@ public:
     }
 
     void computeSelf(){
-
-        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            for(int idxP = 0 ; idxP < nbParticles ; ++idxP){// TODO
-                printf("%e ", values[idxValueType][idxP]);
-            }
-            printf("\n");// TODO
-        }
-
         for(std::size_t idxTarget = 0 ; idxTarget < getNbParticles() ; ++idxTarget){
             const double tx = double(values[X][idxTarget]);
             const double ty = double(values[Y][idxTarget]);
@@ -111,26 +103,16 @@ public:
                 values[FY][idxSource] -= dy;
                 values[FZ][idxSource] -= dz;
                 values[POTENTIAL][idxSource] += inv_distance * tv;
-
-                printf("CPU -- interaction between source %e %e %e and target %e %e %e\n",
-                       values[X][idxSource], values[Y][idxSource], values[Z][idxSource],
-                       tx, ty, tz);
-
-                printf("CPU -- source dx %e dy %e dz %e pot %e\n", values[FX][idxSource],
-                       values[FY][idxSource], values[FZ][idxSource], values[POTENTIAL][idxSource]);
             }
 
             values[FX][idxTarget] += tfx;
             values[FY][idxTarget] += tfy;
             values[FZ][idxTarget] += tfz;
             values[POTENTIAL][idxTarget] += tpo;
-
-            printf("CPU -- target dx %e dy %e dz %e pot %e\n", values[FX][idxTarget],
-                   values[FY][idxTarget], values[FZ][idxTarget], values[POTENTIAL][idxTarget]);
         }
     }
 
-    void compute(const ParticlesGroup& inOther){
+    void compute(ParticlesGroup& inOther){
         for(std::size_t idxTarget = 0 ; idxTarget < inOther.getNbParticles() ; ++idxTarget){
             const double tx = double(inOther.values[X][idxTarget]);
             const double ty = double(inOther.values[Y][idxTarget]);
@@ -168,10 +150,10 @@ public:
                 values[POTENTIAL][idxSource] += inv_distance * tv;
             }
 
-//            inOther.values[FX][idxTarget] += tfx;
-//            inOther.values[FY][idxTarget] += tfy;
-//            inOther.values[FZ][idxTarget] += tfz;
-//            inOther.values[POTENTIAL][idxTarget] += tpo;
+            inOther.values[FX][idxTarget] += tfx;
+            inOther.values[FY][idxTarget] += tfy;
+            inOther.values[FZ][idxTarget] += tfz;
+            inOther.values[POTENTIAL][idxTarget] += tpo;
         }
     }
 
@@ -223,10 +205,6 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     double* values[ParticlesGroup::NB_VALUE_TYPES];
     for(std::size_t idxValueType = 0 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = reinterpret_cast<double*>(data)+idxValueType*nbParticles;
-        for(int idxP = 0 ; idxP < nbParticles ; ++idxP){// TODO
-            printf("%e ", values[idxValueType][idxP]);
-        }
-        printf("\n");// TODO
     }
 
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
@@ -290,10 +268,6 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
                         tfy += dy;
                         tfz += dz;
                         tpo += inv_distance * sourcesPhys[otherIndex];
-
-                        printf("GPU -- interaction between source %e %e %e and target %e %e %e\n",
-                               sourcesX[otherIndex], sourcesY[otherIndex], sourcesZ[otherIndex],
-                               tx, ty, tz);
                     }
                 }
             }
@@ -307,8 +281,6 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
             values[ParticlesGroup::FZ][idxTarget] += tfz;
             values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
 
-            printf("GPU -- target dx %e dy %e dz %e pot %e\n", values[ParticlesGroup::FX][idxTarget],
-                   values[ParticlesGroup::FY][idxTarget], values[ParticlesGroup::FZ][idxTarget], values[ParticlesGroup::POTENTIAL][idxTarget]);
         }
 
         __syncthreads();
@@ -442,7 +414,6 @@ ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& in
         const auto p2 = inGroup2.getParticle(idx);
 
         for(std::size_t idxVal = 0 ; idxVal < ParticlesGroup::NB_VALUE_TYPES ; ++idxVal){
-            printf("%lu/%lu, %e %e\n", idx, idxVal, p1[idxVal], p2[idxVal]);// TODO
             maxDiff = std::max(maxDiff, std::abs((p1[idxVal] - p2[idxVal])/(p1[idxVal] == 0? 1 : p1[idxVal])));
         }
     }
@@ -510,6 +481,8 @@ int main(){
                 [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
                                                                          paramA.getRawPtr(), paramA.getRawSize());
+                p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+                                                                         paramB.getRawPtr(), paramB.getRawSize());
             })
         #endif
     );
