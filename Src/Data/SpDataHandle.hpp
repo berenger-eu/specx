@@ -155,7 +155,7 @@ public:
             if(idxGpuSrcIter != copies.end()){
                 const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
                 if(memManagers[gpuId].isConnectedTo(otherGpu)){
-                    copies[gpuId].viewPtr = deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], this, copies[gpuId], copies[otherGpu], otherGpu);
+                    copies[gpuId].viewPtr = deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], this, ptrToData, copies[gpuId], copies[otherGpu], otherGpu);
                 }
                 else{
                     syncCpuDataIfNeeded(memManagers);
