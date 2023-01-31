@@ -109,6 +109,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
             constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+            using CallDataType = decltype(std::get<index>(cudaCallableArgs));
             
             long int indexHh = 0;
             
@@ -144,8 +145,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
                     std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
-                    if constexpr(SpDeviceDataUtils::class_has_setDataDescr<decltype(std::get<index>(cudaCallableArgs))>::value){
-                        std::get<index>(cudaCallableArgs).setDataDescr(h->getRawPtr());
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<ScalarOrContainerType>::value){
+                        std::get<index>(cudaCallableArgs).setDataDescriptor(dataObj.viewPtr);
+                    }
+                    else{
+                        assert(dataObj.view == nullptr);
                     }
                 }
                 else{
@@ -201,8 +205,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
                     std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
-                    if constexpr(SpDeviceDataUtils::class_has_setDataDescr<decltype(std::get<index>(cudaCallableArgs))>::value){
-                        std::get<index>(cudaCallableArgs).setDataDescr(h->getRawPtr());
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
+                        std::get<index>(cudaCallableArgs).setDataDescriptor(h->getRawPtr());
                     }
                 }
                 else{

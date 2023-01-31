@@ -157,27 +157,7 @@ public:
         }
     }
 
-    std::size_t memmovNeededSize() const{
-        return sizeof(double)*nbParticles*NB_VALUE_TYPES;
-    }
-
-    template <class DeviceMemmov>
-    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
-        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
-        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            mover.copyHostToDevice(&doubleDevicePtr[idxValueType*nbParticles], values[idxValueType].data(), nbParticles*sizeof(double));
-        }
-    }
-
-    template <class DeviceMemmov>
-    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
-        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
-        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            mover.copyDeviceToHost(values[idxValueType].data(), &doubleDevicePtr[idxValueType*nbParticles], nbParticles*sizeof(double));
-        }
-    }
+    /////////////////////////////////////////////////////////////
 
     class DataDescr {
         std::size_t nbParticles;
@@ -189,8 +169,29 @@ public:
         }
     };
 
-    auto getDeviceDataDescription() const{
+    using DataDescriptor = DataDescr;
+
+    std::size_t memmovNeededSize() const{
+        return sizeof(double)*nbParticles*NB_VALUE_TYPES;
+    }
+
+    template <class DeviceMemmov>
+    auto memmovHostToDevice(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size){
+        assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            mover.copyHostToDevice(&doubleDevicePtr[idxValueType*nbParticles], values[idxValueType].data(), nbParticles*sizeof(double));
+        }
         return DataDescr(nbParticles);
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size, const DataDescr& /*inDataDescr*/){
+        assert(size == sizeof(double)*nbParticles*NB_VALUE_TYPES);
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
+            mover.copyDeviceToHost(values[idxValueType].data(), &doubleDevicePtr[idxValueType*nbParticles], nbParticles*sizeof(double));
+        }
     }
 };
 

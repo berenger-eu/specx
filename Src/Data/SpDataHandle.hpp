@@ -86,7 +86,7 @@ public:
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
     template <class Allocators>
     void setCpuOnlyValid(Allocators& memManagers) {
-        assert(cpuDataOk = true);
+        assert(cpuDataOk == true);
         for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
             if(copies[idxGpu].ptr){
                 deviceDataOp->freeGroup(memManagers[idxGpu], this, ptrToData);
@@ -155,16 +155,17 @@ public:
             if(idxGpuSrcIter != copies.end()){
                 const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
                 if(memManagers[gpuId].isConnectedTo(otherGpu)){
-                    deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], this, copies[gpuId], copies[otherGpu], otherGpu);
+                    copies[gpuId].viewPtr = deviceDataOp->copyFromDeviceToDevice(memManagers[gpuId], this, copies[gpuId], copies[otherGpu], otherGpu);
                 }
                 else{
                     syncCpuDataIfNeeded(memManagers);
-                    deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+
+                   copies[gpuId].viewPtr = deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
                 }
             }
             else{
                 assert(cpuDataOk);
-                deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
+                copies[gpuId].viewPtr = deviceDataOp->copyHostToDevice(memManagers[gpuId], this, copies[gpuId], ptrToData);
             }
         }
         return copies[gpuId];
