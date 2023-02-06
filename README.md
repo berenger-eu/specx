@@ -469,9 +469,13 @@ In the latest, it is required to provide the following methods:
     void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
     ...
     }
+    
+    auto getDeviceDataDescription() const{
+    ...
+    }
 ```
-Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
-This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
+The type returned by `getDeviceDataDescription` must be copiable and have an empty constructor.
+It should be used to help retreive the data from the raw pointer when calling a device kernel.
 
 # GPU/HIP (Work-in-progress)
 
@@ -506,9 +510,13 @@ In the latest, it is required to provide the following methods:
     void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
     ...
     }
+    
+    auto getDeviceDataDescription() const{
+    ...
+    }
 ```
-Then, specx will use the class type definition `DeviceDataType`, for example `using DeviceDataType = View;`, to put it into the `SpDeviceDataView`.
-This type must have two constructors, one empty, and one with `void* devicePtr, std::size_t size`.
+The type returned by `getDeviceDataDescription` must be copiable and have an empty constructor.
+It should be used to help retreive the data from the raw pointer when calling a device kernel.
 
 
 # MPI

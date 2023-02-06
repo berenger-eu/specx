@@ -1,28 +1,16 @@
 #ifndef SPDEVICEDATA_HPP
 #define SPDEVICEDATA_HPP
 
+#include <cassert>
 #include <type_traits>
+#include <vector>
 #include "SpAbstractDeviceMemManager.hpp"
 
 struct SpDeviceData {
-    void* ptr = nullptr;
-    std::size_t size;
+    void* ptr  = nullptr;
+    void* viewPtr = nullptr;
+    std::size_t size = 0;
 };
-
-
-template <class AllocatorClass>
-class SpAbstractDeviceDataCopier {
-public:
-    virtual ~SpAbstractDeviceDataCopier(){};
-    virtual bool hasEnoughSpace(AllocatorClass& allocator, void* key, void* rawHostPtr)  = 0;
-    virtual std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* key,  void* rawHostPtr) = 0;
-    virtual SpDeviceData  allocate(AllocatorClass& allocator, void* key, void* hostPtr) = 0;
-    virtual void  copyFromHostToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtr, void* hostPtr) = 0;
-    virtual void  copyFromDeviceToHost(AllocatorClass& allocator, void* key, void* hostPtr, SpDeviceData devicePtr) = 0;
-    virtual void  copyFromDeviceToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtrDst, SpDeviceData devicePtrSrc, int srcId) = 0;
-    virtual void  freeGroup(AllocatorClass& allocator, void* key, void* rawHostPtr) = 0;
-};
-
 
 //////////////////////////////////////////////////////////
 namespace SpDeviceDataUtils{
@@ -46,7 +34,19 @@ struct class_has_memmovHostToDevice
 template <typename Class, typename CopierClass>
 struct class_has_memmovHostToDevice<Class, CopierClass,
     std::void_t<decltype(std::declval<Class>().template memmovHostToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>()))>>
-: public std::is_same<decltype(std::declval<Class>().template memmovHostToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>())), void>
+: public std::is_same<decltype(std::declval<Class>().template memmovHostToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>())), typename Class::DataDescriptor>
+{};
+
+///////////////////
+
+template <typename, typename, typename = std::void_t<>>
+struct class_has_memmovDeviceToDevice
+: public std::false_type {};
+
+template <typename Class, typename CopierClass>
+struct class_has_memmovDeviceToDevice<Class, CopierClass,
+    std::void_t<decltype(std::declval<Class>().template memmovDeviceToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<void*>(), std::declval<int>(), std::declval<std::size_t>(), std::declval<const typename Class::DataDescriptor&>()))>>
+: public std::is_same<decltype(std::declval<Class>().template memmovDeviceToDevice<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<void*>(), std::declval<int>(), std::declval<std::size_t>(), std::declval<const typename Class::DataDescriptor&>())), typename Class::DataDescriptor>
 {};
 
 ///////////////////
@@ -57,8 +57,8 @@ struct class_has_memmovDeviceToHost
 
 template <typename Class, typename CopierClass>
 struct class_has_memmovDeviceToHost<Class, CopierClass,
-    std::void_t<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>()))>>
-: public std::is_same<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>())), void>
+    std::void_t<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>(), std::declval<const typename Class::DataDescriptor&>()))>>
+: public std::is_same<decltype(std::declval<Class>().template memmovDeviceToHost<CopierClass>(std::declval<CopierClass&>(), std::declval<void*>(), std::declval<std::size_t>(), std::declval<const typename Class::DataDescriptor&>())), void>
 {};
 
 ///////////////////
@@ -67,6 +67,11 @@ template<class T> struct is_stdvector : public std::false_type {};
 
 template<class T, class Alloc>
 struct is_stdvector<std::vector<T, Alloc>> : public std::true_type {
+    using _T = T;
+};
+
+template<class T, class Alloc>
+struct is_stdvector<const std::vector<T, Alloc>> : public std::true_type {
     using _T = T;
 };
 
@@ -89,15 +94,40 @@ struct is_trivial_stdvector<std::vector<T, Alloc>> : public SpDeviceDataTrivialC
     using _T = T;
 };
 
+template<class T, class Alloc>
+struct is_trivial_stdvector<const std::vector<T, Alloc>> : public SpDeviceDataTrivialCopyTest<T> {
+    using _T = T;
+};
+
+///////////////////
+
+// See http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2015/n4502.pdf.
+template <typename...>
+using void_t = void;
+
+// Primary template handles all types not supporting the operation.
+template <typename, template <typename> class, typename = void_t<>>
+struct detect : std::false_type {};
+
+// Specialization recognizes/validates only types supporting the archetype.
+template <typename T, template <typename> class Op>
+struct detect<T, Op, void_t<Op<T>>> : std::true_type {};
+
+template <typename T>
+using setDataDescriptor_test = decltype(std::declval<T>().setDataDescriptor(nullptr));
+
+template <typename T>
+using class_has_setDataDescriptor = detect<T, setDataDescriptor_test>;
+
 ///////////////////
 template <class AllocatorClass>
-class SpDeviceMemmov{
+class SpAllocatorInterface{
     AllocatorClass& memManager;
     void* basedDevicePtr;
     const std::size_t memBlockSize;
 
 public:
-    SpDeviceMemmov(AllocatorClass& inMemManager, void* inBasedDevicePtr, const std::size_t inMemBlockSize)
+    SpAllocatorInterface(AllocatorClass& inMemManager, void* inBasedDevicePtr, const std::size_t inMemBlockSize)
         : memManager(inMemManager), basedDevicePtr(inBasedDevicePtr), memBlockSize(inMemBlockSize){}
 
     void* ptr() const{
@@ -113,10 +143,15 @@ public:
                && std::size_t(devicePtr) + size <= std::size_t(basedDevicePtr) + memBlockSize);
         memManager.copyHostToDevice(devicePtr, hostPtr, size);
     }
-    void  copyFromDeviceToHost(void* hostPtr, void* devicePtr, std::size_t size){
+    void  copyDeviceToHost(void* hostPtr, void* devicePtr, std::size_t size){
         assert(std::size_t(devicePtr) >= std::size_t(basedDevicePtr)
                && std::size_t(devicePtr) + size <= std::size_t(basedDevicePtr) + memBlockSize);
-        memManager.DeviceToHost(hostPtr, devicePtr, size);
+        memManager.copyDeviceToHost(hostPtr, devicePtr, size);
+    }
+    void  copyDeviceToDevice(void* destPtr, const void* srcPtr, const int srcDevId, std::size_t size){
+        assert(std::size_t(destPtr) >= std::size_t(basedDevicePtr)
+               && std::size_t(destPtr) + size <= std::size_t(basedDevicePtr) + memBlockSize);
+        memManager.copyDeviceToDevice(destPtr, srcPtr, srcDevId, size);
     }
 };
 
@@ -129,21 +164,28 @@ enum class DeviceMovableType{
     ERROR
 };
 
-template <class DataType>
+template <class RawDataType>
 DeviceMovableType constexpr GetDeviceMovableType(){
+    using DataType = std::remove_const_t<std::remove_reference_t<RawDataType>>;
     if constexpr(class_has_memmovNeededSize<DataType>::value
-                && class_has_memmovHostToDevice<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value
-                && class_has_memmovDeviceToHost<DataType, SpDeviceMemmov<SpAbstractDeviceMemManager>>::value){
+                && class_has_memmovHostToDevice<DataType, SpAllocatorInterface<SpAbstractDeviceMemManager>>::value
+                && class_has_memmovDeviceToHost<DataType, SpAllocatorInterface<SpAbstractDeviceMemManager>>::value){
         return DeviceMovableType::MEMMOV;
     }
-    else if constexpr(is_trivial_stdvector<DataType>::value){
-        return DeviceMovableType::STDVEC;
-    }
-    else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
-        return DeviceMovableType::RAW_COPY;
-    }
-    else {
-        return DeviceMovableType::ERROR;
+    else{
+        static_assert(!class_has_memmovNeededSize<DataType>::value
+                && !class_has_memmovHostToDevice<DataType, SpAllocatorInterface<SpAbstractDeviceMemManager>>::value
+                && !class_has_memmovDeviceToHost<DataType, SpAllocatorInterface<SpAbstractDeviceMemManager>>::value,
+                "Error, class has method of type MEMMOV but not all of them...");
+        if constexpr(is_trivial_stdvector<DataType>::value){
+            return DeviceMovableType::STDVEC;
+        }
+        else if constexpr(SpDeviceDataTrivialCopyTest<DataType>::value) {
+            return DeviceMovableType::RAW_COPY;
+        }
+        else {
+            return DeviceMovableType::ERROR;
+        }
     }
 }
 
@@ -252,44 +294,40 @@ public:
 template <class DataType>
 class SpDeviceDataView<DataType,
         typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV>>{
-    using DeviceDataType = typename DataType::DeviceDataType;
+    using DataDescriptor = typename DataType::DataDescriptor;
     void *rawPtr;
     std::size_t rawSize;
-    DeviceDataType deviceData;
+    DataDescriptor* deviceData;
 public:
     const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::MEMMOV;
 
      SpDeviceDataView()
-         : rawPtr(nullptr), rawSize(0){
+         : rawPtr(nullptr), rawSize(0), deviceData(0){
      }
 
      void reset(void* ptr, std::size_t size){
         rawPtr = ptr;
         rawSize = size;
-        deviceData = DeviceDataType(ptr, size);
      }
 
+   void setDataDescr(const void* viewPtr){
+        deviceData = reinterpret_cast<const DataDescriptor*>(viewPtr);
+   }
+
     void* getRawPtr(){
-        assert(0);
         return rawPtr;
     }
 
     const void* getRawPtr() const{
-        assert(0);
         return rawPtr;
     }
 
     std::size_t getRawSize(){
-        assert(0);
         return rawSize;
     }
 
-    DeviceDataType& data(){
-        return deviceData;
-    }
-
-    const DeviceDataType& data() const {
-        return deviceData;
+    const DataDescriptor& data() const{
+        return *deviceData;
     }
 };
 
@@ -344,113 +382,235 @@ using DeviceViewTyple = decltype (DeviceViewTyple_Core<OrignalTuple>());
 
 //////////////////////////////////////////////////////////
 
-template <class DataType, class AllocatorClass>
-class SpDeviceDataCopier : public SpAbstractDeviceDataCopier<AllocatorClass> {
+template <class AllocatorClass>
+class SpAbstractDeviceDataCopier {
 public:
-    bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
+    virtual ~SpAbstractDeviceDataCopier(){};
+    virtual bool hasEnoughSpace(AllocatorClass& allocator, void* key, void* rawHostPtr)  = 0;
+    virtual std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* key,  void* rawHostPtr) = 0;
+    virtual SpDeviceData  allocate(AllocatorClass& allocator, void* key, void* hostPtr) = 0;
+    virtual void*  copyHostToDevice(AllocatorClass& allocator, void* key, SpDeviceData devicePtr, void* hostPtr) = 0;
+    virtual void  copyDeviceToHost(AllocatorClass& allocator, void* key, void* hostPtr, SpDeviceData devicePtr) = 0;
+    virtual void*  copyFromDeviceToDevice(AllocatorClass& allocator, void* key, void* rawHostPtr, SpDeviceData devicePtrDst, SpDeviceData devicePtrSrc, int srcId) = 0;
+    virtual void  freeGroup(AllocatorClass& allocator, void* key, void* rawHostPtr) = 0;
+};
+
+
+template <class DataType, class AllocatorClass, typename = std::void_t<>>
+class SpDeviceDataCopier;
+
+
+template <class DataType, class AllocatorClass>
+class SpDeviceDataCopier<DataType, AllocatorClass,
+        typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY>>
+        :  public SpAbstractDeviceDataCopier<AllocatorClass> {
+public:
+       using DataType_t = DataType;
+
+    bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
-            neededSize = (sizeof(DataType));
-        }
-        else {
-            assert(0);
-        }
+        neededSize = (sizeof(DataType));
         return allocator.hasEnoughSpace(neededSize);
     }
 
-    std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override{
+    std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
-            neededSize = (sizeof(DataType));
-        }
-        else {
-            assert(0);
-        }
+        neededSize = (sizeof(DataType));
         return allocator.candidatesToBeRemoved(neededSize);
     }
 
-
-    SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override{
+    SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override {
         std::size_t neededSize = 0;
-        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
-            neededSize = (sizeof(DataType));
-        }
-        else {
-            assert(0);
-        }
+        neededSize = (sizeof(DataType));
         SpDeviceData copy;
         copy.size = neededSize;
         copy.ptr =  allocator.allocateWithKey(key, copy.size, alignof(DataType));
         return copy;
     }
-    void  copyFromHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override{
+
+    void*  copyHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override {
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
-        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
-            (reinterpret_cast<DataType*>(rawHostPtr))->memmovHostToDevice(interface, devicePtr.ptr, devicePtr.size);
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
-            allocator.copyHostToDevice(devicePtr.ptr, (reinterpret_cast<DataType*>(rawHostPtr))->data(),
-                                              devicePtr.size);
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
-            assert(devicePtr.size == sizeof(DataType));
+        assert(devicePtr.size == sizeof(DataType));
             allocator.copyHostToDevice(devicePtr.ptr, hostPtr,  sizeof(DataType));
-        }
-        else {
-            assert(0);
-        }
+                                                                                                                                          return nullptr;
     }
-    void  copyFromDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override{
+
+    void  copyDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override {
         DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
-        if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV){
-            SpDeviceDataUtils::SpDeviceMemmov<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
-            (reinterpret_cast<DataType*>(rawHostPtr))->memmovDeviceToHost(interface, devicePtr.ptr, devicePtr.size);
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC){
-            assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
-            return allocator.copyDeviceToHost((reinterpret_cast<DataType*>(rawHostPtr))->data(), devicePtr.ptr,
-                                              devicePtr.size);
-        }
-        else if constexpr(SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::RAW_COPY){
-            assert(devicePtr.size == sizeof(DataType));
+        assert(devicePtr.size == sizeof(DataType));
             return allocator.copyDeviceToHost(hostPtr, devicePtr.ptr,  sizeof(DataType));
-        }
-        else {
-            assert(0);
-        }
     }
-    void  copyFromDeviceToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtrDest, SpDeviceData devicePtrSrc, int srcId) override{
+
+    void*  copyFromDeviceToDevice(AllocatorClass& allocator, void* /*key*/, void* /*rawHostPtr*/, SpDeviceData devicePtrDest, SpDeviceData devicePtrSrc, int srcId) override {
         if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
             assert(devicePtrDest.size == sizeof(DataType));
         }
         assert(devicePtrDest.size == devicePtrSrc.size);
         allocator.copyDeviceToDevice(devicePtrDest.ptr, devicePtrSrc.ptr, srcId,
                                           devicePtrDest.size);
+                                                                                                                                          return nullptr;
     }
-    void  freeGroup(AllocatorClass& allocator, void* key, void* /*rawHostPtr*/) override{
+
+    void  freeGroup(AllocatorClass& allocator, void* key, void* /*rawHostPtr*/) override {
         allocator.freeGroup(key);
     }
 };
+
+
+template <class DataType, class AllocatorClass>
+class SpDeviceDataCopier<DataType, AllocatorClass,
+        typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::STDVEC>>
+                 :  public SpAbstractDeviceDataCopier<AllocatorClass> {
+public:
+              using DataType_t = DataType;
+    bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        std::size_t neededSize = 0;
+        neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+        return allocator.hasEnoughSpace(neededSize);
+    }
+
+    std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        std::size_t neededSize = 0;
+        neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+        return allocator.candidatesToBeRemoved(neededSize);
+    }
+
+    SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override {
+        std::size_t neededSize = 0;
+        neededSize = (sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+        SpDeviceData copy;
+        copy.size = neededSize;
+        copy.ptr =  allocator.allocateWithKey(key, copy.size, alignof(DataType));
+        return copy;
+    }
+
+    void*  copyHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override {
+        DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
+        assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+            allocator.copyHostToDevice(devicePtr.ptr, (reinterpret_cast<DataType*>(rawHostPtr))->data(),
+                                              devicePtr.size);
+                                                                                                                                        return nullptr;
+    }
+
+    void  copyDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override {
+        DataType* hostPtr = static_cast<DataType*>(rawHostPtr);
+        assert(devicePtr.size == sizeof(typename SpDeviceDataUtils::is_stdvector<DataType>::_T) * (reinterpret_cast<DataType*>(rawHostPtr))->size());
+        allocator.copyDeviceToHost((reinterpret_cast<DataType*>(rawHostPtr))->data(), devicePtr.ptr,
+                                              devicePtr.size);
+    }
+
+    void*  copyFromDeviceToDevice(AllocatorClass& allocator, void* /*key*/, void* /*rawHostPtr*/, SpDeviceData devicePtrDest, SpDeviceData devicePtrSrc, int srcId) override {
+        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
+            assert(devicePtrDest.size == sizeof(DataType));
+        }
+        assert(devicePtrDest.size == devicePtrSrc.size);
+        allocator.copyDeviceToDevice(devicePtrDest.ptr, devicePtrSrc.ptr, srcId,
+                                          devicePtrDest.size);
+                                                                                                                                        return nullptr;
+    }
+
+    void  freeGroup(AllocatorClass& allocator, void* key, void* /*rawHostPtr*/) override {
+        allocator.freeGroup(key);
+    }
+};
+
+template <class DataType, class AllocatorClass>
+class SpDeviceDataCopier<DataType, AllocatorClass,
+        typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::MEMMOV>>
+                      :  public SpAbstractDeviceDataCopier<AllocatorClass> {
+public:
+    using DataType_t = DataType;
+
+    bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        std::size_t neededSize = 0;
+            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
+        return allocator.hasEnoughSpace(neededSize);
+    }
+    std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        std::size_t neededSize = 0;
+            neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
+        return allocator.candidatesToBeRemoved(neededSize);
+    }
+    SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override {
+        std::size_t neededSize = (reinterpret_cast<DataType*>(rawHostPtr))->memmovNeededSize();
+        SpDeviceData copy;
+        copy.size = neededSize;
+        copy.ptr =  allocator.allocateWithKey(key, copy.size, alignof(DataType));
+        return copy;
+    }
+    void*  copyHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override {
+        DataType* hostPtr = reinterpret_cast<DataType*>(rawHostPtr);
+        SpDeviceDataUtils::SpAllocatorInterface<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
+        auto view = hostPtr->memmovHostToDevice(interface, devicePtr.ptr, devicePtr.size);
+        return new decltype(view)(view);
+    }
+    void  copyDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override {
+        DataType* hostPtr = reinterpret_cast<DataType*>(rawHostPtr);
+            SpDeviceDataUtils::SpAllocatorInterface<AllocatorClass> interface(allocator, devicePtr.ptr, devicePtr.size);
+        const typename DataType::DataDescriptor& view = *(reinterpret_cast<typename DataType::DataDescriptor*>(devicePtr.viewPtr));
+        hostPtr->memmovDeviceToHost(interface, devicePtr.ptr, devicePtr.size, view);
+    }
+    void*  copyFromDeviceToDevice(AllocatorClass& allocator, void* /*key*/, [[maybe_unsused]] void* rawHostPtr,
+                                  SpDeviceData devicePtrDest, SpDeviceData devicePtrSrc, int srcId) override {
+        if constexpr(SpDeviceDataUtils::SpDeviceDataTrivialCopyTest<DataType>::value) {
+            assert(devicePtrDest.size == sizeof(DataType));
+        }
+        assert(devicePtrDest.size == devicePtrSrc.size);
+        const typename DataType::DataDescriptor& otherView = *(reinterpret_cast<typename DataType::DataDescriptor*>(devicePtrSrc.viewPtr));
+        if constexpr(SpDeviceDataUtils::class_has_memmovDeviceToDevice<DataType, SpDeviceDataUtils::SpAllocatorInterface<SpAbstractDeviceMemManager>>::value){
+            DataType* hostPtr = reinterpret_cast<DataType*>(rawHostPtr);
+            const typename DataType::DataDescriptor& srcView = *(reinterpret_cast<typename DataType::DataDescriptor*>(devicePtrSrc.viewPtr));
+            SpDeviceDataUtils::SpAllocatorInterface<AllocatorClass> interface(allocator, devicePtrDest.ptr, devicePtrDest.size);
+            auto view = hostPtr->memmovDeviceToDevice(interface, devicePtrDest.ptr, devicePtrSrc.ptr, srcId, devicePtrDest.size, srcView);
+            return new decltype(view)(view);
+        }
+        else{
+            allocator.copyDeviceToDevice(devicePtrDest.ptr, devicePtrSrc.ptr, srcId,
+                                              devicePtrDest.size);
+            return new std::remove_const_t<std::remove_reference_t<decltype(otherView)>>(otherView);
+        }
+    }
+    void  freeGroup(AllocatorClass& allocator, void* key, void* /*rawHostPtr*/) override {
+        allocator.freeGroup(key);
+    }
+};
+
+template <class DataType, class AllocatorClass>
+class SpDeviceDataCopier<DataType, AllocatorClass,
+        typename std::enable_if_t<SpDeviceDataUtils::GetDeviceMovableType<DataType>() == SpDeviceDataUtils::DeviceMovableType::ERROR>>
+                       :  public SpAbstractDeviceDataCopier<AllocatorClass> {
+public:
+    using DataType_t = DataType;
+
+    bool hasEnoughSpace(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        assert(0);
+        return false;
+    }
+    std::list<void*> candidatesToBeRemoved(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr) override {
+        assert(0);
+        return std::list<void*>();
+    }
+    SpDeviceData allocate(AllocatorClass& allocator, void* key, void* rawHostPtr) override {
+        assert(0);
+        return SpDeviceData();
+    }
+    void*  copyHostToDevice(AllocatorClass& allocator, void* /*key*/, SpDeviceData devicePtr, void* rawHostPtr) override {
+        assert(0);
+                                                                                                                                       return nullptr;
+    }
+    void  copyDeviceToHost(AllocatorClass& allocator, void* /*key*/, void* rawHostPtr, SpDeviceData devicePtr) override {
+        assert(0);
+    }
+    void*  copyFromDeviceToDevice(AllocatorClass& allocator, void* /*key*/, void* /*rawHostPtr*/, SpDeviceData /*devicePtrDest*/,
+                                 SpDeviceData /*devicePtrSrc*/, int /*srcId*/) override {
+        assert(0);
+        return nullptr;
+    }
+    void  freeGroup(AllocatorClass& allocator, void* /*key*/, void* /*rawHostPtr*/) override {
+        assert(0);
+    }
+};
+
 
 
 #endif

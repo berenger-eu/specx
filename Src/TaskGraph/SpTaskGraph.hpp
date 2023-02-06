@@ -672,7 +672,7 @@ private:
                 vectorExecutionPaths.push_back({ep.lock()->begin(), ep.lock()->end(), ep.lock()->begin()});
             }
 
-            auto it = vectorExecutionPaths.begin();
+            [[maybe_unused]] auto it = vectorExecutionPaths.begin();
 
             while(true) {
 
@@ -708,17 +708,19 @@ private:
                 if constexpr(SpecModel != SpSpeculativeModel::SP_MODEL_3) {
                     break;
                 }
+                else{
+                    while(it != vectorExecutionPaths.end() && it->currentIt == it->endIt) {
+                        it->currentIt = it->beginIt;
+                        it++;
+                    }
 
-                while(it != vectorExecutionPaths.end() && it->currentIt == it->endIt) {
-                    it->currentIt = it->beginIt;
-                    it++;
-                }
-
-                if(it != vectorExecutionPaths.end()) {
-                    it->currentIt++;
-                    it = vectorExecutionPaths.begin();
-                }else {
-                    break;
+                    if(it != vectorExecutionPaths.end()) {
+                        it->currentIt++;
+                        it = vectorExecutionPaths.begin();
+                    }
+                    else {
+                        break;
+                    }
                 }
             }
 

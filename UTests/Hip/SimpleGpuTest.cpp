@@ -24,26 +24,31 @@ __global__ void inc_var(int* ptr, int size){
 }
 
 class MemmovClassExample{
+    int data[10];
 public:
     std::size_t memmovNeededSize() const{
-        return 10;
+        return 10*sizeof(int);
     }
 
     template <class DeviceMemmov>
     void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10);
+        assert(size == 10*sizeof(int));
+        mover.copyHostToDevice(reinterpret_cast<int*>(devicePtr), &data[0], 10*sizeof(int));
     }
 
     template <class DeviceMemmov>
     void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10);
+        assert(size == 10*sizeof(int));
+        mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr), 10*sizeof(int));
     }
 
-    struct View{
-        View(){}
-        View(void* devicePtr, std::size_t size){}
+    struct DataDescr{
+        DataDescr(){}
     };
-    using DeviceDataType = View;
+
+    auto getDeviceDataDescription() const{
+        return DataDescr();
+    }
 };
 
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
@@ -58,6 +63,13 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         int b = 0;
 
         tg.computeOn(ce);
+
+        tg.task(SpWrite(a), SpRead(b),
+                    SpHip([]([[maybe_unused]] SpDeviceDataView<int> paramA,
+                              [[maybe_unused]] SpDeviceDataView<const int> paramB) {
+                        std::this_thread::sleep_for(std::chrono::seconds(2));
+                    })
+        );
 
         tg.task(SpWrite(a),
                     SpHip([](SpDeviceDataView<int> paramA) {
@@ -125,6 +137,11 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                       "should be stdvec");
 
         tg.computeOn(ce);
+
+        tg.task(SpRead(a),
+            SpHip([]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
+            })
+        );
 
         tg.task(SpWrite(a),
             SpHip([](SpDeviceDataView<std::vector<int>> paramA) {
@@ -196,6 +213,11 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                       "should be memmov");
 
         MemmovClassExample obj;
+
+        tg.task(SpRead(obj),
+            SpHip([]([[maybe_unused]] SpDeviceDataView<const MemmovClassExample> objv) {
+            })
+        );
 
         tg.task(SpWrite(obj),
             SpHip([](SpDeviceDataView<MemmovClassExample> objv) {
