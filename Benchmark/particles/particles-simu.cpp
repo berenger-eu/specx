@@ -5,6 +5,7 @@
 #include <utility>
 #include <thread>
 #include <chrono>
+#include <iostream>
 
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
@@ -14,6 +15,7 @@
 #include "Compute/SpWorkerTeamBuilder.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Config/SpConfig.hpp"
+#include "Utils/SpTimer.hpp"
 
 
 class ParticlesGroup{
@@ -421,9 +423,8 @@ ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& in
     return maxDiff;
 }
 
-#include <iostream>
 
-int main(){
+void AccuracyTest(){
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
@@ -448,10 +449,13 @@ int main(){
 
     particles.compute(particlesB);
 
-    tg.task(SpWrite(cu_particles)/*,
+    tg.task(SpWrite(cu_particles)
+        #ifndef SPECX_COMPILE_WITH_CUDA
+            ,
             SpCpu([](ParticlesGroup& particlesW) {
                 particlesW.computeSelf();
-    })*/
+            })
+        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
@@ -460,10 +464,13 @@ int main(){
         #endif
     );
 
-    tg.task(SpWrite(cu_particlesB)/*,
+    tg.task(SpWrite(cu_particlesB)
+        #ifndef SPECX_COMPILE_WITH_CUDA
+            ,
             SpCpu([](ParticlesGroup& particlesW) {
                 particlesW.computeSelf();
-    })*/
+            })
+        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
@@ -472,12 +479,15 @@ int main(){
         #endif
     );
 
-    tg.task(SpWrite(cu_particles),SpRead(cu_particlesB)/*,
-            SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+    tg.task(SpWrite(cu_particles),SpWrite(cu_particlesB)
+        #ifndef SPECX_COMPILE_WITH_CUDA
+            ,
+            SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
                 particlesW.compute(particlesR);
-    })*/
+            })
+        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
-            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<const ParticlesGroup> paramB) {
+            , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                 [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
                 [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
@@ -501,7 +511,96 @@ int main(){
 
     std::cout << "Error particles = " << ChechAccuracy(particles, cu_particles) << std::endl;
     std::cout << "Error particles = " << ChechAccuracy(particlesB, cu_particlesB) << std::endl;
+}
+
+
+void BenchmarkTest(){
+    const int NbLoops = 100;
+    const int MinPartsPerGroup = 100;
+    const int MaxPartsPerGroup = 10000;
+    const int NbGroups = 100;
+
+    std::array<ParticlesGroup, NbGroups> particleGroups;
+
+    {
+        std::random_device rd;
+        std::uniform_int_distribution<int> dist(MinPartsPerGroup, MaxPartsPerGroup);
+        for(auto& group : particleGroups){
+            group = ParticlesGroup(dist(rd));
+        }
+    }
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaUtils::PrintInfo();
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
+#endif
+    SpTaskGraph tg;
+
+    tg.computeOn(ce);
+
+    SpTimer timer;
+
+    for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = particleGroups[idxGroup1];
+            tg.task(SpCommutativeWrite(group1),
+                        SpCpu([](ParticlesGroup& particlesW) {
+                            particlesW.computeSelf();
+                })
+                #ifdef SPECX_COMPILE_WITH_CUDA
+                    , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                        [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                        p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                    })
+                #endif
+            );
+            for(int idxGroup2 = idxGroup1+1 ; idxGroup2 < int(particleGroups.size()) ; ++idxGroup2){
+                auto& group2 = particleGroups[idxGroup2];
+
+                tg.task(SpCommutativeWrite(group1),SpCommutativeWrite(group2),
+                        SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
+                            particlesW.compute(particlesR);
+                        })
+                    #ifdef SPECX_COMPILE_WITH_CUDA
+                        , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                            [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                            [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                            p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
+                                                                                     paramA.getRawPtr(), paramA.getRawSize());
+                            p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+                                                                                     paramB.getRawPtr(), paramB.getRawSize());
+                        })
+                    #endif
+                );
+            }
+        }
+    }
+
+    for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+        auto& group1 = particleGroups[idxGroup1];
+        tg.task(SpWrite(group1),
+                SpCpu([](ParticlesGroup& particlesW) {
+                })
+        );
+    }
+
+    tg.waitAllTasks();
+
+    timer.stop();
+
+    std::cout << "NbLoops = " << NbLoops << std::endl;
+    std::cout << "MinPartsPerGroup = " << MinPartsPerGroup << std::endl;
+    std::cout << "MaxPartsPerGroup = " << MaxPartsPerGroup << std::endl;
+    std::cout << "NbGroups = " << NbGroups << std::endl;
+    std::cout << "Duration = " << timer.getElapsed() << std::endl;
+}
+
+
+int main(void){
+
+    BenchmarkTest();
 
     return 0;
 }
-
