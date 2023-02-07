@@ -618,9 +618,9 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
     SpTaskGraph tg;
 
@@ -684,7 +684,7 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
     std::cout << "Duration = " << timer.getElapsed() << std::endl;
 
     std::cout << "Generate trace ./particles-simu.svg" << std::endl;
-    tg.generateTrace("./particles-simu.svg");
+    tg.generateTrace("./particles-simu.svg", false);
 }
 
 
