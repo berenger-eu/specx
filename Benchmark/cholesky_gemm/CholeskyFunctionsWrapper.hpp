@@ -12,7 +12,11 @@ void dgetrf_(int *m, int *n, double* a, int *lda, int *ipiv, int *info);
 void dlaswp_(int *n, double* a, int *lda, int *k1, int *k2, int *ipiv, const int *incx);
 }
 
-namespace Cholesky
+#include <iostream>
+#include <cmath>
+#include <unistd.h>
+
+namespace SpBlas
 {
 
 enum class Norm {
@@ -166,6 +170,147 @@ inline int getrf(int m, int n, double* a, int lda, int *ipiv) {
     dgetrf_(&m, &n, a, &lda, ipiv, &info);
     return info;
 }
+
+
+struct Block{
+    int rowOffset;
+    int colOffset;
+
+    int nbRows;
+    int nbCols;
+
+    std::unique_ptr<double[]> values;
+    std::unique_ptr<int[]> permutations;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<double[]> generatePositiveDefinitMatrix(const int inMatrixDim){
+    std::unique_ptr<double[]> matrix(new double[inMatrixDim*inMatrixDim]());
+
+    srand48(0);
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            matrix[idxRow*inMatrixDim+idxCol] = drand48();
+            matrix[idxCol*inMatrixDim+idxRow] = matrix[idxRow*inMatrixDim+idxCol];
+        }
+    }
+
+    for(int idxDiag = 0 ; idxDiag < inMatrixDim ; ++idxDiag){
+        matrix[idxDiag*inMatrixDim+idxDiag] += inMatrixDim;
+    }
+
+    return matrix;
+}
+
+std::unique_ptr<double[]> generateMatrixLikeStarpu(const int inMatrixDim){
+    std::unique_ptr<double[]> matrix(new double[inMatrixDim*inMatrixDim]());
+
+    srand48(0);
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            matrix[idxCol*inMatrixDim+idxRow] = (1.0/double(1+idxRow+idxCol)) + ((idxRow == idxCol)?double(inMatrixDim):0.0);
+        }
+    }
+
+    return matrix;
+}
+
+
+std::unique_ptr<double[]> generateAMatrix(const int inMatrixDim, const double inValue = 1){
+    std::unique_ptr<double[]> matrix(new double[inMatrixDim*inMatrixDim]());
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            matrix[idxRow*inMatrixDim+idxCol] = inValue;
+        }
+    }
+
+    return matrix;
+}
+
+std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, const int inBlockDim){
+    const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
+
+    std::unique_ptr<Block[]> blocks(new Block[nbBlocks*nbBlocks]);
+
+    // Init the blocks
+    for(int m = 0 ; m < nbBlocks ; ++m){
+        for(int n = 0 ; n < nbBlocks ; ++n){
+            blocks[m*nbBlocks+n].rowOffset = m*inBlockDim;
+            blocks[m*nbBlocks+n].colOffset = n*inBlockDim;
+            blocks[m*nbBlocks+n].nbRows = std::min(inMatrixDim - m*inBlockDim, inBlockDim);
+            blocks[m*nbBlocks+n].nbCols = std::min(inMatrixDim - n*inBlockDim, inBlockDim);
+            blocks[m*nbBlocks+n].values.reset(new double[blocks[m*nbBlocks+n].nbRows * blocks[m*nbBlocks+n].nbCols]());
+            blocks[m*nbBlocks+n].permutations.reset(new int[blocks[m*nbBlocks+n].nbRows]());
+        }
+    }
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        const int blockRowIdx = idxRow/inBlockDim;
+        const int rowIdxInBlock = idxRow%inBlockDim;
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            const int blockColIdx = idxCol/inBlockDim;
+            const int colIdxInBlock = idxCol%inBlockDim;
+
+            blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock] = matrix[idxRow*inMatrixDim+idxCol];
+        }
+    }
+
+    return blocks;
+}
+
+double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, const int inBlockDim){
+    const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
+
+    double error = 0;
+
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        const int blockRowIdx = idxRow/inBlockDim;
+        const int rowIdxInBlock = idxRow%inBlockDim;
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            const int blockColIdx = idxCol/inBlockDim;
+            const int colIdxInBlock = idxCol%inBlockDim;
+
+            const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
+            const double matrixValue = matrix[idxRow*inMatrixDim+idxCol];
+
+            error = std::max(error, std::abs(blockValue-matrixValue)/(std::abs(matrixValue)+std::numeric_limits<double>::epsilon()));
+        }
+    }
+
+    return error;
+}
+
+void printMatrix(const double matrix[], const int inMatrixDim){
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        std::cout << idxRow << "]\t";
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            std::cout << matrix[idxRow*inMatrixDim+idxCol] << "\t";
+        }
+        std::cout << "\n";
+    }
+}
+
+void printBlocks(const Block blocks[], const int inMatrixDim, const int inBlockDim){
+    const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
+    for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
+        std::cout << idxRow << "]\t";
+        const int blockRowIdx = idxRow/inBlockDim;
+        const int rowIdxInBlock = idxRow%inBlockDim;
+        for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
+            const int blockColIdx = idxCol/inBlockDim;
+            const int colIdxInBlock = idxCol%inBlockDim;
+
+            const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
+            std::cout << blockValue << "\t";
+        }
+        std::cout << "\n";
+    }
+}
+
 
 }
 
