@@ -513,12 +513,98 @@ void AccuracyTest(){
     std::cout << "Error particles = " << ChechAccuracy(particlesB, cu_particlesB) << std::endl;
 }
 
+struct TuneResult{
+    int nbThreadsInner = 0;
+    int nbBlocksInner = 0;
+    int nbThreadsOuter = 0;
+    int nbBlocksOuter = 0;
+};
 
-void BenchmarkTest(){
+auto TuneBlockSize(){
+#ifdef SPECX_COMPILE_WITH_CUDA
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties( &prop, 0);
+
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(0,1,1));
+    SpTaskGraph tg;
+    tg.computeOn(ce);
+
+    const std::size_t NbParticles = 10000;
+    ParticlesGroup particlesA(NbParticles);
+    ParticlesGroup particlesB(NbParticles);
+
+    double bestTimeInner = std::numeric_limits<double>::max();
+    int nbThreadsPerBlockInner = -1;
+    int nbBlocksInner = -1;
+
+    double bestTimeOuter = std::numeric_limits<double>::max();
+    int nbThreadsPerBlockOuter = -1;
+    int nbBlocksOuter = -1;
+
+    for(long int idxThread = 32 ; idxThread <= prop.maxThreadsPerBlock ; idxThread *= 2){
+        for(long int idxBlock = 16 ; idxBlock <= prop.maxGridSize[0] && idxBlock*idxThread <= NbParticles ; idxBlock *= 2){
+
+            tg.task(SpWrite(particlesA),
+                SpCuda([idxThread, idxBlock, &bestTimeInner, &nbThreadsPerBlockInner, &nbBlocksInner](SpDeviceDataView<ParticlesGroup> paramA) {
+                    SpTimer timer;
+                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                    [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                    p2p_inner_gpu<<<idxBlock,idxThread,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                    timer.stop();
+
+                    if(timer.getElapsed() < bestTimeInner){
+                        bestTimeInner = timer.getElapsed();
+                        nbThreadsPerBlockInner = idxThread;
+                        nbBlocksInner = idxBlock;
+                    }
+                })
+            );
+
+            tg.task(SpWrite(particlesA),SpWrite(particlesB),
+                SpCuda([idxThread, idxBlock, &bestTimeOuter, &nbThreadsPerBlockOuter, &nbBlocksOuter ]
+                       (SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                    SpTimer timer;
+                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                    [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                    [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                    p2p_neigh_gpu<<<idxBlock,idxThread,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
+                                                                             paramA.getRawPtr(), paramA.getRawSize());
+                    p2p_neigh_gpu<<<idxBlock,idxThread,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+                                                                             paramB.getRawPtr(), paramB.getRawSize());
+                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                    timer.stop();
+
+                    if(timer.getElapsed() < bestTimeOuter){
+                        bestTimeOuter = timer.getElapsed();
+                        nbThreadsPerBlockOuter = idxThread;
+                        nbBlocksOuter = idxBlock;
+                    }
+                })
+            );
+        }
+    }
+
+    tg.waitAllTasks();
+
+    std::cout << "Best kenel config:" << std::endl;
+    std::cout << " - Inner block " << nbBlocksInner << " threads " << nbThreadsPerBlockInner << std::endl;
+    std::cout << " - Outer block " << nbBlocksOuter << " threads " << nbThreadsPerBlockOuter << std::endl;
+
+
+    return TuneResult{nbThreadsPerBlockInner, nbBlocksInner,
+                      nbThreadsPerBlockOuter, nbBlocksOuter};
+#else
+    return TuneResult();
+#endif
+}
+
+
+void BenchmarkTest(const TuneResult& inKernelConfig){
     const int NbLoops = 100;
     const int MinPartsPerGroup = 100;
-    const int MaxPartsPerGroup = 10000;
-    const int NbGroups = 100;
+    const int MaxPartsPerGroup = 100;//10000;
+    const int NbGroups = 10;//100;
 
     std::array<ParticlesGroup, NbGroups> particleGroups;
 
@@ -550,9 +636,10 @@ void BenchmarkTest(){
                             particlesW.computeSelf();
                 })
                 #ifdef SPECX_COMPILE_WITH_CUDA
-                    , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
+                    , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                        p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                        p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
+                                       (paramA.getRawPtr(), paramA.getRawSize());
                     })
                 #endif
             );
@@ -564,13 +651,13 @@ void BenchmarkTest(){
                             particlesW.compute(particlesR);
                         })
                     #ifdef SPECX_COMPILE_WITH_CUDA
-                        , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                        , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                             [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
                             [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                            p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
-                                                                                     paramA.getRawPtr(), paramA.getRawSize());
-                            p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
-                                                                                     paramB.getRawPtr(), paramB.getRawSize());
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
                         })
                     #endif
                 );
@@ -595,12 +682,16 @@ void BenchmarkTest(){
     std::cout << "MaxPartsPerGroup = " << MaxPartsPerGroup << std::endl;
     std::cout << "NbGroups = " << NbGroups << std::endl;
     std::cout << "Duration = " << timer.getElapsed() << std::endl;
+
+    std::cout << "Generate trace ./particles-simu.svg" << std::endl;
+    tg.generateTrace("./particles-simu.svg");
 }
 
 
 int main(void){
 
-    BenchmarkTest();
+    auto tuneConfig = TuneBlockSize();
+    BenchmarkTest(tuneConfig);
 
     return 0;
 }
