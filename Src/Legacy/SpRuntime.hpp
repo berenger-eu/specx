@@ -30,11 +30,22 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) :
+    explicit SpRuntime(const int inNumThreads) :
             tg(), ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(inNumThreads)) {
         tg.computeOn(ce);
     }
-        
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpRuntime() :
+            tg(), ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers()) {
+        tg.computeOn(ce);
+    }
+#else
+    explicit SpRuntime() :
+            tg(), ce(SpWorkerTeamBuilder::TeamOfCpuWorkers()) {
+        tg.computeOn(ce);
+    }
+#endif
     ///////////////////////////////////////////////////////////////////////////
     /// Destructor
     ///////////////////////////////////////////////////////////////////////////
