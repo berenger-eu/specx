@@ -19,7 +19,7 @@
     cudaError_t ___resCuda = (X);\
     if ( cudaSuccess != ___resCuda ){\
         printf("Error: fails, %s (%s line %d)\n", cudaGetErrorString(___resCuda), __FILE__, __LINE__ );\
-        exit(1);\
+        std::abort();\
     }\
 }
 

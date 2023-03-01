@@ -297,7 +297,8 @@ class SpDeviceDataView<DataType,
     using DataDescriptor = typename DataType::DataDescriptor;
     void *rawPtr;
     std::size_t rawSize;
-    DataDescriptor* deviceData;
+    const DataDescriptor* deviceData;
+
 public:
     const static SpDeviceDataUtils::DeviceMovableType MoveType = SpDeviceDataUtils::DeviceMovableType::MEMMOV;
 
@@ -310,7 +311,7 @@ public:
         rawSize = size;
      }
 
-   void setDataDescr(const void* viewPtr){
+   void setDataDescriptor(const void* viewPtr){
         deviceData = reinterpret_cast<const DataDescriptor*>(viewPtr);
    }
 

@@ -181,6 +181,39 @@ struct Block{
 
     std::unique_ptr<double[]> values;
     std::unique_ptr<int[]> permutations;
+
+    /////////////////////////////////////////////////////////////
+
+    struct DataDescr {
+        int rowOffset = 0;
+        int colOffset = 0;
+
+        int nbRows = 0;
+        int nbCols = 0;
+
+        explicit DataDescr(){}
+        DataDescr(int inRowOffset, int inColOffset, int inNbRows, int inNbCols)
+            : rowOffset(inRowOffset), colOffset(inColOffset), nbRows(inNbRows), nbCols(inNbCols) {}
+    };
+
+    using DataDescriptor = DataDescr;
+
+    std::size_t memmovNeededSize() const{
+        return sizeof(double)*nbRows*nbCols;
+    }
+
+    template <class DeviceMemmov>
+    auto memmovHostToDevice(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size){
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        mover.copyHostToDevice(doubleDevicePtr, values.get(), nbRows*nbCols*sizeof(double));
+        return DataDescr{rowOffset, colOffset, nbRows, nbCols};
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size, const DataDescr& /*inDataDescr*/){
+        double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
+        mover.copyDeviceToHost(values.get(), doubleDevicePtr,  nbRows*nbCols*sizeof(double));
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////

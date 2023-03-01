@@ -21,7 +21,10 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
-
+#ifdef SPECX_COMPILE_WITH_CUDA
+#include "cublas_v2.h"
+#include <cblas.h>
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +39,8 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
                            const int inMatrixDim, const int inBlockDim){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
-    SpRuntime<> runtime(SpUtils::DefaultNumThreads());
+
+     SpRuntime<> runtime;
 
     // Compute the blocks
     for(int i = 0 ; i < nbBlocks ; ++i){
@@ -44,12 +48,23 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
             for(int k = 0 ; k < nbBlocks ; ++k){
                 runtime.task(SpPriority(1), SpWrite(blocksC[i*nbBlocks+j]),
                         SpRead(blocksA[k*nbBlocks+j]), SpRead(blocksB[i*nbBlocks+k]),
-                        [inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
-                    SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
+                    SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
+                        SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
                                     inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
                                     blockB.values.get(), inBlockDim,
                                     1.0, blockC.values.get(), inBlockDim );
-                }).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                    })
+            #ifdef SPECX_COMPILE_WITH_CUDA
+                  , SpCuda([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                      const SpDeviceDataView<const SpBlas::Block> paramB) {
+                        // paramA.getRawPtr(), paramA.getRawSize()
+                        cblas_dgemm( CblasColMajor, CblasNoTrans, CblasNoTrans,
+                                inBlockDim, inBlockDim, inBlockDim, 1.0, (const double*)paramA.getRawPtr(), inBlockDim,
+                                (const double*)paramB.getRawPtr(), inBlockDim,
+                                1.0, (double*)paramC.getRawPtr(), inBlockDim );
+                    })
+            #endif
+                ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
             }
         }
     }
