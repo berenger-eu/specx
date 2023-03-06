@@ -1,6 +1,11 @@
 #ifndef CHOLESKYFUNCTIONSWRAPPER_HPP
 #define CHOLESKYFUNCTIONSWRAPPER_HPP
 
+#ifdef SPECX_COMPILE_WITH_CUDA
+#include "cublas_v2.h"
+#endif
+#include <cblas.h>
+
 extern "C" {
 void daxpy_(const int *n, const double *a, const double *x, const int *incx, double *y, const int *incy);
 double dlange_(char *norm, int *m, int *n, const double *a, int *lda);
@@ -344,6 +349,34 @@ void printBlocks(const Block blocks[], const int inMatrixDim, const int inBlockD
     }
 }
 
+#ifdef SPECX_COMPILE_WITH_CUDA
+
+inline const char* cublasGetErrorString(cublasStatus_t status)
+{
+    switch(status)
+    {
+        case CUBLAS_STATUS_SUCCESS: return "CUBLAS_STATUS_SUCCESS";
+        case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
+        case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
+        case CUBLAS_STATUS_INVALID_VALUE: return "CUBLAS_STATUS_INVALID_VALUE";
+        case CUBLAS_STATUS_ARCH_MISMATCH: return "CUBLAS_STATUS_ARCH_MISMATCH";
+        case CUBLAS_STATUS_MAPPING_ERROR: return "CUBLAS_STATUS_MAPPING_ERROR";
+        case CUBLAS_STATUS_EXECUTION_FAILED: return "CUBLAS_STATUS_EXECUTION_FAILED";
+        case CUBLAS_STATUS_INTERNAL_ERROR: return "CUBLAS_STATUS_INTERNAL_ERROR";
+    }
+    return "unknown error";
+}
+
+#define CUBLAS_ASSERT(X)\
+{\
+    cublasStatus_t ___resCuda = (X);\
+    if ( CUBLAS_STATUS_SUCCESS != ___resCuda ){\
+    printf("Error: fails, %s (%s line %d)\n", cublasGetStatusString(___resCuda), __FILE__, __LINE__ );\
+    exit(1);\
+    }\
+    }
+
+#endif
 
 }
 

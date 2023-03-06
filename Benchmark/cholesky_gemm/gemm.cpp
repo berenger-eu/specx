@@ -21,11 +21,6 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
-#ifdef SPECX_COMPILE_WITH_CUDA
-#include "cublas_v2.h"
-#include <cblas.h>
-#endif
-
 //////////////////////////////////////////////////////////////////////////////
 
 void gemm(double matrixC[], const double matrixA[], const double matrixB[], const int inMatrixDim){
@@ -42,6 +37,14 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
 
      SpRuntime<> runtime;
 
+#ifdef SPECX_COMPILE_WITH_CUDA
+     std::vector<cublasHandle_t> handles(runtime.getNbCudaWorkers());
+     for(auto& hdl : handles){
+        CUBLAS_ASSERT(cublasCreate(&hdl));
+     }
+     const int offsetWorker = runtime.getNbCpuWorkers() + 1;
+#endif
+
     // Compute the blocks
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
@@ -55,13 +58,16 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
                                     1.0, blockC.values.get(), inBlockDim );
                     })
             #ifdef SPECX_COMPILE_WITH_CUDA
-                  , SpCuda([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                  , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
                                       const SpDeviceDataView<const SpBlas::Block> paramB) {
                         // paramA.getRawPtr(), paramA.getRawSize()
-                        cblas_dgemm( CblasColMajor, CblasNoTrans, CblasNoTrans,
-                                inBlockDim, inBlockDim, inBlockDim, 1.0, (const double*)paramA.getRawPtr(), inBlockDim,
+                        const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
+                        assert(idxCudaWorker < int(handles.size()));
+                        const double alphaBeta = 1.0;
+                        cublasDgemm( handles[0], CUBLAS_OP_N, CUBLAS_OP_N,
+                                inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
-                                1.0, (double*)paramC.getRawPtr(), inBlockDim );
+                                &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim );
                     })
             #endif
                 ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
@@ -72,6 +78,12 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
     runtime.waitAllTasks();
     runtime.stopAllThreads();
     runtime.generateDot("/tmp/graph.dot");
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+     for(auto& hdl : handles){
+        CUBLAS_ASSERT(cublasDestroy(hdl));
+     }
+#endif
 }
 
 int main(){

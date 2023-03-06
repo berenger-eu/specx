@@ -92,6 +92,21 @@ public:
     int getNbThreads() const {
         return static_cast<int>(ce.getCurrentNbOfWorkers());
     }
+
+    int getNbCpuWorkers() const {
+        return static_cast<int>(ce.getNbCpuWorkers());
+    }
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    int getNbCudaWorkers() const {
+        return static_cast<int>(ce.getNbCudaWorkers());
+    }
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    int getNbHipWorkers() const {
+        return static_cast<int>(ce.getNbHipWorkers());
+    }
+#endif
            
     ///////////////////////////////////////////////////////////////////////////
     /// Output

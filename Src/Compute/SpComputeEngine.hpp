@@ -262,6 +262,21 @@ public:
     size_t getCurrentNbOfWorkers() const {
         return workers.size();
     }
+
+    auto getNbCpuWorkers() const{
+        return totalNbCpuWorkers;
+    }
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    auto getNbCudaWorkers() const{
+        return totalNbCudaWorkers;
+    }
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    auto getNbHipWorkers() const{
+        return totalNbHipWorkers;
+    }
+#endif
     
     void addWorkers(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers) {
         addWorkersInternal<true>(std::move(inWorkers));
