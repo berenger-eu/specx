@@ -64,7 +64,7 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
                         const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
                         assert(idxCudaWorker < int(handles.size()));
                         const double alphaBeta = 1.0;
-                        cublasDgemm( handles[0], CUBLAS_OP_N, CUBLAS_OP_N,
+                        cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
                                 inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim );
