@@ -75,6 +75,16 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
         }
     }
 
+    for(int i = 0 ; i < nbBlocks ; ++i){
+        for(int j = 0 ; j < nbBlocks ; ++j){
+            runtime.task(SpWrite(blocksC[i*nbBlocks+j]),
+                SpCpu([](SpBlas::Block& blockC){
+                    // Move back to cpu
+                })
+            );
+        }
+    }
+
     runtime.waitAllTasks();
     runtime.stopAllThreads();
     runtime.generateDot("/tmp/graph.dot");
