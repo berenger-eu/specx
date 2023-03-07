@@ -54,8 +54,10 @@ private:
 
     void execFuncIfNeeded(){
         if(hasFuncToExec){
+            SpDebugPrint() << "execFuncIfNeeded hasFuncToExec set.";
             assert(funcToExec);
             funcToExec();
+            SpDebugPrint() << "execFuncIfNeeded done.";
             hasFuncToExec = false;
             funcToExec = nullptr;
         }
@@ -172,14 +174,15 @@ public:
 
     template <class ClassFunc>
     void setExecFunc(ClassFunc&& func) {
-        std::function<void(void)> funcWrapper = [&func](){
+        funcToExec = [&func](){
             func();
         };
 
-        funcToExec = std::move(funcWrapper);
         hasFuncToExec = true;
-        workerConditionVariable.notify_one();
+        workerConditionVariable.notify_all();
+        SpDebugPrint() << "setExecFunc call on " << threadId << " now will wait...";
         while(hasFuncToExec);
+        SpDebugPrint() << "setExecFunc call on " << threadId << " done.";
     }
 
     friend SpWorkerTeamBuilder;

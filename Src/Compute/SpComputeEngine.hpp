@@ -309,6 +309,7 @@ public:
     template <class ClassFunc>
     void execOnWorkers(ClassFunc&& func) {
         for(auto& w : workers) {
+            SpDebugPrint() << "execOnWorkers " << w->threadId;
             w->setExecFunc(func);
         }
     }

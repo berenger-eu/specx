@@ -188,8 +188,6 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     }
 
     runtime.waitAllTasks();
-    runtime.stopAllThreads();
-    runtime.generateDot("/tmp/graph.dot");
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     runtime.execOnWorkers([&handles, offsetWorker](){
@@ -203,6 +201,9 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
         }
      });
 #endif
+
+    runtime.stopAllThreads();
+    runtime.generateDot("/tmp/graph.dot");
 }
 
 int main(){

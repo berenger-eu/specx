@@ -10,6 +10,7 @@ void SpWorker::start() {
     if(!t.joinable()) {
         t = std::thread([&]() {
             SpUtils::SetThreadId(threadId);
+            SpUtils::SetThreadType(getType());
             SpWorker::setWorkerForThread(this);
 #ifdef SPECX_COMPILE_WITH_CUDA
             if(this->getType() == SpWorkerTypes::Type::CUDA_WORKER){
