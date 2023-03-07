@@ -174,6 +174,8 @@ public:
 
     template <class ClassFunc>
     void setExecFunc(ClassFunc&& func) {
+        assert(stopFlag == false);
+
         funcToExec = [&func](){
             func();
         };
