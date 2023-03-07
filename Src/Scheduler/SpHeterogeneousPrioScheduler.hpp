@@ -41,10 +41,10 @@ public:
     SpHeterogeneousPrioScheduler& operator=(const SpHeterogeneousPrioScheduler&) = delete;
     SpHeterogeneousPrioScheduler& operator=(SpHeterogeneousPrioScheduler&&) = delete;
 
-    int getNbReadyTasksForWorkerType(const SpWorker::SpWorkerType wt) const{
+    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const{
         // TO DO : need to figure out how to get rid of this mutex lock
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             return static_cast<int>(cpuTaskQueue.size() + heterogeneousTaskQueue.size());
         }
         return static_cast<int>(gpuTaskQueue.size() + heterogeneousTaskQueue.size());
@@ -89,7 +89,7 @@ public:
         return int(tasks.size());
     }
 
-    SpAbstractTask* popForWorkerType(const SpWorker::SpWorkerType wt){
+    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt){
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio >* queue = nullptr;
         
@@ -97,7 +97,7 @@ public:
             queue = std::addressof(heterogeneousTaskQueue);
         }
         
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER && cpuTaskQueue.size() > 0) {
+        if(wt == SpWorkerTypes::Type::CPU_WORKER && cpuTaskQueue.size() > 0) {
             SpAbstractTask* cpuTask = cpuTaskQueue.top();
             
             if(queue) {
@@ -109,10 +109,10 @@ public:
             }
         } else if(
           #ifdef SPECX_COMPILE_WITH_CUDA
-                  wt == SpWorker::SpWorkerType::CUDA_WORKER &&
+                  wt == SpWorkerTypes::Type::CUDA_WORKER &&
           #endif
           #ifdef SPECX_COMPILE_WITH_HIP
-                  wt == SpWorker::SpWorkerType::HIP_WORKER &&
+                  wt == SpWorkerTypes::Type::HIP_WORKER &&
           #endif
                   gpuTaskQueue.size() > 0) {
             SpAbstractTask* cudaTask = gpuTaskQueue.top();

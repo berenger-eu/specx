@@ -14,6 +14,7 @@
 #include <atomic>
 
 #include "Utils/SpUtils.hpp"
+#include "Compute/SpWorkerTypes.hpp"
 #include "Task/SpAbstractTask.hpp"
 #include "Task/SpPriority.hpp"
 #include "Utils/SpTimePoint.hpp"
@@ -231,16 +232,16 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 	
 	if constexpr(SpConfig::CompileWithCuda) {	
 		switch(w.getType()) {
-			case SpWorker::SpWorkerType::CPU_WORKER:
+            case SpWorkerTypes::Type::CPU_WORKER:
                 t->preTaskExecution(SpCallableType::CPU);
                 break;
 #ifdef SPECX_COMPILE_WITH_CUDA
-			case SpWorker::SpWorkerType::CUDA_WORKER:
+            case SpWorkerTypes::Type::CUDA_WORKER:
                 t->preTaskExecution(SpCallableType::CUDA);
 				break;
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-            case SpWorker::SpWorkerType::HIP_WORKER:
+            case SpWorkerTypes::Type::HIP_WORKER:
                 t->preTaskExecution(SpCallableType::HIP);
                 break;
 #endif
@@ -283,16 +284,16 @@ inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstrac
 	
 	if constexpr(SpConfig::CompileWithCuda) {	
 		switch(w.getType()) {
-			case SpWorker::SpWorkerType::CPU_WORKER:
+            case SpWorkerTypes::Type::CPU_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CPU);
 				break;
                 #ifdef SPECX_COMPILE_WITH_CUDA
-			case SpWorker::SpWorkerType::CUDA_WORKER:
+            case SpWorkerTypes::Type::CUDA_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CUDA);
 				break;
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-case SpWorker::SpWorkerType::HIP_WORKER:
+case SpWorkerTypes::Type::HIP_WORKER:
 t->postTaskExecution(atg, SpCallableType::HIP);
 break;
 #endif

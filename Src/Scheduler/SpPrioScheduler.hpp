@@ -40,8 +40,8 @@ public:
     SpPrioScheduler& operator=(const SpPrioScheduler&) = delete;
     SpPrioScheduler& operator=(SpPrioScheduler&&) = delete;
 
-    int getNbReadyTasksForWorkerType(const SpWorker::SpWorkerType wt) const{
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const{
+        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             return nbReadyTasks;
         }
         
@@ -64,8 +64,8 @@ public:
         return int(tasks.size());
     }
 
-    SpAbstractTask* popForWorkerType(const SpWorker::SpWorkerType wt){
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt){
+        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             std::unique_lock<std::mutex> locker(mutexReadyTasks);
             if(tasksReady.size()){
                 nbReadyTasks--;

@@ -29,8 +29,8 @@ public:
     SpSimpleScheduler& operator=(const SpSimpleScheduler&) = delete;
     SpSimpleScheduler& operator=(SpSimpleScheduler&&) = delete;
 
-    int getNbReadyTasksForWorkerType(const SpWorker::SpWorkerType wt) const{
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const{
+        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             return nbReadyTasks;
         }
 
@@ -56,8 +56,8 @@ public:
         return int(tasks.size());
     }
 
-    SpAbstractTask* popForWorkerType(const SpWorker::SpWorkerType wt){
-        if(wt == SpWorker::SpWorkerType::CPU_WORKER) {
+    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt){
+        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             while(true){
                 int ticket = nbReadyTasks;
                 if(ticket == 0){

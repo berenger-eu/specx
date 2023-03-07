@@ -5,6 +5,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <thread>
+#include <functional>
 
 #include "Config/SpConfig.hpp"
 
@@ -20,31 +21,21 @@
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
 #include "Utils/small_vector.hpp"
+#include "SpWorkerTypes.hpp"
 
 class SpComputeEngine;
 class SpAbstractTaskGraph;
 class SpWorkerTeamBuilder;
 
 class SpWorker {
-public:
-    enum class SpWorkerType {
-        CPU_WORKER,
-#ifdef SPECX_COMPILE_WITH_CUDA
-        CUDA_WORKER,
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
-        HIP_WORKER,
-#endif
-        NB_WORKER_TYPES
-    };
-    
+public:   
     static std::atomic<long int> totalNbThreadsCreated;
 
     static void setWorkerForThread(SpWorker *w);
     static SpWorker* getWorkerForThread();
 
 private:
-    const SpWorkerType wt;
+    const SpWorkerTypes::Type wt;
     std::mutex workerMutex;
     std::condition_variable workerConditionVariable;
     std::atomic<bool> stopFlag;
@@ -57,6 +48,18 @@ private:
 #ifdef SPECX_COMPILE_WITH_HIP
     SpHipWorkerData hipData;
 #endif
+
+    std::function<void(void)> funcToExec;
+    std::atomic<bool> hasFuncToExec;
+
+    void execFuncIfNeeded(){
+        if(hasFuncToExec){
+            assert(funcToExec);
+            funcToExec();
+            hasFuncToExec = false;
+            funcToExec = nullptr;
+        }
+    }
 
 private:
     void setStopFlag(const bool inStopFlag) {
@@ -73,16 +76,16 @@ private:
     
     void execute(SpAbstractTask *task) {
         switch(this->getType()) {
-            case SpWorkerType::CPU_WORKER:
+            case SpWorkerTypes::Type::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
                 #ifdef SPECX_COMPILE_WITH_CUDA
-            case SpWorkerType::CUDA_WORKER:
+            case SpWorkerTypes::Type::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-case SpWorkerType::HIP_WORKER:
+case SpWorkerTypes::Type::HIP_WORKER:
 task->execute(SpCallableType::HIP);
 break;
 #endif
@@ -120,7 +123,9 @@ break;
     
     void idleWait() {
         std::unique_lock<std::mutex> workerLock(workerMutex);
-        workerConditionVariable.wait(workerLock, [&]() { return stopFlag.load(std::memory_order_relaxed) || ce.load(std::memory_order_relaxed); });
+        workerConditionVariable.wait(workerLock, [&]() { return stopFlag.load(std::memory_order_relaxed)
+                    || ce.load(std::memory_order_relaxed)
+                    || hasFuncToExec.load(std::memory_order_relaxed); });
     }
     
     void waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
@@ -129,9 +134,9 @@ break;
 
 public:
 
-    explicit SpWorker(const SpWorkerType inWt) :
+    explicit SpWorker(const SpWorkerTypes::Type inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
-    stopFlag(false), ce(nullptr), threadId(0), t()
+    stopFlag(false), ce(nullptr), threadId(0), t(), hasFuncToExec(false)
     {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
@@ -145,7 +150,7 @@ public:
         stop();
     }
     
-    SpWorkerType getType() const {
+    SpWorkerTypes::Type getType() const {
         return wt;
     }
 
@@ -164,6 +169,18 @@ public:
     void start();
     
     void doLoop(SpAbstractTaskGraph* inAtg);
+
+    template <class ClassFunc>
+    void setExecFunc(ClassFunc&& func) {
+        std::function<void(void)> funcWrapper = [&func](){
+            func();
+        };
+
+        funcToExec = std::move(funcWrapper);
+        hasFuncToExec = true;
+        workerConditionVariable.notify_one();
+        while(hasFuncToExec);
+    }
 
     friend SpWorkerTeamBuilder;
 };

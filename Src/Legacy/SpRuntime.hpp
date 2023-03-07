@@ -108,6 +108,11 @@ public:
     }
 #endif
            
+    template <class ClassFunc>
+    void execOnWorkers(ClassFunc&& func) {
+        ce.execOnWorkers(std::forward<ClassFunc>(func));
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     /// Output
     ///////////////////////////////////////////////////////////////////////////

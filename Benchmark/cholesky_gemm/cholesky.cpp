@@ -45,34 +45,38 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
         double* valminus1;
     };
      std::vector<CudaHandles> handles(runtime.getNbCudaWorkers());
-     for(auto& hdl : handles){
-        CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
-        CUBLAS_ASSERT(cublasSetStream(hdl.blasHandle, SpCudaUtils::GetCurrentStream()));
-        CUSOLVER_ASSERT(cusolverDnCreate(&hdl.solverHandle));
-        CUSOLVER_ASSERT(cusolverDnSetStream(hdl.solverHandle, SpCudaUtils::GetCurrentStream()));
-        CUSOLVER_ASSERT(cusolverDnCreateParams(&hdl.params));
-        CUSOLVER_ASSERT(cusolverDnPotrf_bufferSize(
-                            hdl.solverHandle,
-                            hdl.params,
-                            CUBLAS_FILL_MODE_FULL,
-                            inBlockDim,
-                            CUDA_R_64F ,
-                            nullptr,// TODO
-                            inBlockDim,
-                            CUDA_R_64F ,
-                            &hdl.solverBuffSize));
-        CUDA_ASSERT(cudaMalloc((void**)&hdl.solverBuffer , sizeof(double)*hdl.solverBuffSize));
-        CUDA_ASSERT(cudaMalloc((void**)&hdl.cuinfo , sizeof(int)));
-
-        CUDA_ASSERT(cudaMalloc((void**)&hdl.valminus1 , sizeof(double)));
-        double minusone = -1;
-        CUDA_ASSERT(cudaMemcpy(hdl.valminus1, &minusone, sizeof(double), cudaMemcpyHostToDevice));
-
-        CUDA_ASSERT(cudaMalloc((void**)&hdl.val1 , sizeof(double)));
-        double one = 1;
-        CUDA_ASSERT(cudaMemcpy(hdl.val1, &one, sizeof(double), cudaMemcpyHostToDevice));
-     }
      const int offsetWorker = runtime.getNbCpuWorkers() + 1;
+     runtime.execOnWorkers([&handles, offsetWorker, &runtime, inBlockDim](){
+         if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
+             assert(offsetWorker <= SpUtils::GetThreadId() && SpUtils::GetThreadId() < offsetWorker + runtime.getNbCudaWorkers());
+             auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+             CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
+             CUBLAS_ASSERT(cublasSetStream(hdl.blasHandle, SpCudaUtils::GetCurrentStream()));
+             CUSOLVER_ASSERT(cusolverDnCreate(&hdl.solverHandle));
+             CUSOLVER_ASSERT(cusolverDnSetStream(hdl.solverHandle, SpCudaUtils::GetCurrentStream()));
+             CUSOLVER_ASSERT(cusolverDnCreateParams(&hdl.params));
+             CUSOLVER_ASSERT(cusolverDnPotrf_bufferSize(
+                                 hdl.solverHandle,
+                                 hdl.params,
+                                 CUBLAS_FILL_MODE_FULL,
+                                 inBlockDim,
+                                 CUDA_R_64F ,
+                                 nullptr,// TODO
+                                 inBlockDim,
+                                 CUDA_R_64F ,
+                                 &hdl.solverBuffSize));
+             CUDA_ASSERT(cudaMalloc((void**)&hdl.solverBuffer , sizeof(double)*hdl.solverBuffSize));
+             CUDA_ASSERT(cudaMalloc((void**)&hdl.cuinfo , sizeof(int)));
+
+             CUDA_ASSERT(cudaMalloc((void**)&hdl.valminus1 , sizeof(double)));
+             double minusone = -1;
+             CUDA_ASSERT(cudaMemcpy(hdl.valminus1, &minusone, sizeof(double), cudaMemcpyHostToDevice));
+
+             CUDA_ASSERT(cudaMalloc((void**)&hdl.val1 , sizeof(double)));
+             double one = 1;
+             CUDA_ASSERT(cudaMemcpy(hdl.val1, &one, sizeof(double), cudaMemcpyHostToDevice));
+         }
+     });
 #endif
 
     // Compute the blocks
@@ -188,13 +192,16 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     runtime.generateDot("/tmp/graph.dot");
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-     for(auto& hdl : handles){
-        CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
-        CUSOLVER_ASSERT(cusolverDnDestroy(hdl.solverHandle));
-        CUDA_ASSERT(cudaFree(hdl.solverBuffer));
-        CUDA_ASSERT(cudaFree(hdl.val1));
-        CUDA_ASSERT(cudaFree(hdl.valminus1));
-     }
+    runtime.execOnWorkers([&handles, offsetWorker](){
+        if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
+            auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+            CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
+            CUSOLVER_ASSERT(cusolverDnDestroy(hdl.solverHandle));
+            CUDA_ASSERT(cudaFree(hdl.solverBuffer));
+            CUDA_ASSERT(cudaFree(hdl.val1));
+            CUDA_ASSERT(cudaFree(hdl.valminus1));
+        }
+     });
 #endif
 }
 

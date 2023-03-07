@@ -12,7 +12,7 @@ cudaStream_t& SpCudaUtils::GetCurrentStream(){
 
 bool SpCudaUtils::CurrentWorkerIsCuda(){
     assert(SpWorker::getWorkerForThread());
-    return SpWorker::getWorkerForThread()->getType() == SpWorker::SpWorkerType::CUDA_WORKER;
+    return SpWorker::getWorkerForThread()->getType() == SpWorkerTypes::Type::CUDA_WORKER;
 }
 
 int SpCudaUtils::CurrentCudaId(){

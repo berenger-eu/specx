@@ -39,10 +39,16 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
 
 #ifdef SPECX_COMPILE_WITH_CUDA
      std::vector<cublasHandle_t> handles(runtime.getNbCudaWorkers());
-     for(auto& hdl : handles){
-        CUBLAS_ASSERT(cublasCreate(&hdl));
-     }
      const int offsetWorker = runtime.getNbCpuWorkers() + 1;
+     runtime.execOnWorkers([&handles, offsetWorker, &runtime](){
+         if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
+             assert(offsetWorker <= SpUtils::GetThreadId() && SpUtils::GetThreadId() < offsetWorker + runtime.getNbCudaWorkers());
+             std::cout << "Worker " << SpUtils::GetThreadId() << " will now initiate cublas..." << std::endl;
+             auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+            CUBLAS_ASSERT(cublasCreate(&hdl));
+            CUBLAS_ASSERT(cublasSetStream(hdl, SpCudaUtils::GetCurrentStream()));
+         }
+     });
 #endif
 
     // Compute the blocks
@@ -90,9 +96,12 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
     runtime.generateDot("/tmp/graph.dot");
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-     for(auto& hdl : handles){
-        CUBLAS_ASSERT(cublasDestroy(hdl));
-     }
+    runtime.execOnWorkers([&handles, offsetWorker](){
+        if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
+            auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+            CUBLAS_ASSERT(cublasDestroy(hdl));
+        }
+     });
 #endif
 }
 
