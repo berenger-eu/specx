@@ -22,7 +22,6 @@
 #include "CholeskyFunctionsWrapper.hpp"
 
 
-
 //////////////////////////////////////////////////////////////////////////////
 
 void choleskyFactorizationMatrix(double matrix[], const int inMatrixDim){
@@ -35,9 +34,31 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     SpRuntime<> runtime;
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-     std::vector<cublasHandle_t> handles(runtime.getNbCudaWorkers());
+    struct CudaHandles{
+        cublasHandle_t blasHandle;
+        cusolverDnHandle_t solverHandle;
+        size_t solverBuffSize;
+        double* solverBuffer;
+        cusolverDnParams_t params;
+        int* cuinfo;
+    };
+     std::vector<CudaHandles> handles(runtime.getNbCudaWorkers());
      for(auto& hdl : handles){
-        CUBLAS_ASSERT(cublasCreate(&hdl));
+        CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
+        CUSOLVER_ASSERT(cusolverDnCreate(&hdl.solverHandle));
+        CUSOLVER_ASSERT(cusolverDnCreateParams(&hdl.params));
+        CUSOLVER_ASSERT(cusolverDnPotrf_bufferSize(
+                            hdl.solverHandle,
+                            hdl.params,
+                            CUBLAS_FILL_MODE_FULL,
+                            inBlockDim,
+                            CUDA_R_64F ,
+                            nullptr,// TODO
+                            inBlockDim,
+                            CUDA_R_64F ,
+                            &hdl.solverBuffSize));
+        CUDA_ASSERT(cudaMalloc((void**)&hdl.solverBuffer , sizeof(double)*hdl.solverBuffSize));
+        CUDA_ASSERT(cudaMalloc((void**)&hdl.cuinfo , sizeof(int)));
      }
      const int offsetWorker = runtime.getNbCpuWorkers() + 1;
 #endif
@@ -54,8 +75,18 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
          , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> param) {
             const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
             assert(idxCudaWorker < int(handles.size()));
-            cublasDpotrf( handles[idxCudaWorker], LWPR,
-                    inBlockDim, (const double*)param.getRawPtr(), inBlockDim );
+            CUSOLVER_ASSERT(cusolverDnPotrf(
+                handles[idxCudaWorker].solverHandle,
+                handles[idxCudaWorker].params,
+                CUBLAS_FILL_MODE_UPPER,
+                inBlockDim,
+                CUDA_R_64F ,
+                (double*)param.getRawPtr(),
+                inBlockDim,
+                CUDA_R_64F ,
+                handles[idxCudaWorker].solverBuffer,
+                handles[idxCudaWorker].solverBuffSize,
+                handles[idxCudaWorker].cuinfo));
         })
 #endif
                 ).setTaskName(std::string("potrf -- (W-")+std::to_string(k)+","+std::to_string(k)+")");
@@ -75,9 +106,10 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
                 const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
                 assert(idxCudaWorker < int(handles.size()));
                 const double alphaBeta = 1.0;
-                cublasDgemm( handles[idxCudaWorker], RIGHT, LWPR, CUBLAS_OP_T, NON_UNIT_TRIANGULAR,
+                CUBLAS_ASSERT( cublasDtrsm( handles[idxCudaWorker].blasHandle, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                                            CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                         inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
-                        (const double*)paramB.getRawPtr(), inBlockDim);
+                        (double*)paramB.getRawPtr(), inBlockDim));
             })
     #endif
                     ).setTaskName(std::string("TRSM -- (R-")+std::to_string(k)+","+std::to_string(k)+") (W-"+std::to_string(m)+","+std::to_string(k)+")");
@@ -100,9 +132,9 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
                 assert(idxCudaWorker < int(handles.size()));
                 const double alpha = -1.0;
                 const double beta = 1.0;
-                cublasDsyrk( handles[idxCudaWorker], LWPR, NORMAL,
+                CUBLAS_ASSERT( cublasDsyrk( handles[idxCudaWorker].blasHandle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
                         inBlockDim, inBlockDim, &alpha, (const double*)paramA.getRawPtr(), inBlockDim,
-                        &beta, (double*)paramC.getRawPtr(), inBlockDim );
+                        &beta, (double*)paramC.getRawPtr(), inBlockDim ) );
             })
     #endif
                     ).setTaskName(std::string("SYRK -- (R-")+std::to_string(n)+","+std::to_string(k)+") (W-"+std::to_string(n)+","+std::to_string(n)+")");
@@ -117,16 +149,16 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
                                     1.0, blockC.values.get(), inBlockDim );
                 })
         #ifdef SPECX_COMPILE_WITH_CUDA
-              , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
-                                  const SpDeviceDataView<const SpBlas::Block> paramB) {
+              , SpCuda([inBlockDim, offsetWorker, &handles](const SpDeviceDataView<const SpBlas::Block> paramA,
+                                  const SpDeviceDataView<const SpBlas::Block> paramB, SpDeviceDataView<SpBlas::Block> paramC) {
                     const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
                     assert(idxCudaWorker < int(handles.size()));
                     const double alpha = -1.0;
                     const double beta = 1.0;
-                    cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_T,
+                    CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker].blasHandle, CUBLAS_OP_N, CUBLAS_OP_T,
                             inBlockDim, inBlockDim, inBlockDim, &alpha, (const double*)paramA.getRawPtr(), inBlockDim,
                             (const double*)paramB.getRawPtr(), inBlockDim,
-                            &beta, (double*)paramC.getRawPtr(), inBlockDim );
+                            &beta, (double*)paramC.getRawPtr(), inBlockDim ) );
                 })
         #endif
                         ).setTaskName(std::string("GEMM -- (R-")+std::to_string(m)+","+std::to_string(k)+")(R-"+std::to_string(n)+","+std::to_string(k)+")(W-"+std::to_string(m)+","+std::to_string(n)+")");
@@ -147,6 +179,14 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     runtime.waitAllTasks();
     runtime.stopAllThreads();
     runtime.generateDot("/tmp/graph.dot");
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+     for(auto& hdl : handles){
+        CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
+        CUSOLVER_ASSERT(cusolverDnDestroy(hdl.solverHandle));
+        CUDA_ASSERT(cudaFree(hdl.solverBuffer));
+     }
+#endif
 }
 
 int main(){

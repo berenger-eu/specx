@@ -52,7 +52,7 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 
 	    if(SPECX_COMPILE_WITH_CUDA)
 		    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
-		    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas")
+		    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas;cusolver")
 	    endif()
 	    
 	    add_executable(${execname} ${exec})

@@ -2,7 +2,8 @@
 #define CHOLESKYFUNCTIONSWRAPPER_HPP
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-#include "cublas_v2.h"
+#include <cublas_v2.h>
+#include <cusolverDn.h>
 #endif
 #include <cblas.h>
 
@@ -367,11 +368,36 @@ inline const char* cublasGetErrorString(cublasStatus_t status)
     return "unknown error";
 }
 
+inline const char* cusolverGetStatusString(cusolverStatus_t status)
+{
+    switch(status)
+    {
+    case CUSOLVER_STATUS_SUCCESS : return "CUSOLVER_STATUS_SUCCESS The operation completed successfully.";
+    case CUSOLVER_STATUS_NOT_INITIALIZED: return "CUSOLVER_STATUS_NOT_INITIALIZED The cuSolver library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSolver routine, or an error in the hardware setup. To correct: call cusolverCreate() prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.";
+    case CUSOLVER_STATUS_ALLOC_FAILED : return "CUSOLVER_STATUS_ALLOC_FAILED Resource allocation failed inside the cuSolver library. This is usually caused by a cudaMalloc() failure. To correct: prior to the function call, deallocate previously allocated memory as much as possible.";
+    case CUSOLVER_STATUS_INVALID_VALUE: return "CUSOLVER_STATUS_INVALID_VALUE An unsupported value or parameter was passed to the function (a negative vector size, for example). To correct: ensure that all the parameters being passed have valid values.";
+    case CUSOLVER_STATUS_ARCH_MISMATCH: return "CUSOLVER_STATUS_ARCH_MISMATCH The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision. To correct: compile and run the application on a device with compute capability 2.0 or above.";
+    case CUSOLVER_STATUS_EXECUTION_FAILED: return "CUSOLVER_STATUS_EXECUTION_FAILED The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons. To correct: check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.";
+    case CUSOLVER_STATUS_INTERNAL_ERROR: return "CUSOLVER_STATUS_INTERNAL_ERROR An internal cuSolver operation failed. This error is usually caused by a cudaMemcpyAsync() failure. To correct: check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+    case CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED: return "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function. To correct: check that the fields in descrA were set correctly.";
+    }
+    return "unknown error";
+}
+
 #define CUBLAS_ASSERT(X)\
 {\
     cublasStatus_t ___resCuda = (X);\
     if ( CUBLAS_STATUS_SUCCESS != ___resCuda ){\
     printf("Error: fails, %s (%s line %d)\n", cublasGetStatusString(___resCuda), __FILE__, __LINE__ );\
+    exit(1);\
+    }\
+    }
+
+#define CUSOLVER_ASSERT(X)\
+{\
+    cusolverStatus_t ___resCuda = (X);\
+    if ( CUSOLVER_STATUS_SUCCESS != ___resCuda ){\
+    printf("Error: fails, %s (%s line %d)\n", SpBlas::cusolverGetStatusString(___resCuda), __FILE__, __LINE__ );\
     exit(1);\
     }\
     }
