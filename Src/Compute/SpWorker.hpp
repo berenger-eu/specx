@@ -49,17 +49,14 @@ private:
     SpHipWorkerData hipData;
 #endif
 
-    std::function<void(void)> funcToExec;
-    std::atomic<bool> hasFuncToExec;
+    std::atomic<std::function<void(void)>*> hasFuncToExecPtr;
 
     void execFuncIfNeeded(){
-        if(hasFuncToExec){
+        if(hasFuncToExecPtr.load(std::memory_order_relaxed)){
             SpDebugPrint() << "execFuncIfNeeded hasFuncToExec set.";
-            assert(funcToExec);
-            funcToExec();
+            (*hasFuncToExecPtr)();
             SpDebugPrint() << "execFuncIfNeeded done.";
-            hasFuncToExec = false;
-            funcToExec = nullptr;
+            hasFuncToExecPtr = nullptr;
         }
     }
 
@@ -127,7 +124,7 @@ break;
         std::unique_lock<std::mutex> workerLock(workerMutex);
         workerConditionVariable.wait(workerLock, [&]() { return stopFlag.load(std::memory_order_relaxed)
                     || ce.load(std::memory_order_relaxed)
-                    || hasFuncToExec.load(std::memory_order_relaxed); });
+                    || hasFuncToExecPtr.load(std::memory_order_relaxed); });
     }
     
     void waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
@@ -138,7 +135,7 @@ public:
 
     explicit SpWorker(const SpWorkerTypes::Type inWt) :
     wt(inWt), workerMutex(), workerConditionVariable(),
-    stopFlag(false), ce(nullptr), threadId(0), t(), hasFuncToExec(false)
+    stopFlag(false), ce(nullptr), threadId(0), t(), hasFuncToExecPtr(nullptr)
     {
         threadId = totalNbThreadsCreated.fetch_add(1, std::memory_order_relaxed);
     }
@@ -176,14 +173,14 @@ public:
     void setExecFunc(ClassFunc&& func) {
         assert(stopFlag == false);
 
-        funcToExec = [&func](){
-            func();
+        std::function<void(void)> funcToExec = [&func, id = threadId, type = wt](){
+            func(id, type);
         };
 
-        hasFuncToExec = true;
+        hasFuncToExecPtr = &funcToExec;
         workerConditionVariable.notify_all();
         SpDebugPrint() << "setExecFunc call on " << threadId << " now will wait...";
-        while(hasFuncToExec);
+        while(hasFuncToExecPtr);
         SpDebugPrint() << "setExecFunc call on " << threadId << " done.";
     }
 

@@ -46,10 +46,13 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     };
      std::vector<CudaHandles> handles(runtime.getNbCudaWorkers());
      const int offsetWorker = runtime.getNbCpuWorkers() + 1;
-     runtime.execOnWorkers([&handles, offsetWorker, &runtime, inBlockDim](){
-         if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
-             assert(offsetWorker <= SpUtils::GetThreadId() && SpUtils::GetThreadId() < offsetWorker + runtime.getNbCudaWorkers());
-             auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+     runtime.execOnWorkers([&handles, offsetWorker, &runtime, inBlockDim](auto id, auto type){
+         assert(id == SpUtils::GetThreadId());
+         assert(type == SpUtils::GetThreadType());
+         if(type == SpWorkerTypes::Type::CUDA_WORKER){
+             assert(offsetWorker <= id && id < offsetWorker + runtime.getNbCudaWorkers());
+             SpDebugPrint() << "Worker " << id << " will now initiate cublas...";
+             auto& hdl = handles[id-offsetWorker];
              CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
              CUBLAS_ASSERT(cublasSetStream(hdl.blasHandle, SpCudaUtils::GetCurrentStream()));
              CUSOLVER_ASSERT(cusolverDnCreate(&hdl.solverHandle));
@@ -190,9 +193,9 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     runtime.waitAllTasks();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    runtime.execOnWorkers([&handles, offsetWorker](){
-        if(SpUtils::GetThreadType() == SpWorkerTypes::Type::CUDA_WORKER){
-            auto& hdl = handles[SpUtils::GetThreadId()-offsetWorker];
+    runtime.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+        if(type == SpWorkerTypes::Type::CUDA_WORKER){
+            auto& hdl = handles[id-offsetWorker];
             CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
             CUSOLVER_ASSERT(cusolverDnDestroy(hdl.solverHandle));
             CUDA_ASSERT(cudaFree(hdl.solverBuffer));
