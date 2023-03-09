@@ -13,7 +13,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuWorkers(const int nbWork
     res.reserve(nbWorkers);
 
     for(int idxWorker = 0; idxWorker < nbWorkers; ++idxWorker) {
-        res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER));
+        res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::CPU_WORKER));
     }
 
     return res;
@@ -26,7 +26,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWor
 
     for(int idxCuda = 0; idxCuda < nbCudaWorkers; ++idxCuda) {
         for(int idxWorker = 0; idxWorker < nbWorkerPerCudas; ++idxWorker) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CUDA_WORKER));
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::CUDA_WORKER));
             res.back()->cudaData.init(idxCuda);
         }
     }
@@ -41,12 +41,12 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nb
     res.reserve(nbCpuWorkers + nbWorkerPerCudas*nbCudaWorkers);
 
     for(int idxWorker = 0; idxWorker < nbCpuWorkers; ++idxWorker) {
-        res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER));
+        res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::CPU_WORKER));
     }
 
     for(int idxCuda = 0; idxCuda < nbCudaWorkers; ++idxCuda) {
         for(int idxWorker = 0; idxWorker < nbWorkerPerCudas; ++idxWorker) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CUDA_WORKER));
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::CUDA_WORKER));
             res.back()->cudaData.init(idxCuda);
         }
     }
@@ -62,7 +62,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWork
 
     for(int idxHip = 0; idxHip < nbHipWorkers; ++idxHip) {
         for(int idxWorker = 0; idxWorker < nbWorkerPerHips; ++idxWorker) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::HIP_WORKER));
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::HIP_WORKER));
             res.back()->hipData.init(idxHip);
         }
     }
@@ -77,12 +77,12 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbC
     res.reserve(nbCpuWorkers + nbWorkerPerHips*nbHipWorkers);
 
     for(int idxWorker = 0; idxWorker < nbCpuWorkers; ++idxWorker) {
-        res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER));
+        res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::CPU_WORKER));
     }
 
     for(int idxHip = 0; idxHip < nbHipWorkers; ++idxHip) {
         for(int idxWorker = 0; idxWorker < nbWorkerPerHips; ++idxWorker) {
-            res.emplace_back(std::make_unique<SpWorker>(SpWorker::SpWorkerType::HIP_WORKER));
+            res.emplace_back(std::make_unique<SpWorker>(SpWorkerTypes::Type::HIP_WORKER));
             res.back()->hipData.init(idxHip);
         }
     }

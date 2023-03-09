@@ -30,7 +30,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         
         auto generateFunc =
         []() {
-            return std::make_unique<SpWorker>(SpWorker::SpWorkerType::CPU_WORKER);
+            return std::make_unique<SpWorker>(SpWorkerTypes::Type::CPU_WORKER);
         };
         
         for(auto& workerVector : workerVectors) {
@@ -75,7 +75,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         
         mainThreadPromise.get_future().get();
         
-        auto workers = ce1.detachWorkers(SpWorker::SpWorkerType::CPU_WORKER, 1, true);
+        auto workers = ce1.detachWorkers(SpWorkerTypes::Type::CPU_WORKER, 1, true);
         
         tg1Promise.set_value(true);
         
@@ -89,7 +89,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         
         tg2.waitAllTasks();
         
-        ce2.sendWorkersTo(ce1, SpWorker::SpWorkerType::CPU_WORKER, 3, true);
+        ce2.sendWorkersTo(ce1, SpWorkerTypes::Type::CPU_WORKER, 3, true);
         
         tg1.waitAllTasks();
         

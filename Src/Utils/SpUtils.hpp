@@ -27,8 +27,10 @@
 
 #include <cassert>
 
+#include "Config/SpConfig.hpp"
 #include "SpDebug.hpp"
 #include "small_vector.hpp"
+#include "Compute/SpWorkerTypes.hpp"
 
 /**
  * Utils methods
@@ -98,6 +100,12 @@ namespace SpUtils{
 
     /** Set current thread Id */
     void SetThreadId(const long int inThreadId);
+
+    /** Set current thread Id */
+    void SetThreadType(const SpWorkerTypes::Type inType);
+
+    /** Set current thread Id */
+    SpWorkerTypes::Type GetThreadType();
 
     /** Replace all substring in a string */
     inline std::string ReplaceAllInString(std::string sentence, const std::string& itemToReplace, const std::string& inSubstitutionString){

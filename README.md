@@ -348,7 +348,7 @@ Maybe-writes are ordered by the runtime with respect to reads, writes, maybe-wri
 The order is the order in which the data accesses have been requested at runtime.
 
 
-- SpCommuteWrite(x)
+- SpCommutativeWrite(x)
 
 Specifies a commutative write dependency on x, i.e. writes that can be performed in any order.  
 Multiple successive commutative write requests will be fulfilled one after the other in any order : while a commutative write request cw1 on
@@ -382,7 +382,7 @@ We also provide analogous contructors for aggregates of data values from arrays 
 - SpReadArray(\<XTy\> \*x, \<ViewTy\> view)
 - SpWriteArray(\<XTy\> \*x, \<ViewTy\> view)
 - SpMaybeWriteArray(\<XTy\> \*x, \<ViewTy\> view)
-- SpCommuteWriteArray(\<XTy\> \*x, \<ViewTy\> view)
+- SpCommutativeWriteArray(\<XTy\> \*x, \<ViewTy\> view)
 - SpAtomicWriteArray(\<XTy\> \*x, \<ViewTy\> view)
 
 `x` should be a pointer to a contiguous buffer (the array).\

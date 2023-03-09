@@ -145,11 +145,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     }
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
                     std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
-                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<ScalarOrContainerType>::value){
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
                         std::get<index>(cudaCallableArgs).setDataDescriptor(dataObj.viewPtr);
                     }
                     else{
-                        assert(dataObj.view == nullptr);
+                        assert(dataObj.viewPtr == nullptr);
                     }
                 }
                 else{

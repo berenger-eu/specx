@@ -10,14 +10,15 @@ void SpWorker::start() {
     if(!t.joinable()) {
         t = std::thread([&]() {
             SpUtils::SetThreadId(threadId);
+            SpUtils::SetThreadType(getType());
             SpWorker::setWorkerForThread(this);
 #ifdef SPECX_COMPILE_WITH_CUDA
-            if(this->getType() == SpWorkerType::CUDA_WORKER){
+            if(this->getType() == SpWorkerTypes::Type::CUDA_WORKER){
                 cudaData.initByWorker();
             }
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-            if(this->getType() == SpWorkerType::HIP_WORKER){
+            if(this->getType() == SpWorkerTypes::Type::HIP_WORKER){
                 hipData.initByWorker();
             }
 #endif
@@ -25,12 +26,12 @@ void SpWorker::start() {
             doLoop(nullptr);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-            if(this->getType() == SpWorkerType::CUDA_WORKER){
+            if(this->getType() == SpWorkerTypes::Type::CUDA_WORKER){
                 cudaData.destroyByWorker();
             }
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-            if(this->getType() == SpWorkerType::HIP_WORKER){
+            if(this->getType() == SpWorkerTypes::Type::HIP_WORKER){
                 hipData.destroyByWorker();
             }
 #endif
@@ -55,6 +56,8 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
     long int nullTasksCounter = 0;
 
     while(!stopFlag.load(std::memory_order_relaxed) && (!inAtg || !inAtg->isFinished())) {
+        execFuncIfNeeded();
+
         SpComputeEngine* saveCe = nullptr;
         
         // Using memory order acquire on ce.load to form release/acquire pair
@@ -86,20 +89,20 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                 if(task) {
                     SpAbstractTaskGraph* atg = task->getAbstractTaskGraph();
                     auto workerType = this->getType();
-                    if(workerType == SpWorker::SpWorkerType::CPU_WORKER){
+                    if(workerType == SpWorkerTypes::Type::CPU_WORKER){
                         atg->preTaskExecution(task, *this);
                         execute(task);
                         atg->postTaskExecution(task, *this);
                     }
                     #ifdef SPECX_COMPILE_WITH_CUDA
-                    else if(workerType == SpWorker::SpWorkerType::CUDA_WORKER) {
+                    else if(workerType == SpWorkerTypes::Type::CUDA_WORKER) {
 						atg->preTaskExecution(task, *this);
 						execute(task);
 						atg->postTaskExecution(task, *this);
                     }
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-                    else if(workerType == SpWorker::SpWorkerType::HIP_WORKER) {
+                    else if(workerType == SpWorkerTypes::Type::HIP_WORKER) {
                         atg->preTaskExecution(task, *this);
                         execute(task);
                         atg->postTaskExecution(task, *this);

@@ -195,8 +195,9 @@ public:
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
-            assert(allBlocks.find(inPtrDev) != allBlocks.end()
-                    && allBlocks[inPtrDev].size <= inByteSize);
+            // The following assert cannot be use as it will fire if we work on a sub-block
+            // maybe we could iterate to find the block(?)
+            //assert(allBlocks.find(inPtrDev) != allBlocks.end() && inByteSize <= allBlocks[inPtrDev].size);
 #ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
@@ -214,8 +215,9 @@ public:
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
-            assert(allBlocks.find(inPtrDev) != allBlocks.end()
-                    && allBlocks[inPtrDev].size <= inByteSize);
+            // The following assert it not valid as inPtrDev might be a subblock
+            // assert(allBlocks.find(inPtrDev) != allBlocks.end()
+            //        && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,

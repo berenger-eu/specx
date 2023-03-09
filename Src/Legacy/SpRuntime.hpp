@@ -30,11 +30,22 @@ public:
     /// Constructor
     ///////////////////////////////////////////////////////////////////////////
 
-    explicit SpRuntime(const int inNumThreads = SpUtils::DefaultNumThreads()) :
+    explicit SpRuntime(const int inNumThreads) :
             tg(), ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(inNumThreads)) {
         tg.computeOn(ce);
     }
-        
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpRuntime() :
+            tg(), ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers()) {
+        tg.computeOn(ce);
+    }
+#else
+    explicit SpRuntime() :
+            tg(), ce(SpWorkerTeamBuilder::TeamOfCpuWorkers()) {
+        tg.computeOn(ce);
+    }
+#endif
     ///////////////////////////////////////////////////////////////////////////
     /// Destructor
     ///////////////////////////////////////////////////////////////////////////
@@ -81,7 +92,27 @@ public:
     int getNbThreads() const {
         return static_cast<int>(ce.getCurrentNbOfWorkers());
     }
+
+    int getNbCpuWorkers() const {
+        return static_cast<int>(ce.getNbCpuWorkers());
+    }
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    int getNbCudaWorkers() const {
+        return static_cast<int>(ce.getNbCudaWorkers());
+    }
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    int getNbHipWorkers() const {
+        return static_cast<int>(ce.getNbHipWorkers());
+    }
+#endif
            
+    template <class ClassFunc>
+    void execOnWorkers(ClassFunc&& func) {
+        ce.execOnWorkers(std::forward<ClassFunc>(func));
+    }
+
     ///////////////////////////////////////////////////////////////////////////
     /// Output
     ///////////////////////////////////////////////////////////////////////////

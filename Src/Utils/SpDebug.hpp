@@ -10,17 +10,19 @@
 #include <iostream>
 #include <cstring>
 
+#include "Config/SpConfig.hpp"
+
 #ifdef SPECX_COMPILE_WITH_MPI
 #include "MPI/SpMpiUtils.hpp"
 #endif
 
 /**
  * This class should be used to print debug info.
- * The environment variable SPECX_DEBUG_PRINT allow to disable/enable
+ * The environment variable SPECX_USE_DEBUG_PRINT allow to disable/enable
  * the output at runtime.
  */
 class SpDebug {
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
     const bool hasBeenEnabled;
     std::mutex outputMutex;
     const bool toFile;
@@ -44,11 +46,11 @@ public:
     class Printer {
         SpDebug& master;
 
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
         std::stringstream buffer;
 #endif
         explicit Printer(SpDebug& inMaster) : master(inMaster){
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
             if(master.isEnable()){                
 #ifdef SPECX_COMPILE_WITH_MPI
                 buffer << "[MPI-" << SpMpiUtils::GetMpiRank() << "] ";
@@ -60,7 +62,7 @@ public:
 
     public:
         ~Printer(){            
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << "\n";
                 const std::string toOutput = buffer.str();
@@ -83,7 +85,7 @@ public:
 
         template <class Param>
         Printer& operator<<([[maybe_unused]] Param&& toOutput){
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << toOutput;
             }
@@ -92,7 +94,7 @@ public:
         }
 
         void lineBreak(){
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
             if(master.isEnable()){
                 buffer << '\n';
 #ifdef SPECX_COMPILE_WITH_MPI
@@ -110,7 +112,7 @@ public:
         return Printer(*this);
     }
 
-#ifdef SPECX_DEBUG_PRINT
+#ifdef SPECX_USE_DEBUG_PRINT
     bool isEnable() const{
         return hasBeenEnabled;
     }
