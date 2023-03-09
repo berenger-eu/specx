@@ -27,27 +27,29 @@ INCLUDE_DIRECTORIES(
 
 
 # Add execs - 1 cpp = 1 exec
-foreach(exec ${source_tests_files}) 
-    get_filename_component(
-	    execname ${exec}
-	    NAME_WE
-    )
-
-    if($ENV{VERBOSE})
-        MESSAGE(STATUS "Benchmark -- Add ${execname}")
-    endif()
-
-    if(SPECX_COMPILE_WITH_CUDA)
-        set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
-    endif()
-    add_executable(
-		    ${execname}
-		    ${exec}
-	    )
-
-    target_link_libraries(
-        ${execname}
-        specx
-        ${SPECX_LIBRARIES}
+foreach(exec ${source_tests_files})
+    if(${SPECX_COMPILE_WITH_MPI} OR NOT ${exec} MATCHES "-mpi\.")
+        get_filename_component(
+	        execname ${exec}
+	        NAME_WE
         )
+
+        if($ENV{VERBOSE})
+            MESSAGE(STATUS "Benchmark -- Add ${execname}")
+        endif()
+
+        if(SPECX_COMPILE_WITH_CUDA)
+            set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+        endif()
+        add_executable(
+		        ${execname}
+		        ${exec}
+	        )
+
+        target_link_libraries(
+            ${execname}
+            specx
+            ${SPECX_LIBRARIES}
+            )
+    endif()
 endforeach(exec)
