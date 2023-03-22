@@ -186,7 +186,12 @@ struct Block{
     int nbCols;
 
     std::unique_ptr<double[]> values;
-    std::unique_ptr<int[]> permutations;
+
+    Block() = default;
+    Block(const Block&) = default;
+    Block(Block&&) = default;
+    Block& operator=(const Block&) = default;
+    Block& operator=(Block&&) = default;
 
     /////////////////////////////////////////////////////////////
 
@@ -220,6 +225,28 @@ struct Block{
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         mover.copyDeviceToHost(values.get(), doubleDevicePtr,  nbRows*nbCols*sizeof(double));
     }
+
+    /////////////////////////////////////////////////////////////
+#ifdef SPECX_COMPILE_WITH_MPI
+    Block(SpDeserializer &deserializer)
+        : rowOffset(deserializer.restore<decltype(rowOffset)>("rowOffset")),
+          colOffset(deserializer.restore<decltype(colOffset)>("colOffset")),
+          nbRows(deserializer.restore<decltype(nbRows)>("nbRows")),
+          nbCols(deserializer.restore<decltype(nbCols)>("nbCols")){
+
+        double* ptr = nullptr;
+        deserializer.restore(ptr, "values");
+        values.reset(ptr);
+    }
+
+    void serialize(SpSerializer &serializer) const {
+        serializer.append(rowOffset, "rowOffset");
+        serializer.append(colOffset, "colOffset");
+        serializer.append(nbRows, "nbRows");
+        serializer.append(nbCols, "nbCols");
+        serializer.append(values.get(), nbRows*nbCols, "values");
+    }
+#endif
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -283,7 +310,6 @@ std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, c
             blocks[m*nbBlocks+n].nbRows = std::min(inMatrixDim - m*inBlockDim, inBlockDim);
             blocks[m*nbBlocks+n].nbCols = std::min(inMatrixDim - n*inBlockDim, inBlockDim);
             blocks[m*nbBlocks+n].values.reset(new double[blocks[m*nbBlocks+n].nbRows * blocks[m*nbBlocks+n].nbCols]());
-            blocks[m*nbBlocks+n].permutations.reset(new int[blocks[m*nbBlocks+n].nbRows]());
         }
     }
 

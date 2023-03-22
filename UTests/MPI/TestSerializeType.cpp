@@ -24,13 +24,13 @@ struct RawStruct{
 };
 
 
-class SerializableClass : public SpAbstractSerializable {
+class SerializableClass {
 public:
     SerializableClass() = default;
     SerializableClass([[maybe_unused]] SpDeserializer& deserializer) {
     }
 
-    void serialize([[maybe_unused]]  SpSerializer& serializer) const final {
+    void serialize([[maybe_unused]]  SpSerializer& serializer) const {
     }
 };
 

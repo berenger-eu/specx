@@ -62,6 +62,55 @@ class SpMpiBackgroundWorker {
         return request;
     }
 
+    /// Interface to mpi isend
+    template <class ObjectType>
+    static MPI_Request IBroadcastsend(const ObjectType data[], const int nbElements, const int root, const MPI_Comm inCom){
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiUtils::IBroadcastsend] => nbElements " << nbElements << " root " << root
+                           << " root " << root;
+        }
+        MPI_Request request;
+        SpAssertMpi(MPI_Ibcast(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>::type, root,
+                              inCom, &request));
+        return request;
+    }
+
+    /// Interface to mpi irecv
+    template <class ObjectType>
+    static MPI_Request IBroadcastrecv(ObjectType data[], const int nbElements, const int root, const MPI_Comm inCom){
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiUtils::IBroadcastrecv] => nbElements " << nbElements << " root " << root
+                           << " root " << root;
+        }
+        MPI_Request request;
+        SpAssertMpi(MPI_Ibcast(data, nbElements, SpGetMpiType<ObjectType>::type, root,
+                              inCom, &request));
+        return request;
+    }
+
+
+    //////////////////////////////////////////////////////////////////
+
+    enum SpRequestType{
+        TYPE_SEND,
+        TYPE_RECV,
+        TYPE_BROADCASTSEND,
+        TYPE_BROADCASTRECV,
+        TYPE_UNDEFINED
+    };
+
+    enum SpRequestState{
+        STATE_FIRST,
+        STATE_SECOND,
+        STATE_UNDEFINED
+    };
+
+    struct SpRequest{
+        SpRequestType type = TYPE_UNDEFINED;
+        SpRequestState state = STATE_UNDEFINED;
+        int idxTransaction = -1;
+    };
+
     //////////////////////////////////////////////////////////////////
 
 
@@ -96,6 +145,7 @@ class SpMpiBackgroundWorker {
             // SpAssertMpi(MPI_Request_free(&requestBufferSize));
         }
     };
+
 
     //////////////////////////////////////////////////////////////////
 
@@ -136,13 +186,77 @@ class SpMpiBackgroundWorker {
         }
     };
 
-    //////////////////////////////////////////////////////////////////
 
-    struct SpRequestType{
-        bool isSend = true;
-        int state = 0;
-        int idxTransaction = -1;
+
+    struct SpMpiBroadcastSendTransaction {
+        SpTaskManager* tm;
+        SpAbstractTaskGraph* atg;
+
+        SpAbstractTask* task;
+
+        MPI_Request requestBufferSize;
+        std::unique_ptr<int> bufferSize;
+
+        MPI_Request request;
+        std::unique_ptr<SpAbstractMpiSerializer> serializer;
+
+        int root;
+
+        SpMpiBroadcastSendTransaction(){
+            task = nullptr;
+            tm = nullptr;
+            atg = nullptr;
+            memset(&request, 0, sizeof(request));
+            memset(&requestBufferSize, 0, sizeof(requestBufferSize));
+            root = -1;
+        }
+
+        SpMpiBroadcastSendTransaction(const SpMpiBroadcastSendTransaction&) = delete;
+        SpMpiBroadcastSendTransaction(SpMpiBroadcastSendTransaction&&) = default;
+        SpMpiBroadcastSendTransaction& operator=(const SpMpiBroadcastSendTransaction&) = delete;
+        SpMpiBroadcastSendTransaction& operator=(SpMpiBroadcastSendTransaction&&) = default;
+
+        void releaseRequest(){
+            // TODO, it seems that we should not free non consistant req.
+            // SpAssertMpi(MPI_Request_free(&request));
+            // SpAssertMpi(MPI_Request_free(&requestBufferSize));
+        }
     };
+
+    struct SpMpiBroadcastRecvTransaction {
+        SpTaskManager* tm;
+        SpAbstractTaskGraph* atg;
+
+        MPI_Request request;
+        SpAbstractTask* task;
+        MPI_Request requestBufferSize;
+        std::unique_ptr<int> bufferSize;
+        std::vector<unsigned char> buffer;
+        std::unique_ptr<SpAbstractMpiDeSerializer> deserializer;
+
+        int root;
+
+        SpMpiBroadcastRecvTransaction(){
+            task = nullptr;
+            tm = nullptr;
+            atg = nullptr;
+            memset(&request, 0, sizeof(request));
+            memset(&requestBufferSize, 0, sizeof(requestBufferSize));
+            root = -1;
+        }
+
+        SpMpiBroadcastRecvTransaction(const SpMpiBroadcastRecvTransaction&) = delete;
+        SpMpiBroadcastRecvTransaction(SpMpiBroadcastRecvTransaction&&) = default;
+        SpMpiBroadcastRecvTransaction& operator=(const SpMpiBroadcastRecvTransaction&) = delete;
+        SpMpiBroadcastRecvTransaction& operator=(SpMpiBroadcastRecvTransaction&&) = default;
+
+        void releaseRequest(){
+            // TODO, it seems that we should not free non consistant req.
+            // SpAssertMpi(MPI_Request_free(&request));
+            // SpAssertMpi(MPI_Request_free(&requestBufferSize));
+        }
+    };
+
 
     static void Consume(SpMpiBackgroundWorker* data);
 
@@ -156,6 +270,8 @@ class SpMpiBackgroundWorker {
     std::condition_variable mutexCondition;
     std::vector<std::function<SpMpiSendTransaction()>> newSends;
     std::vector<std::function<SpMpiRecvTransaction()>> newRecvs;
+    std::vector<std::function<SpMpiBroadcastSendTransaction()>> newBroadcastSends;
+    std::vector<std::function<SpMpiBroadcastRecvTransaction()>> newBroadcastRecvs;
 
     const bool isInit;
     MPI_Comm mpiCom;
@@ -169,6 +285,8 @@ class SpMpiBackgroundWorker {
     static SpMpiBackgroundWorker MainWorker;
 
 public:
+    static constexpr int OffsetTagSize = 9999;
+
     SpMpiBackgroundWorker(const SpMpiBackgroundWorker&) = delete;
     SpMpiBackgroundWorker(SpMpiBackgroundWorker&&) = delete;
     SpMpiBackgroundWorker& operator=(const SpMpiBackgroundWorker&) = delete;
@@ -200,7 +318,7 @@ public:
 
             transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
             transaction.requestBufferSize = Isend(transaction.bufferSize.get(),
-                                            1, destProc, tag+9999, mpiCom);
+                                            1, destProc, tag+OffsetTagSize, mpiCom);
 
             transaction.request = Isend(transaction.serializer->getBuffer(),
                                           transaction.serializer->getBufferSize(),
@@ -231,12 +349,68 @@ public:
 
             transaction.bufferSize.reset(new int(0));
             transaction.requestBufferSize = Irecv(transaction.bufferSize.get(),
-                                          1, srcProc, tag+9999, mpiCom);
+                                          1, srcProc, tag+OffsetTagSize, mpiCom);
             return transaction;
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
             newRecvs.push_back(std::move(comJob));
+        }
+        mutexCondition.notify_one();
+    }
+
+
+    template <class ObjectType>
+    void addBroadcastSend(const ObjectType& obj, const int root,
+                 SpAbstractTask* task,
+                 SpTaskManager* tm,
+                 SpAbstractTaskGraph* atg) {
+        auto comJob = [=, &obj]() -> SpMpiBroadcastSendTransaction {
+            SpMpiBroadcastSendTransaction transaction;
+            transaction.task = task;
+            transaction.tm = tm;
+            transaction.atg = atg;
+
+            transaction.serializer.reset(new SpMpiSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
+
+            transaction.bufferSize.reset(new int(transaction.serializer->getBufferSize()));
+            transaction.requestBufferSize = IBroadcastsend(transaction.bufferSize.get(),
+                                            1, root, mpiCom);
+
+            transaction.request = IBroadcastsend(transaction.serializer->getBuffer(),
+                                          transaction.serializer->getBufferSize(),
+                                          root, mpiCom);
+            return transaction;
+        };
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            newBroadcastSends.push_back(std::move(comJob));
+        }
+        mutexCondition.notify_one();
+    }
+
+    template <class ObjectType>
+    void addBroadcastRecv(ObjectType& obj, const int root,
+                 SpAbstractTask* task,
+                 SpTaskManager* tm,
+                 SpAbstractTaskGraph* atg) {
+        auto comJob = [=, &obj]() -> SpMpiBroadcastRecvTransaction{
+            SpMpiBroadcastRecvTransaction transaction;
+            transaction.task = task;
+            transaction.tm = tm;
+            transaction.atg = atg;
+            transaction.root = root;
+
+            transaction.deserializer.reset(new SpMpiDeSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
+
+            transaction.bufferSize.reset(new int(0));
+            transaction.requestBufferSize = IBroadcastrecv(transaction.bufferSize.get(),
+                                          1, root, mpiCom);
+            return transaction;
+        };
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            newBroadcastRecvs.push_back(std::move(comJob));
         }
         mutexCondition.notify_one();
     }

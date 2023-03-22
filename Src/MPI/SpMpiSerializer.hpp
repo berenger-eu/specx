@@ -56,10 +56,11 @@ public:
     };
 };
 
+
 template <class ObjectClass>
 constexpr auto SpGetSerializationType(){
     using ObjectClassClean = typename std::decay<ObjectClass>::type;
-    if constexpr(std::is_base_of_v<SpAbstractSerializable, ObjectClassClean>){
+    if constexpr(class_has_serialize_method<ObjectClassClean>::value){
         return SpSerializationType::SP_SERIALIZER_TYPE;
     }
     if constexpr (SpGetSerializationTypeHelper::has_getRawDataSize<ObjectClassClean>::value
@@ -113,7 +114,7 @@ public:
     }
     virtual int getBufferSize() override{
         const std::vector<unsigned char> &buffer = serializer.getBuffer();        
-        return buffer.size();
+        return int(buffer.size());
     }
 };
 

@@ -53,7 +53,17 @@ template <typename T, typename O> struct IsConvertible {
       std::is_same<std::true_type, decltype(test<T>(nullptr))>::value;
 };
 
-class SpAbstractSerializable;
+class SpSerializer;
+
+template <typename, typename = std::void_t<>>
+struct class_has_serialize_method
+: public std::false_type {};
+
+template <typename Class>
+struct class_has_serialize_method<Class,
+    std::void_t<decltype(std::declval<Class>().serialize(std::declval<SpSerializer&>()))>>
+: public std::is_same<decltype(std::declval<Class>().serialize(std::declval<SpSerializer&>())), void>
+{};
 
 class SpSerializer {
   std::vector<unsigned char> m_buffer;
@@ -129,8 +139,7 @@ public:
   template <class ItemClass, typename std::enable_if<
                                  !std::is_pod<ItemClass>::value, int>::type = 0>
   void append(const ItemClass &item, const std::string &inKey) {
-    static_assert(
-        std::is_convertible<ItemClass *, SpAbstractSerializable *>::value,
+    static_assert(class_has_serialize_method<ItemClass>::value,
         "Class must inherit from SpAbstractSerializable");
     appendKey(inKey);
     item.serialize(*this);
@@ -140,8 +149,7 @@ public:
                                  !std::is_pod<ItemClass>::value, int>::type = 0>
   void append(const ItemClass array[], const size_t nbItems,
               const std::string &inKey) {
-    static_assert(
-        std::is_convertible<ItemClass *, SpAbstractSerializable *>::value,
+    static_assert(class_has_serialize_method<ItemClass>::value,
         "Class must inherit from SpAbstractSerializable");
 
     append(nbItems, inKey + "-size");
@@ -448,12 +456,6 @@ public:
     restoreStreamed(item, inKey);
     return item;
   }
-};
-
-class SpAbstractSerializable {
-public:
-  virtual ~SpAbstractSerializable() {}
-  virtual void serialize(SpSerializer &) const = 0;
 };
 
 #endif

@@ -18,7 +18,7 @@
 #include "Utils/SpTimer.hpp"
 
 
-class ParticlesGroup : public SpAbstractSerializable{
+class ParticlesGroup {
 public:
     enum ValueTypes{
         PHYSICAL,
@@ -48,7 +48,7 @@ public:
     ParticlesGroup(ParticlesGroup&&) = default;
     ParticlesGroup& operator=(const ParticlesGroup&) = default;
     ParticlesGroup& operator=(ParticlesGroup&&) = default;
-    virtual ~ParticlesGroup(){}
+    ~ParticlesGroup(){}
 
     ParticlesGroup(SpDeserializer &deserializer)
         : nbParticles(deserializer.restore<decltype(nbParticles)>("nbParticles")){
@@ -62,7 +62,7 @@ public:
         deserializer.restore(values[7], "values[7]");
     }
 
-    virtual void serialize(SpSerializer &serializer) const final {
+    virtual void serialize(SpSerializer &serializer) const {
         serializer.append(nbParticles, "nbParticles");
         serializer.append(values[0], "values[0]");
         serializer.append(values[1], "values[1]");
