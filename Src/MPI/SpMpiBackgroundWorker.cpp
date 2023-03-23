@@ -62,7 +62,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
             }
             while(!data->newBroadcastRecvs.empty() && broadcastRecvTransactions.size() < LimiteBroadcast){
                 auto func = std::move(data->newBroadcastRecvs.back());
-                data->newSends.pop_back();
+                data->newBroadcastRecvs.pop_back();
                 broadcastRecvTransactions[counterTransactions] = func();
 
                 SpMpiBroadcastRecvTransaction& tr = broadcastRecvTransactions[counterTransactions];
@@ -72,7 +72,7 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
             }
             while(!data->newBroadcastSends.empty() && broadcastSendTransactions.size() < LimiteBroadcast){
                 auto func = std::move(data->newBroadcastSends.back());
-                data->newSends.pop_back();
+                data->newBroadcastSends.pop_back();
                 broadcastSendTransactions[counterTransactions] = func();
 
                 SpMpiBroadcastSendTransaction& tr = broadcastSendTransactions[counterTransactions];

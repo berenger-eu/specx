@@ -33,8 +33,9 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     const int Psize = SpMpiUtils::GetMpiSize();
     const int Prank = SpMpiUtils::GetMpiRank();
 
-    SpComputeEngine ce;
+    SpComputeEngine ce(SpWorkerTeamBuilder::DefaultTeamOfWorkers());
     SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+    tg.computeOn(ce);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     struct CudaHandles{
@@ -46,7 +47,7 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     };
      std::vector<CudaHandles> handles(ce.getNbCudaWorkers());
      const int offsetWorker = ce.getNbCpuWorkers() + 1;
-     tg.execOnWorkers([&handles, offsetWorker, &ce, inBlockDim, &blocks](auto id, auto type){
+     ce.execOnWorkers([&handles, offsetWorker, &ce, inBlockDim, &blocks](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
@@ -218,7 +219,7 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
     tg.waitAllTasks();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    tg.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+    ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
             auto& hdl = handles[id-offsetWorker];
             CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
@@ -228,11 +229,14 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
      });
 #endif
 
+    ce.stopIfNotAlreadyStopped();
     tg.generateDot("/tmp/graph.dot");
 }
 
 
 int main(){
+    SpMpiBackgroundWorker::GetWorker().init();
+
     const int MatrixSize = 16;
     const int BlockSize = 2;
     const bool printValues = (MatrixSize <= 16);
