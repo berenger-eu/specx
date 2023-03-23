@@ -24,6 +24,8 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 return !data->newSends.empty()
                         || !data->newRecvs.empty()
                         || !allRequests.empty()
+                        || !data->newBroadcastSends.empty()
+                        || !data->newBroadcastSends.empty()
                         || data->shouldTerminate;
             });
             if (data->shouldTerminate) {

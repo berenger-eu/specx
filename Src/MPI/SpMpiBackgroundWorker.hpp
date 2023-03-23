@@ -42,7 +42,7 @@ class SpMpiBackgroundWorker {
                        << " tag " << tag;
         }
         MPI_Request request;
-        SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>::type, dest,
+        SpAssertMpi(MPI_Isend(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>(), dest,
                               tag,
                               inCom, &request));
         return request;
@@ -56,7 +56,7 @@ class SpMpiBackgroundWorker {
                        << " tag " << tag;
         }
         MPI_Request request;
-        SpAssertMpi(MPI_Irecv(data, nbElements, SpGetMpiType<ObjectType>::type, src,
+        SpAssertMpi(MPI_Irecv(data, nbElements, SpGetMpiType<ObjectType>(), src,
                               tag,
                               inCom, &request));
         return request;
@@ -70,7 +70,7 @@ class SpMpiBackgroundWorker {
                            << " root " << root;
         }
         MPI_Request request;
-        SpAssertMpi(MPI_Ibcast(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>::type, root,
+        SpAssertMpi(MPI_Ibcast(const_cast<ObjectType*>(data), nbElements, SpGetMpiType<ObjectType>(), root,
                               inCom, &request));
         return request;
     }
@@ -83,7 +83,7 @@ class SpMpiBackgroundWorker {
                            << " root " << root;
         }
         MPI_Request request;
-        SpAssertMpi(MPI_Ibcast(data, nbElements, SpGetMpiType<ObjectType>::type, root,
+        SpAssertMpi(MPI_Ibcast(data, nbElements, SpGetMpiType<ObjectType>(), root,
                               inCom, &request));
         return request;
     }
@@ -295,6 +295,8 @@ public:
     static SpMpiBackgroundWorker& GetWorker(){
         return MainWorker;
     }
+
+    void init(){}
 
     ~SpMpiBackgroundWorker(){
         if(shouldTerminate == false){

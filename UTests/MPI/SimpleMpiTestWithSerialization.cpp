@@ -85,6 +85,8 @@ class SimpleUserDefinedSerializationMpiTest : public UTester< SimpleUserDefinedS
     using Parent = UTester< SimpleUserDefinedSerializationMpiTest >;
 
     void Test(){
+        SpMpiBackgroundWorker::GetWorker().init();
+
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         IntDataHolder a = 1;
