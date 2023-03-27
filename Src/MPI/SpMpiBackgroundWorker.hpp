@@ -188,7 +188,7 @@ class SpMpiBackgroundWorker {
 
 
 
-    struct SpMpiBroadcastSendTransaction {
+    struct SpMpiBroadcastSendRecvTransaction {
         SpTaskManager* tm;
         SpAbstractTaskGraph* atg;
 
@@ -202,53 +202,28 @@ class SpMpiBackgroundWorker {
 
         int root;
 
-        SpMpiBroadcastSendTransaction(){
-            task = nullptr;
-            tm = nullptr;
-            atg = nullptr;
-            memset(&request, 0, sizeof(request));
-            memset(&requestBufferSize, 0, sizeof(requestBufferSize));
-            root = -1;
-        }
-
-        SpMpiBroadcastSendTransaction(const SpMpiBroadcastSendTransaction&) = delete;
-        SpMpiBroadcastSendTransaction(SpMpiBroadcastSendTransaction&&) = default;
-        SpMpiBroadcastSendTransaction& operator=(const SpMpiBroadcastSendTransaction&) = delete;
-        SpMpiBroadcastSendTransaction& operator=(SpMpiBroadcastSendTransaction&&) = default;
-
-        void releaseRequest(){
-            // TODO, it seems that we should not free non consistant req.
-            // SpAssertMpi(MPI_Request_free(&request));
-            // SpAssertMpi(MPI_Request_free(&requestBufferSize));
-        }
-    };
-
-    struct SpMpiBroadcastRecvTransaction {
-        SpTaskManager* tm;
-        SpAbstractTaskGraph* atg;
-
-        MPI_Request request;
-        SpAbstractTask* task;
-        MPI_Request requestBufferSize;
-        std::unique_ptr<int> bufferSize;
         std::vector<unsigned char> buffer;
         std::unique_ptr<SpAbstractMpiDeSerializer> deserializer;
 
-        int root;
+        SpRequestType type;
 
-        SpMpiBroadcastRecvTransaction(){
+        int broadcastTicket;
+
+        SpMpiBroadcastSendRecvTransaction(){
             task = nullptr;
             tm = nullptr;
             atg = nullptr;
             memset(&request, 0, sizeof(request));
             memset(&requestBufferSize, 0, sizeof(requestBufferSize));
             root = -1;
+            type = TYPE_UNDEFINED;
+            broadcastTicket = -1;
         }
 
-        SpMpiBroadcastRecvTransaction(const SpMpiBroadcastRecvTransaction&) = delete;
-        SpMpiBroadcastRecvTransaction(SpMpiBroadcastRecvTransaction&&) = default;
-        SpMpiBroadcastRecvTransaction& operator=(const SpMpiBroadcastRecvTransaction&) = delete;
-        SpMpiBroadcastRecvTransaction& operator=(SpMpiBroadcastRecvTransaction&&) = default;
+        SpMpiBroadcastSendRecvTransaction(const SpMpiBroadcastSendRecvTransaction&) = delete;
+        SpMpiBroadcastSendRecvTransaction(SpMpiBroadcastSendRecvTransaction&&) = default;
+        SpMpiBroadcastSendRecvTransaction& operator=(const SpMpiBroadcastSendRecvTransaction&) = delete;
+        SpMpiBroadcastSendRecvTransaction& operator=(SpMpiBroadcastSendRecvTransaction&&) = default;
 
         void releaseRequest(){
             // TODO, it seems that we should not free non consistant req.
@@ -257,6 +232,13 @@ class SpMpiBackgroundWorker {
         }
     };
 
+
+    struct BroadcastOrder{
+        bool operator()(const std::pair<int, std::function<SpMpiBroadcastSendRecvTransaction()>>& lhs,
+                        const std::pair<int, std::function<SpMpiBroadcastSendRecvTransaction()>>& rhs){
+            return lhs.first > rhs.first;
+        }
+    };
 
     static void Consume(SpMpiBackgroundWorker* data);
 
@@ -270,16 +252,17 @@ class SpMpiBackgroundWorker {
     std::condition_variable mutexCondition;
     std::vector<std::function<SpMpiSendTransaction()>> newSends;
     std::vector<std::function<SpMpiRecvTransaction()>> newRecvs;
-    std::queue<std::function<SpMpiBroadcastSendTransaction()>> newBroadcastSends;
-    std::queue<std::function<SpMpiBroadcastRecvTransaction()>> newBroadcastRecvs;
+    std::priority_queue<std::pair<int, std::function<SpMpiBroadcastSendRecvTransaction()>>,
+                    std::vector<std::pair<int, std::function<SpMpiBroadcastSendRecvTransaction()>>>,
+                    BroadcastOrder> newBroadcastSendRecvs;
 
     const bool isInit;
     MPI_Comm mpiCom;
-
+    int broadcastCpt;
     std::thread thread;
 
     SpMpiBackgroundWorker()
-        : isInit(Init()), mpiCom(MPI_COMM_WORLD), thread(Consume, this){
+        : isInit(Init()), mpiCom(MPI_COMM_WORLD), broadcastCpt(0), thread(Consume, this){
 
     }
     static SpMpiBackgroundWorker MainWorker;
@@ -309,6 +292,10 @@ public:
         if(SpDebug::Controller.isEnable()){
             SpDebugPrint() << "[SpMpiBackgroundWorker] => MPI_Finalize done ";
         }
+    }
+
+    int getAndIncBroadcastCpt(){
+        return broadcastCpt++;
     }
 
     template <class ObjectType>
@@ -369,15 +356,17 @@ public:
 
 
     template <class ObjectType>
-    void addBroadcastSend(const ObjectType& obj, const int root,
+    void addBroadcastSend(const ObjectType& obj, const int root, const int broadcastTicket,
                  SpAbstractTask* task,
                  SpTaskManager* tm,
                  SpAbstractTaskGraph* atg) {
-        auto comJob = [=, &obj]() -> SpMpiBroadcastSendTransaction {
-            SpMpiBroadcastSendTransaction transaction;
+        auto comJob = [=, &obj]() -> SpMpiBroadcastSendRecvTransaction {
+            SpMpiBroadcastSendRecvTransaction transaction;
+            transaction.type = TYPE_BROADCASTSEND;
             transaction.task = task;
             transaction.tm = tm;
             transaction.atg = atg;
+            transaction.broadcastTicket = broadcastTicket;
 
             transaction.serializer.reset(new SpMpiSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
 
@@ -392,22 +381,24 @@ public:
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            newBroadcastSends.push(std::move(comJob));
+            newBroadcastSendRecvs.push({ broadcastTicket, std::move(comJob)});
         }
         mutexCondition.notify_one();
     }
 
     template <class ObjectType>
-    void addBroadcastRecv(ObjectType& obj, const int root,
+    void addBroadcastRecv(ObjectType& obj, const int root, const int broadcastTicket,
                  SpAbstractTask* task,
                  SpTaskManager* tm,
                  SpAbstractTaskGraph* atg) {
-        auto comJob = [=, &obj]() -> SpMpiBroadcastRecvTransaction{
-            SpMpiBroadcastRecvTransaction transaction;
+        auto comJob = [=, &obj]() -> SpMpiBroadcastSendRecvTransaction{
+            SpMpiBroadcastSendRecvTransaction transaction;
+            transaction.type = TYPE_BROADCASTRECV;
             transaction.task = task;
             transaction.tm = tm;
             transaction.atg = atg;
             transaction.root = root;
+            transaction.broadcastTicket = broadcastTicket;
 
             transaction.deserializer.reset(new SpMpiDeSerializer<SpGetSerializationType<ObjectType>(), ObjectType>(obj));
 
@@ -418,7 +409,7 @@ public:
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            newBroadcastRecvs.push(std::move(comJob));
+            newBroadcastSendRecvs.push({ broadcastTicket, std::move(comJob)});
         }
         mutexCondition.notify_one();
     }

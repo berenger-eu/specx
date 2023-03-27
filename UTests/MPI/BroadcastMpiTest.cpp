@@ -26,39 +26,38 @@ class BroadcastMpiTest : public UTester< BroadcastMpiTest > {
 
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
-        int a = -1;
-        int b = -1;
+        int a = 1;
+        int b = 1;
 
         tg.computeOn(ce);
 
-        // This test works only with at least 2 processes
+        // This test works with only 2 processes
         assert(SpMpiUtils::GetMpiSize() >= 2);
         if(SpMpiUtils::GetMpiRank() == 0){
-//            tg.task(SpRead(a), SpWrite(b),
-//                        SpCpu([](const int& paramA, int& paramB) {
-//                            paramB = paramA + paramB;
-//                        })
-//            );
-            a = 1;
-            tg.mpiBroadcastSend(a, 0);
-            tg.mpiBroadcastRecv(b, 1);
+            tg.task(SpRead(a), SpWrite(b),
+                        SpCpu([](const int& paramA, int& paramB) {
+                            paramB = paramA + paramB;
+                        })
+            );
+
+            tg.mpiBroadcastSend(b, 0);
+            tg.mpiBroadcastRecv(a, 1);
         }
         else if(SpMpiUtils::GetMpiRank() == 1){
-//            tg.task(SpRead(a), SpWrite(b),
-//                        SpCpu([](const int& paramA, int& paramB) {
-//                            paramB = paramA + paramB;
-//                        })
-//            );
+            tg.task(SpRead(a), SpWrite(b),
+                        SpCpu([](const int& paramA, int& paramB) {
+                            paramB = paramA + paramB;
+                        })
+            );
 
             tg.mpiBroadcastRecv(a, 0);
-            b = 1;
             tg.mpiBroadcastSend(b, 1);
         }
 
         tg.waitAllTasks();
 
-        UASSERTETRUE(a == 1);
-        UASSERTETRUE(b == 1);
+        UASSERTETRUE(a == 2);
+        UASSERTETRUE(b == 2);
     }
 
 

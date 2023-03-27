@@ -1868,8 +1868,9 @@ public:
     template <class Param>
     auto mpiBroadcastSend(const Param& param, const int root) {
         currentTaskIsMpiCom = true;
-        auto res = task(SpRead(param), [=](const Param& paramDep){
-            SpMpiBackgroundWorker::GetWorker().addBroadcastSend(paramDep, root,
+        const int broadcastTicket = SpMpiBackgroundWorker::GetWorker().getAndIncBroadcastCpt();
+        auto res = task(SpRead(param), [&, root, broadcastTicket](const Param& paramDep){
+            SpMpiBackgroundWorker::GetWorker().addBroadcastSend(paramDep, root, broadcastTicket,
                     SpAbstractTask::GetCurrentTask(),
                     &scheduler,
                     this);
@@ -1881,11 +1882,12 @@ public:
     template <class Param>
     auto mpiBroadcastRecv(Param& param, const int root) {
         currentTaskIsMpiCom = true;
-        auto res = task(SpWrite(param), [=](Param& paramDep){
-            SpMpiBackgroundWorker::GetWorker().addBroadcastRecv(paramDep, root,
-                    SpAbstractTask::GetCurrentTask(),
-                                                       &scheduler,
-                    this);
+        const int broadcastTicket = SpMpiBackgroundWorker::GetWorker().getAndIncBroadcastCpt();
+        auto res = task(SpWrite(param), [&, root, broadcastTicket](Param& paramDep){
+            SpMpiBackgroundWorker::GetWorker().addBroadcastRecv(paramDep, root, broadcastTicket,
+                                    SpAbstractTask::GetCurrentTask(),
+                                    &scheduler,
+                                    this);
         });
         currentTaskIsMpiCom = false;
         return res;
