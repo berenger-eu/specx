@@ -61,8 +61,8 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 counterTransactions += 1;
             }
             while(!data->newBroadcastRecvs.empty() && broadcastRecvTransactions.size() < LimiteBroadcast){
-                auto func = std::move(data->newBroadcastRecvs.back());
-                data->newBroadcastRecvs.pop_back();
+                auto func = std::move(data->newBroadcastRecvs.front());
+                data->newBroadcastRecvs.pop();
                 broadcastRecvTransactions[counterTransactions] = func();
 
                 SpMpiBroadcastRecvTransaction& tr = broadcastRecvTransactions[counterTransactions];
@@ -71,8 +71,8 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 counterTransactions += 1;
             }
             while(!data->newBroadcastSends.empty() && broadcastSendTransactions.size() < LimiteBroadcast){
-                auto func = std::move(data->newBroadcastSends.back());
-                data->newBroadcastSends.pop_back();
+                auto func = std::move(data->newBroadcastSends.front());
+                data->newBroadcastSends.pop();
                 broadcastSendTransactions[counterTransactions] = func();
 
                 SpMpiBroadcastSendTransaction& tr = broadcastSendTransactions[counterTransactions];
@@ -147,6 +147,13 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                     }
                 }
                 else if(rt.type == TYPE_BROADCASTSEND){
+                    {// TODO
+                        std::cout << SpMpiUtils::GetMpiRank() << " SEND "  << " rt.idxTransaction = " << rt.idxTransaction << " rt.state " << rt.state << std::endl;
+                        for(auto& va: broadcastSendTransactions){
+                            std::cout << SpMpiUtils::GetMpiRank() << " " << va.first << std::endl;
+                        }
+                        std::cout << SpMpiUtils::GetMpiRank() << " rt.idxTransaction = " << rt.idxTransaction << std::endl;
+                    }
                     assert(broadcastSendTransactions.find(rt.idxTransaction) != broadcastSendTransactions.end());
                     if(SpDebug::Controller.isEnable()){
                         SpDebugPrint() << "[SpMpiBackgroundWorker] => broadcast send done " << rt.idxTransaction;
@@ -163,7 +170,14 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                         transaction.releaseRequest();
                     }
                 }
-                else if(rt.type == TYPE_BROADCASTRECV){
+                else if(rt.type == TYPE_BROADCASTRECV){                    
+                    {// TODO
+                        std::cout << SpMpiUtils::GetMpiRank() << " RECV "  << " rt.idxTransaction = " << rt.idxTransaction << " rt.state " << rt.state << std::endl;
+                        for(auto& va: broadcastRecvTransactions){
+                            std::cout << SpMpiUtils::GetMpiRank() << " " << va.first << std::endl;
+                        }
+                        std::cout << SpMpiUtils::GetMpiRank() << " rt.idxTransaction = " << rt.idxTransaction << std::endl;
+                    }
                     assert(broadcastRecvTransactions.find(rt.idxTransaction) != broadcastRecvTransactions.end());
                     if(rt.state == STATE_FIRST){
                         if(SpDebug::Controller.isEnable()){

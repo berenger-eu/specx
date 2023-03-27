@@ -270,8 +270,8 @@ class SpMpiBackgroundWorker {
     std::condition_variable mutexCondition;
     std::vector<std::function<SpMpiSendTransaction()>> newSends;
     std::vector<std::function<SpMpiRecvTransaction()>> newRecvs;
-    std::vector<std::function<SpMpiBroadcastSendTransaction()>> newBroadcastSends;
-    std::vector<std::function<SpMpiBroadcastRecvTransaction()>> newBroadcastRecvs;
+    std::queue<std::function<SpMpiBroadcastSendTransaction()>> newBroadcastSends;
+    std::queue<std::function<SpMpiBroadcastRecvTransaction()>> newBroadcastRecvs;
 
     const bool isInit;
     MPI_Comm mpiCom;
@@ -299,10 +299,16 @@ public:
     void init(){}
 
     ~SpMpiBackgroundWorker(){
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiBackgroundWorker] => ~SpMpiBackgroundWorker ";
+        }
         if(shouldTerminate == false){
             stop();
         }
         SpAssertMpi(MPI_Finalize());
+        if(SpDebug::Controller.isEnable()){
+            SpDebugPrint() << "[SpMpiBackgroundWorker] => MPI_Finalize done ";
+        }
     }
 
     template <class ObjectType>
@@ -386,7 +392,7 @@ public:
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            newBroadcastSends.push_back(std::move(comJob));
+            newBroadcastSends.push(std::move(comJob));
         }
         mutexCondition.notify_one();
     }
@@ -412,7 +418,7 @@ public:
         };
         {
             std::unique_lock<std::mutex> lock(queueMutex);
-            newBroadcastRecvs.push_back(std::move(comJob));
+            newBroadcastRecvs.push(std::move(comJob));
         }
         mutexCondition.notify_one();
     }
