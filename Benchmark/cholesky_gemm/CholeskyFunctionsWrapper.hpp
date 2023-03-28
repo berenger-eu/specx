@@ -328,7 +328,7 @@ std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, c
 }
 
 double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, const int inBlockDim,
-                        const int Prank = 0, const int Psize = 1){
+                        const int Prank = 0, const int Psize = 1, const double alpha = 1.0){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
     double error = 0;
@@ -342,7 +342,7 @@ double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, 
                 const int colIdxInBlock = idxCol%inBlockDim;
 
                 const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
-                const double matrixValue = matrix[idxRow*inMatrixDim+idxCol];
+                const double matrixValue = alpha*matrix[idxRow*inMatrixDim+idxCol];
 
                 error = std::max(error, std::abs(blockValue-matrixValue)/(std::abs(matrixValue)+std::numeric_limits<double>::epsilon()));
             }

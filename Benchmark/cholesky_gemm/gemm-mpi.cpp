@@ -285,7 +285,8 @@ int main(){
         SpBlas::printMatrix(matrixC.get(), MatrixSize);
     }
     /////////////////////////////////////////////////////////
-    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrixC.get(), blocksC.get(), MatrixSize, BlockSize);
+    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrixC.get(), blocksC.get(), MatrixSize, BlockSize,
+                                                            0, 1, Psize);
     std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
 
     return 0;

@@ -44,8 +44,8 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                 SpMpiSendTransaction& tr = sendTransactions[counterTransactions];
                 allRequestsTypes.emplace_back(SpRequest{TYPE_SEND, STATE_FIRST, counterTransactions});
                 allRequests.emplace_back(tr.requestBufferSize);
-                allRequestsTypes.emplace_back(SpRequest{TYPE_SEND, STATE_SECOND, counterTransactions});
-                allRequests.emplace_back(tr.request);
+//                allRequestsTypes.emplace_back(SpRequest{TYPE_SEND, STATE_SECOND, counterTransactions});
+//                allRequests.emplace_back(tr.request);
                 counterTransactions += 1;
             }
             while(!data->newRecvs.empty()){
@@ -106,6 +106,11 @@ void SpMpiBackgroundWorker::Consume(SpMpiBackgroundWorker* data) {
                     assert(sendTransactions.find(rt.idxTransaction) != sendTransactions.end());
                     if(SpDebug::Controller.isEnable()){
                         SpDebugPrint() << "[SpMpiBackgroundWorker] => send done " << rt.idxTransaction;
+                    }
+                    if(rt.state == STATE_FIRST){
+                        SpMpiSendTransaction& transaction = sendTransactions[rt.idxTransaction];
+                        allRequestsTypes.emplace_back(SpRequest{TYPE_SEND, STATE_SECOND, rt.idxTransaction});
+                        allRequests.emplace_back(transaction.request);
                     }
                     if(rt.state == STATE_SECOND){
                         if(SpDebug::Controller.isEnable()){
