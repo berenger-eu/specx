@@ -107,7 +107,6 @@ void choleskyFactorization(SpBlas::Block blocks[], const int inMatrixDim, const 
         else{
             tg.mpiBroadcastRecv(blocks[k*nbBlocks+k], k % Psize);
         }
-        break;// TODO
 
         for(int m = k + 1 ; m < nbBlocks ; ++m){
             // TRSM( R A(k,k), RW A(m, k) )
@@ -271,7 +270,8 @@ int main(){
         SpBlas::printMatrix(matrix.get(), MatrixSize);
     }
     /////////////////////////////////////////////////////////
-    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
+    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize,
+                                                            Prank, Psize);
     std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
 
     return 0;
