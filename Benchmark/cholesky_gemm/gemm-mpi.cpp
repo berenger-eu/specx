@@ -261,10 +261,10 @@ int main(){
     /////////////////////////////////////////////////////////
     auto blocksC = SpBlas::matrixToBlock(matrixC.get(), MatrixSize, BlockSize);
 
-    assert(((Psize-1) & Psize) == 0);
-    const int sqrtPsize = (1 << (ffs(Psize)/2));
+    const int sqrtPsize = std::round(std::sqrt(Psize));
+    assert(sqrtPsize*sqrtPsize == Psize);
     Coord processGridDim{sqrtPsize, sqrtPsize};
-    Coord processIdxInGrid{(Prank+1)/sqrtPsize, (Prank+1)%sqrtPsize};
+    Coord processIdxInGrid{Prank/sqrtPsize, Prank%sqrtPsize};
     int processBlockDim = MatrixSize/BlockSize;
 
     std::cout << Prank << "] sqrtPsize = " << sqrtPsize << std::endl;
