@@ -63,8 +63,8 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         std::array<std::promise<bool>, 4> promises;
         
         for(size_t i = 1; i < promises.size(); i++) {
-            tg2.task(
-            [&promises, i]() {
+            tg2.task(SpRead(a),
+            [&promises, i](const int& /*a*/) {
                 promises[i].get_future().get();
                 promises[i-1].set_value(true);
             }
