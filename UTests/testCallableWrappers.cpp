@@ -14,6 +14,16 @@
 #include "Task/SpTask.hpp"
 #include "Legacy/SpRuntime.hpp"
 
+#ifdef SPECX_COMPILE_WITH_CUDA
+// Inc without being in a .cu file
+void inc_on_cuda(int* cuInt){
+    int cpt;
+    cudaMemcpy( &cpt, cuInt, 1, cudaMemcpyDeviceToHost );
+    cpt += 1;
+    cudaMemcpy( cuInt, &cpt, 1, cudaMemcpyHostToDevice );
+}
+#endif
+
 class TestCallableWrappers : public UTester< TestCallableWrappers > {
     using Parent = UTester< TestCallableWrappers >;
     
@@ -38,40 +48,55 @@ class TestCallableWrappers : public UTester< TestCallableWrappers > {
         runtime.task(SpWrite(a),
         [](int& param_a){
             param_a++;
-        },
+        }
+#ifdef SPECX_COMPILE_WITH_CUDA
+        ,
         SpCuda([](SpDeviceDataView<int> param_a){
-            (*param_a.objPtr())++;
-        }));
+            inc_on_cuda(param_a.objPtr());
+        })
+#endif
+        );
         
         runtime.task(SpWrite(a),
         SpCpu([](int& param_a){
             param_a++;
-        }),
+        })
+#ifdef SPECX_COMPILE_WITH_CUDA
+        ,
         SpCuda([](SpDeviceDataView<int> param_a){
-            (*param_a.objPtr())++;
-        }));
+                         inc_on_cuda(param_a.objPtr());
+        })
+#endif
+        );
 
         runtime.task(SpWrite(a),
+#ifdef SPECX_COMPILE_WITH_CUDA
         SpCuda([](SpDeviceDataView<int> param_a){
-            (*param_a.objPtr())++;
+                         inc_on_cuda(param_a.objPtr());
         }),
+#endif
         [](int& param_a){
             param_a++;
         });
         
         runtime.task(SpWrite(a),
+#ifdef SPECX_COMPILE_WITH_CUDA
         SpCuda([](SpDeviceDataView<int> param_a){
-            (*param_a.objPtr())++;
+                         inc_on_cuda(param_a.objPtr());
         }),
+#endif
         SpCpu([](int& param_a){
             param_a++;
+        }));
+
+        runtime.task(SpRead(a),
+        SpCpu([](const int& param_a){
         }));
                 
         runtime.waitAllTasks();
         runtime.stopAllThreads();
 
         UASSERTETRUE(a == 6);
-
     }
     
     void Test1() { Test<SpSpeculativeModel::SP_MODEL_1>(); }
