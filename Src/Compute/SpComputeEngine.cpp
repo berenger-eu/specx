@@ -30,7 +30,10 @@ void SpComputeEngine::wait(SpWorker& worker, SpAbstractTaskGraph* atg) {
     nbWaitingWorkers += 1;
     std::unique_lock<std::mutex> ceLock(ceMutex);
     updateWorkerCounters<false, true>(worker.getType(), +1);
-    ceCondVar.wait(ceLock, [&]() { return worker.hasBeenStopped() || areThereAnyReadyTasksForWorkerType(worker.getType()) || (atg && atg->isFinished()) || areThereAnyWorkersToMigrate();});
+    ceCondVar.wait(ceLock, [&]() { return worker.hasBeenStopped()
+                || areThereAnyReadyTasksForWorkerType(worker.getType())
+                || (atg && atg->isFinished())
+                || areThereAnyWorkersToMigrate();});
     updateWorkerCounters<false, true>(worker.getType(), -1);
-    nbWaitingWorkers += 1;
+    nbWaitingWorkers -= 1;
 }

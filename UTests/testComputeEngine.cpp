@@ -63,8 +63,8 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         std::array<std::promise<bool>, 4> promises;
         
         for(size_t i = 1; i < promises.size(); i++) {
-            tg2.task(SpRead(a),
-            [&promises, i](const int& /*a*/) {
+            tg2.task(
+            [&promises, i]() {
                 promises[i].get_future().get();
                 promises[i-1].set_value(true);
             }
@@ -72,7 +72,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         }
         
         tg1.computeOn(ce1);
-        
+
         mainThreadPromise.get_future().get();
         
         auto workers = ce1.detachWorkers(SpWorkerTypes::Type::CPU_WORKER, 1, true);
