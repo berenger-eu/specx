@@ -229,7 +229,7 @@ public:
         return rawPtr;
     }
 
-    std::size_t getRawSize(){
+    std::size_t getRawSize() const{
         return rawSize;
     }
 
@@ -271,7 +271,7 @@ public:
         return rawPtr;
     }
 
-    std::size_t getRawSize(){
+    std::size_t getRawSize() const{
         assert(0);
         return rawSize;
     }
@@ -323,7 +323,7 @@ public:
         return rawPtr;
     }
 
-    std::size_t getRawSize(){
+    std::size_t getRawSize() const{
         return rawSize;
     }
 
@@ -360,7 +360,7 @@ public:
         return rawPtr;
     }
 
-    std::size_t getRawSize(){
+    std::size_t getRawSize() const{
         assert(0);
         return rawSize;
     }
