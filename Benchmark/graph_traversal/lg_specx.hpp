@@ -25,9 +25,23 @@ void traverse_level_graph_specx(LevelGraph& graph, unsigned num_threads){
     for(int l=graph.level()-2; l>=0 ; l--){
         for(size_t i=0; i<graph.length(); i++){
             Node& n = graph.node_at(l, i);
-            if(n._out_edges.size()){
+            if(n._out_edges.size() && n._in_edges.size()){
+                tg.task(SpWrite(n), SpWriteArray(graph.nodes_at(l+1).data(),SpArrayView(n._out_edges)),
+                        SpReadArray(graph.nodes_at(l-1).data(),SpArrayView(n._in_edges)),
+                        [](Node& nparam, [[maybe_unused]] SpArrayAccessor<Node>& outNodes,
+                           [[maybe_unused]] const SpArrayAccessor<const Node>& inNodes){
+                    nparam.mark();
+                });
+            }
+            else if(n._out_edges.size()){
                 tg.task(SpWrite(n), SpWriteArray(graph.nodes_at(l+1).data(),SpArrayView(n._out_edges)),
                         [](Node& nparam, [[maybe_unused]] SpArrayAccessor<Node>& outNodes){
+                    nparam.mark();
+                });
+            }
+            else if(n._in_edges.size()){
+                tg.task(SpWrite(n), SpReadArray(graph.nodes_at(l-1).data(),SpArrayView(n._in_edges)),
+                        [](Node& nparam, [[maybe_unused]] const SpArrayAccessor<const Node>& inNodes){
                     nparam.mark();
                 });
             }

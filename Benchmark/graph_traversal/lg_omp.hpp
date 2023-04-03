@@ -27,35 +27,35 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
               switch(out_edge_num){
 
                 case(1):{
-                  int* out0 = n.edge_ptr(0);
-                  #pragma omp task depend(out: out0[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  #pragma omp task depend(out: out0) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(2):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  #pragma omp task depend(out: out0[0], out1[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  #pragma omp task depend(out: out0, out1) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(3):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  #pragma omp task depend(out: out0[0], out1[0], out2[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  #pragma omp task depend(out: out0, out1, out2) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(4):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  int* out3 = n.edge_ptr(3);
-                  #pragma omp task depend(out: out0[0], out1[0], out2[0], out3[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  Node& out3 = graph.node_at(l+1, n._out_edges[3]);
+                  #pragma omp task depend(out: out0, out1, out2, out3) shared(n)
                   { n.mark(); }
                   break;
                 }
@@ -66,42 +66,42 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
 
             case(1):{
-              int* in0 = graph.node_at(l-1, n._in_edges[0].first).edge_ptr(n._in_edges[0].second);
+              Node& in0 = graph.node_at(l-1, n._in_edges[0]);
 
               switch(out_edge_num){
 
                 case(1):{
-                  int* out0 = n.edge_ptr(0);
-                  #pragma omp task depend(in: in0[0]) depend(out: out0[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  #pragma omp task depend(in: in0) depend(out: out0) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(2):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  #pragma omp task depend(in: in0[0]) depend(out: out0[0], out1[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  #pragma omp task depend(in: in0) depend(out: out0, out1) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(3):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  #pragma omp task depend(in: in0[0]) depend(out: out0[0], out1[0], out2[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  #pragma omp task depend(in: in0) depend(out: out0, out1, out2) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(4):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  int* out3 = n.edge_ptr(3);
-                  #pragma omp task depend(in: in0[0]) depend(out: out0[0], out1[0], out2[0], out3[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  Node& out3 = graph.node_at(l+1, n._out_edges[3]);
+                  #pragma omp task depend(in: in0) depend(out: out0, out1, out2, out3) shared(n)
                   { n.mark(); }
                   break;
                 }
@@ -112,32 +112,32 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
             case(2):{
 
-              int* in0 = graph.node_at(l-1, n._in_edges[0].first).edge_ptr(n._in_edges[0].second);
-              int* in1 = graph.node_at(l-1, n._in_edges[1].first).edge_ptr(n._in_edges[1].second);
+              Node& in0 = graph.node_at(l-1, n._in_edges[0]);
+              Node& in1 = graph.node_at(l-1, n._in_edges[1]);
 
               switch(out_edge_num){
 
                 case(1):{
-                  int* out0 = n.edge_ptr(0);
-                  #pragma omp task depend(in: in0[0], in1[0]) depend(out: out0[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  #pragma omp task depend(in: in0, in1) depend(out: out0) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(2):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  #pragma omp task depend(in: in0[0], in1[0]) depend(out: out0[0], out1[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  #pragma omp task depend(in: in0, in1) depend(out: out0, out1) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(3):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  #pragma omp task depend(in: in0[0], in1[0]) depend(out: out0[0], out1[0], out2[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  #pragma omp task depend(in: in0, in1) depend(out: out0, out1, out2) shared(n)
                   { n.mark(); }
                   break;
 
@@ -145,11 +145,11 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
                 case(4):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  int* out3 = n.edge_ptr(3);
-                  #pragma omp task depend(in: in0[0], in1[0]) depend(out: out0[0], out1[0], out2[0], out3[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  Node& out3 = graph.node_at(l+1, n._out_edges[3]);
+                  #pragma omp task depend(in: in0, in1) depend(out: out0, out1, out2, out3) shared(n)
                   { n.mark(); }
                   break;
                 }
@@ -160,23 +160,23 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
             case(3):{
 
-              int* in0 = graph.node_at(l-1, n._in_edges[0].first).edge_ptr(n._in_edges[0].second);
-              int* in1 = graph.node_at(l-1, n._in_edges[1].first).edge_ptr(n._in_edges[1].second);
-              int* in2 = graph.node_at(l-1, n._in_edges[2].first).edge_ptr(n._in_edges[2].second);
+              Node& in0 = graph.node_at(l-1, n._in_edges[0]);
+              Node& in1 = graph.node_at(l-1, n._in_edges[1]);
+              Node& in2 = graph.node_at(l-1, n._in_edges[2]);
 
               switch(out_edge_num){
 
                 case(1):{
-                  int* out0 = n.edge_ptr(0);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0]) depend(out: out0[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  #pragma omp task depend(in: in0, in1, in2) depend(out: out0) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(2):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0]) depend(out: out0[0], out1[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  #pragma omp task depend(in: in0, in1, in2) depend(out: out0, out1) shared(n)
                   { n.mark(); }
                   break;
 
@@ -184,21 +184,21 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
                 case(3):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0]) depend(out: out0[0], out1[0], out2[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  #pragma omp task depend(in: in0, in1, in2) depend(out: out0, out1, out2) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(4):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  int* out3 = n.edge_ptr(3);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0]) depend(out: out0[0], out1[0], out2[0], out3[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  Node& out3 = graph.node_at(l+1, n._out_edges[3]);
+                  #pragma omp task depend(in: in0, in1, in2) depend(out: out0, out1, out2, out3) shared(n)
                   { n.mark(); }
                   break;
                 }
@@ -210,24 +210,24 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
             case(4):{
 
-              int* in0 = graph.node_at(l-1, n._in_edges[0].first).edge_ptr(n._in_edges[0].second);
-              int* in1 = graph.node_at(l-1, n._in_edges[1].first).edge_ptr(n._in_edges[1].second);
-              int* in2 = graph.node_at(l-1, n._in_edges[2].first).edge_ptr(n._in_edges[2].second);
-              int* in3 = graph.node_at(l-1, n._in_edges[3].first).edge_ptr(n._in_edges[3].second);
+              Node& in0 = graph.node_at(l-1, n._in_edges[0]);
+              Node& in1 = graph.node_at(l-1, n._in_edges[1]);
+              Node& in2 = graph.node_at(l-1, n._in_edges[2]);
+              Node& in3 = graph.node_at(l-1, n._in_edges[3]);
 
               switch(out_edge_num){
 
                 case(1):{
-                  int* out0 = n.edge_ptr(0);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0], in3[0]) depend(out: out0[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  #pragma omp task depend(in: in0, in1, in2, in3) depend(out: out0) shared(n)
                   { n.mark(); }
                   break;
                 }
 
                 case(2):{
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0], in3[0]) depend(out: out0[0], out1[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  #pragma omp task depend(in: in0, in1, in2, in3) depend(out: out0, out1) shared(n)
                   { n.mark(); }
                   break;
 
@@ -235,10 +235,10 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
                 case(3):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0], in3[0]) depend(out: out0[0], out1[0], out2[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  #pragma omp task depend(in: in0, in1, in2, in3) depend(out: out0, out1, out2) shared(n)
                   { n.mark(); }
                   break;
 
@@ -246,11 +246,11 @@ void traverse_regular_graph_omp(LevelGraph& graph, unsigned num_threads){
 
                 case(4):{
 
-                  int* out0 = n.edge_ptr(0);
-                  int* out1 = n.edge_ptr(1);
-                  int* out2 = n.edge_ptr(2);
-                  int* out3 = n.edge_ptr(3);
-                  #pragma omp task depend(in: in0[0], in1[0], in2[0], in3[0]) depend(out: out0[0], out1[0], out2[0], out3[0]) shared(n)
+                  Node& out0 = graph.node_at(l+1, n._out_edges[0]);
+                  Node& out1 = graph.node_at(l+1, n._out_edges[1]);
+                  Node& out2 = graph.node_at(l+1, n._out_edges[2]);
+                  Node& out3 = graph.node_at(l+1, n._out_edges[3]);
+                  #pragma omp task depend(in: in0, in1, in2, in3) depend(out: out0, out1, out2, out3) shared(n)
                   { n.mark(); }
                   break;
                 }
