@@ -5,7 +5,6 @@
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #endif
-#include <cblas.h>
 
 extern "C" {
 void daxpy_(const int *n, const double *a, const double *x, const int *incx, double *y, const int *incy);
