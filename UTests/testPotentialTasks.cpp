@@ -21,6 +21,9 @@ class TestPotentialTask : public UTester< TestPotentialTask > {
     void TestBasic(){
         SpRuntime<Spm> runtime;
 
+        std::cout << "#CPU-workers " << runtime.getNbCpuWorkers()
+                  << " #Threads " << runtime.getNbThreads() << std::endl;
+
         runtime.setSpeculationTest([](const int /*inNbReadyTasks*/, const SpProbability& /*inProbability*/) -> bool{
             return true;
         });
