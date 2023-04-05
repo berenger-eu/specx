@@ -7,6 +7,8 @@
 #include <chrono>
 #include <iostream>
 
+#include <clsimple.hpp>
+
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Task/SpTask.hpp"
@@ -600,13 +602,32 @@ auto TuneBlockSize(){
 }
 
 
-void BenchmarkTest(const TuneResult& inKernelConfig){
-    const int NbLoops = 100;
-    const int MinPartsPerGroup = 100;
-    const int MaxPartsPerGroup = 100;//10000;
-    const int NbGroups = 10;
+void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
+    CLsimple args("Particles", argc, argv);
 
-    std::array<ParticlesGroup, NbGroups> particleGroups;
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops = 100;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
+
+    int MinPartsPerGroup;
+    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
+
+    int MaxPartsPerGroup;
+    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
+
+    int NbGroups;
+    args.addParameter<int>({"nbgroups"}, "NbGroups", NbGroups, 10);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+
+    std::vector<ParticlesGroup> particleGroups(NbGroups);
 
     {
         std::random_device rd;
@@ -688,10 +709,10 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
 }
 
 
-int main(void){
+int main(int argc, char** argv){
 
     auto tuneConfig = TuneBlockSize();
-    BenchmarkTest(tuneConfig);
+    BenchmarkTest(argc, argv, tuneConfig);
 
     return 0;
 }

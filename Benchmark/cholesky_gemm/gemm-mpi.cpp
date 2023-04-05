@@ -6,6 +6,8 @@
 #include <memory>
 #include <limits>
 
+#include <clsimple.hpp>
+
 #include "Utils/SpUtils.hpp"
 #include "Legacy/SpRuntime.hpp"
 
@@ -23,18 +25,20 @@
 
 //////////////////////////////////////////////////////////////////////////////
 
-void gemm(double matrixC[], const double matrixA[], const double matrixB[], const int inMatrixDim){
-    SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
+void gemm(const int NbLoops, double matrixC[], const double matrixA[], const double matrixB[], const int inMatrixDim){
+    for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
                     inMatrixDim, inMatrixDim, inMatrixDim, 1.0, matrixA, inMatrixDim,
                     matrixB, inMatrixDim,
                     1.0, matrixC, inMatrixDim );
+    }
 }
 
 struct Coord{
     int i, j;
 };
 
-void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
+void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
           const Coord& processIdxInGrid, const int processBlockDim,
           const Coord& processGridDim, const int inMatrixDim, const int inBlockDim){
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
@@ -63,148 +67,150 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
      });
 #endif
 
-    for(int iProc = 0 ; iProc < processGridDim.i ; ++iProc){
-        if(iProc != processIdxInGrid.i){
-            const int dest = iProc*processGridDim.j + processIdxInGrid.j;
-            for(int i = 0 ; i < processBlockDim ; ++i){
-                for(int j = 0 ; j < processBlockDim ; ++j){
-                    const int tag = i*processBlockDim+j;
-                    tg.mpiSend(blocksB[i*processBlockDim+j], dest, tag);
-                }
-            }
-        }
-        else{
-            [[maybe_unused]] const int dest = iProc*processGridDim.j + processIdxInGrid.j;
-            assert(dest == Prank);
-        }
-    }
-    for(int jProc = 0 ; jProc < processGridDim.j ; ++jProc){
-        if(jProc != processIdxInGrid.j){
-            const int dest = processIdxInGrid.i*processGridDim.j + jProc;
-            for(int i = 0 ; i < processBlockDim ; ++i){
-                for(int j = 0 ; j < processBlockDim ; ++j){
-                    const int tag = i*processBlockDim+j;
-                    tg.mpiSend(blocksA[i*processBlockDim+j], dest, tag);
-                }
-            }
-        }
-        else{
-            [[maybe_unused]] const int dest = processIdxInGrid.i*processGridDim.j + jProc;
-            assert(dest == Prank);
-        }
-    }
-
-    // Compute the blocks
-    for(int k = 0 ; k < processBlockDim ; ++k){
-        for(int i = 0 ; i < processBlockDim ; ++i){
-            for(int j = 0 ; j < processBlockDim ; ++j){
-                tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
-                        SpRead(blocksA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
-                    SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
-                        SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
-                                    inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
-                                    blockB.values.get(), inBlockDim,
-                                    1.0, blockC.values.get(), inBlockDim );
-                    })
-            #ifdef SPECX_COMPILE_WITH_CUDA
-                  , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
-                                      const SpDeviceDataView<const SpBlas::Block> paramB) {
-                        // paramA.getRawPtr(), paramA.getRawSize()
-                        const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                        assert(idxCudaWorker < int(handles.size()));
-                        const double alphaBeta = 1.0;
-                        CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
-                                inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
-                                (const double*)paramB.getRawPtr(), inBlockDim,
-                                &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
-                    })
-            #endif
-                ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
-            }
-        }
-    }
-
-    for(int iProc = 0 ; iProc < processGridDim.i ; ++iProc){
-        if(iProc != processIdxInGrid.i){
-            const int recv = iProc*processGridDim.j + processIdxInGrid.j;
-            for(int i = 0 ; i < processBlockDim ; ++i){
-                for(int j = 0 ; j < processBlockDim ; ++j){
-                    const int tag = i*processBlockDim+j;
-                    tg.mpiRecv(buffersB[i*processBlockDim+j], recv, tag);
-                }
-            }
-
-            for(int k = 0 ; k < processBlockDim ; ++k){
+     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        for(int iProc = 0 ; iProc < processGridDim.i ; ++iProc){
+            if(iProc != processIdxInGrid.i){
+                const int dest = iProc*processGridDim.j + processIdxInGrid.j;
                 for(int i = 0 ; i < processBlockDim ; ++i){
                     for(int j = 0 ; j < processBlockDim ; ++j){
-                        tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
-                                SpRead(blocksA[k*processBlockDim+j]), SpRead(buffersB[i*processBlockDim+k]),
-                            SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
-                                SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
-                                            inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
-                                            blockB.values.get(), inBlockDim,
-                                            1.0, blockC.values.get(), inBlockDim );
-                            })
-                    #ifdef SPECX_COMPILE_WITH_CUDA
-                          , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
-                                              const SpDeviceDataView<const SpBlas::Block> paramB) {
-                                // paramA.getRawPtr(), paramA.getRawSize()
-                                const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                                assert(idxCudaWorker < int(handles.size()));
-                                const double alphaBeta = 1.0;
-                                CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
-                                        inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
-                                        (const double*)paramB.getRawPtr(), inBlockDim,
-                                        &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
-                            })
-                    #endif
-                        ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                        const int tag = i*processBlockDim+j;
+                        tg.mpiSend(blocksB[i*processBlockDim+j], dest, tag);
+                    }
+                }
+            }
+            else{
+                [[maybe_unused]] const int dest = iProc*processGridDim.j + processIdxInGrid.j;
+                assert(dest == Prank);
+            }
+        }
+        for(int jProc = 0 ; jProc < processGridDim.j ; ++jProc){
+            if(jProc != processIdxInGrid.j){
+                const int dest = processIdxInGrid.i*processGridDim.j + jProc;
+                for(int i = 0 ; i < processBlockDim ; ++i){
+                    for(int j = 0 ; j < processBlockDim ; ++j){
+                        const int tag = i*processBlockDim+j;
+                        tg.mpiSend(blocksA[i*processBlockDim+j], dest, tag);
+                    }
+                }
+            }
+            else{
+                [[maybe_unused]] const int dest = processIdxInGrid.i*processGridDim.j + jProc;
+                assert(dest == Prank);
+            }
+        }
+
+        // Compute the blocks
+        for(int k = 0 ; k < processBlockDim ; ++k){
+            for(int i = 0 ; i < processBlockDim ; ++i){
+                for(int j = 0 ; j < processBlockDim ; ++j){
+                    tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                            SpRead(blocksA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
+                        SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
+                            SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
+                                        inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
+                                        blockB.values.get(), inBlockDim,
+                                        1.0, blockC.values.get(), inBlockDim );
+                        })
+                #ifdef SPECX_COMPILE_WITH_CUDA
+                      , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                          const SpDeviceDataView<const SpBlas::Block> paramB) {
+                            // paramA.getRawPtr(), paramA.getRawSize()
+                            const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
+                            assert(idxCudaWorker < int(handles.size()));
+                            const double alphaBeta = 1.0;
+                            CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
+                                    inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                    (const double*)paramB.getRawPtr(), inBlockDim,
+                                    &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                        })
+                #endif
+                    ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                }
+            }
+        }
+
+        for(int iProc = 0 ; iProc < processGridDim.i ; ++iProc){
+            if(iProc != processIdxInGrid.i){
+                const int recv = iProc*processGridDim.j + processIdxInGrid.j;
+                for(int i = 0 ; i < processBlockDim ; ++i){
+                    for(int j = 0 ; j < processBlockDim ; ++j){
+                        const int tag = i*processBlockDim+j;
+                        tg.mpiRecv(buffersB[i*processBlockDim+j], recv, tag);
+                    }
+                }
+
+                for(int k = 0 ; k < processBlockDim ; ++k){
+                    for(int i = 0 ; i < processBlockDim ; ++i){
+                        for(int j = 0 ; j < processBlockDim ; ++j){
+                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                                    SpRead(blocksA[k*processBlockDim+j]), SpRead(buffersB[i*processBlockDim+k]),
+                                SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
+                                    SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
+                                                inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
+                                                blockB.values.get(), inBlockDim,
+                                                1.0, blockC.values.get(), inBlockDim );
+                                })
+                        #ifdef SPECX_COMPILE_WITH_CUDA
+                              , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                                  const SpDeviceDataView<const SpBlas::Block> paramB) {
+                                    // paramA.getRawPtr(), paramA.getRawSize()
+                                    const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
+                                    assert(idxCudaWorker < int(handles.size()));
+                                    const double alphaBeta = 1.0;
+                                    CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
+                                            inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                            (const double*)paramB.getRawPtr(), inBlockDim,
+                                            &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                })
+                        #endif
+                            ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                        }
                     }
                 }
             }
         }
-    }
 
-    for(int jProc = 0 ; jProc < processGridDim.j ; ++jProc){
-        if(jProc != processIdxInGrid.j){
-            const int recv = processIdxInGrid.i*processGridDim.j + jProc;
-            for(int i = 0 ; i < processBlockDim ; ++i){
-                for(int j = 0 ; j < processBlockDim ; ++j){
-                    const int tag = i*processBlockDim+j;
-                    tg.mpiRecv(buffersA[i*processBlockDim+j], recv, tag);
-                }
-            }
-
-            for(int k = 0 ; k < processBlockDim ; ++k){
+        for(int jProc = 0 ; jProc < processGridDim.j ; ++jProc){
+            if(jProc != processIdxInGrid.j){
+                const int recv = processIdxInGrid.i*processGridDim.j + jProc;
                 for(int i = 0 ; i < processBlockDim ; ++i){
                     for(int j = 0 ; j < processBlockDim ; ++j){
-                        tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
-                                SpRead(buffersA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
-                            SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
-                                SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
-                                            inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
-                                            blockB.values.get(), inBlockDim,
-                                            1.0, blockC.values.get(), inBlockDim );
-                            })
-                    #ifdef SPECX_COMPILE_WITH_CUDA
-                          , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
-                                              const SpDeviceDataView<const SpBlas::Block> paramB) {
-                                // paramA.getRawPtr(), paramA.getRawSize()
-                                const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                                assert(idxCudaWorker < int(handles.size()));
-                                const double alphaBeta = 1.0;
-                                CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
-                                        inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
-                                        (const double*)paramB.getRawPtr(), inBlockDim,
-                                        &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
-                            })
-                    #endif
-                        ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                        const int tag = i*processBlockDim+j;
+                        tg.mpiRecv(buffersA[i*processBlockDim+j], recv, tag);
+                    }
+                }
+
+                for(int k = 0 ; k < processBlockDim ; ++k){
+                    for(int i = 0 ; i < processBlockDim ; ++i){
+                        for(int j = 0 ; j < processBlockDim ; ++j){
+                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                                    SpRead(buffersA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
+                                SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
+                                    SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
+                                                inBlockDim, inBlockDim, inBlockDim, 1.0, blockA.values.get(), inBlockDim,
+                                                blockB.values.get(), inBlockDim,
+                                                1.0, blockC.values.get(), inBlockDim );
+                                })
+                        #ifdef SPECX_COMPILE_WITH_CUDA
+                              , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                                  const SpDeviceDataView<const SpBlas::Block> paramB) {
+                                    // paramA.getRawPtr(), paramA.getRawSize()
+                                    const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
+                                    assert(idxCudaWorker < int(handles.size()));
+                                    const double alphaBeta = 1.0;
+                                    CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
+                                            inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                            (const double*)paramB.getRawPtr(), inBlockDim,
+                                            &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                })
+                        #endif
+                            ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
+                        }
                     }
                 }
             }
         }
-    }
+     }
 
     for(int i = 0 ; i < processBlockDim ; ++i){
         for(int j = 0 ; j < processBlockDim ; ++j){
@@ -231,13 +237,32 @@ void gemm(SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::
     tg.generateDot("/tmp/graph.dot");
 }
 
-int main(){
+int main(int argc, char** argv){
+    CLsimple args("Gemm", argc, argv);
+
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 1);
+
+    int MatrixSize;
+    args.addParameter<int>({"ms"}, "MatrixSize", MatrixSize, 16);
+
+    int BlockSize;
+    args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+
     SpMpiBackgroundWorker::GetWorker().init();
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
-    const int MatrixSize = 16;
-    const int BlockSize = 2;
     const bool printValues = (MatrixSize <= 16);
     /////////////////////////////////////////////////////////
     auto matrixA = SpBlas::generateAMatrix(MatrixSize);
@@ -272,14 +297,14 @@ int main(){
     std::cout << Prank << "] processIdxInGrid = " << processIdxInGrid.i << " " << processIdxInGrid.j << std::endl;
     std::cout << Prank << "] processBlockDim = " << processBlockDim << std::endl;
 
-    gemm(blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
+    gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
          processBlockDim, processGridDim, MatrixSize, BlockSize);
     if(printValues){
         std::cout << "Blocks after gemm C:\n";
         SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);
     }
     /////////////////////////////////////////////////////////
-    gemm(matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
+    gemm(NbLoops, matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
     if(printValues){
         std::cout << "Matrix after gemm C:\n";
         SpBlas::printMatrix(matrixC.get(), MatrixSize);
