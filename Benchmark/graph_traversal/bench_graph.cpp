@@ -22,12 +22,12 @@ int main(int argc, char* argv[]) {
   args.addParameter<unsigned>({"r" ,"num_rounds"}, "number of rounds", num_rounds, 1);
 
   std::string model;
-  args.addParameter<std::string>({"m" ,"model"}, "model name specx|omp", model, "specx");
+  args.addParameter<std::string>({"m" ,"model"}, "model name specx|omp|specx2", model, "specx");
   
   args.parse();
 
   if(!args.isValid() || args.hasKey("help")
-        || !(model == "specx" || model == "omp")){
+        || !(model == "specx" || model == "omp" || model == "specx2")){
     // Print the help
     args.printHelp(std::cout);
     return -1;
@@ -54,6 +54,9 @@ int main(int argc, char* argv[]) {
       }
       else if(model == "omp") {
         runtime += measure_time_omp(graph, num_threads).count();
+      }
+      else if(model == "specx2") {
+        runtime += measure_time_specx2(graph, num_threads).count();
       }
       graph.clear_graph();
     }
