@@ -673,18 +673,17 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
-    const int NbLoops = 100;
+    const int NbLoops = 1;
     const int MinPartsPerGroup = 100;
     const int MaxPartsPerGroup = 100;//10000;
-    const int ParticleGridDim = 5;
-    const int NbGroups = ParticleGridDim*ParticleGridDim;
+    const int NbGroups = 5;
 
     static_assert(SpGetSerializationType<ParticlesGroup>() == SpSerializationType::SP_SERIALIZER_TYPE,
             "We use serializer");
 
     std::vector<ParticlesGroup> particleGroups(NbGroups);
-    std::vector<ParticlesGroup> leftParticleGroups(ParticleGridDim);
-    std::vector<ParticlesGroup> rightParticleGroups(ParticleGridDim);
+    ParticlesGroup leftParticleGroup;
+    ParticlesGroup rightParticleGroup;
 
     for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
         std::random_device rd;
@@ -703,49 +702,48 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
 
     SpTimer timer;
 
-    for(int idxPart = 0 ; idxPart < ParticleGridDim ; ++idxPart){
-        tg.mpiSend(particleGroups[idxPart*ParticleGridDim], (Prank+Psize-1)%Psize, idxPart);
-        tg.mpiSend(particleGroups[idxPart*ParticleGridDim + ParticleGridDim-1], (Prank+1)%Psize, idxPart);
-    }
+    for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        tg.mpiSend(particleGroups[0], (Prank+Psize-1)%Psize, 0);
+        tg.mpiSend(particleGroups[NbGroups-1], (Prank+1)%Psize, 1);
 
-    for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
-        tg.task(SpCommutativeWrite(particleGroups[idxPart]),
-                    SpCpu([](ParticlesGroup& particlesW) {
-                        particlesW.computeSelf();
-            })
-            #ifdef SPECX_COMPILE_WITH_CUDA
-                , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
-                    [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                    p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
-                                   (paramA.getRawPtr(), paramA.getRawSize());
+        tg.mpiRecv(leftParticleGroup, (Prank+Psize-1)%Psize, 1);
+        tg.mpiRecv(rightParticleGroup, (Prank+1)%Psize, 0);
+
+        for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
+            tg.task(SpCommutativeWrite(particleGroups[idxPart]),
+                        SpCpu([](ParticlesGroup& particlesW) {
+                            particlesW.computeSelf();
                 })
-            #endif
-        );
-
-        for(int idxPartOther = idxPart+1 ; idxPartOther < NbGroups ; ++idxPartOther){
-            tg.task(SpCommutativeWrite(particleGroups[idxPart]),SpCommutativeWrite(particleGroups[idxPartOther]),
-                    SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
-                        particlesW.compute(particlesR);
-                    })
                 #ifdef SPECX_COMPILE_WITH_CUDA
-                    , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
-                        [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
-                        [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
-                                     (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
-                                     (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                    , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
+                        [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                        p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
+                                       (paramA.getRawPtr(), paramA.getRawSize());
                     })
                 #endif
             );
+
+            if(idxPart+1 < NbGroups){
+                const int idxPartOther = idxPart+1;
+                tg.task(SpCommutativeWrite(particleGroups[idxPart]),SpCommutativeWrite(particleGroups[idxPartOther]),
+                        SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
+                            particlesW.compute(particlesR);
+                        })
+                    #ifdef SPECX_COMPILE_WITH_CUDA
+                        , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                            [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                            [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                        })
+                    #endif
+                );
+            }
         }
-    }
 
-    for(int idxPart = 0 ; idxPart < ParticleGridDim ; ++idxPart){
-        tg.mpiRecv(leftParticleGroups[idxPart], (Prank+Psize-1)%Psize, idxPart);
-        tg.mpiRecv(rightParticleGroups[idxPart], (Prank+1)%Psize, idxPart);
-
-        tg.task(SpCommutativeWrite(particleGroups[idxPart*ParticleGridDim]),SpRead(leftParticleGroups[idxPart]),
+        tg.task(SpCommutativeWrite(particleGroups[NbGroups-1]),SpRead(leftParticleGroup),
                 SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
                     particlesW.computeOuter(particlesR);
                 })
@@ -759,7 +757,7 @@ void BenchmarkTest(const TuneResult& inKernelConfig){
             #endif
         );
 
-        tg.task(SpCommutativeWrite(particleGroups[idxPart*ParticleGridDim + ParticleGridDim-1]),SpRead(rightParticleGroups[idxPart]),
+        tg.task(SpCommutativeWrite(particleGroups[0]),SpRead(rightParticleGroup),
                 SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
                     particlesW.computeOuter(particlesR);
                 })
