@@ -2,7 +2,7 @@ image: berenger/specxci
 
 specx:
   tags:
-    - medium
+    - large
   script:
     - mkdir build
     - cd build
@@ -13,7 +13,7 @@ specx:
     
 specx-debug:
   tags:
-    - medium
+    - large
   script:
     - mkdir build
     - cd build
@@ -23,7 +23,7 @@ specx-debug:
 
 specx-clang:
   tags:
-    - medium
+    - large
   script:
     - mkdir build
     - cd build
@@ -34,7 +34,7 @@ specx-clang:
     
 specx-debug-clang:
   tags:
-    - medium
+    - large
   script:
     - mkdir build
     - cd build
@@ -45,7 +45,7 @@ specx-debug-clang:
 
 specx-debug-coverage:
   tags:
-    - medium
+    - large
   script:
     - mkdir build
     - cd build
@@ -61,7 +61,7 @@ specx-debug-coverage:
 
 pages:
   tags:
-    - medium
+    - large
   stage: deploy
   dependencies:
     - specx-debug-coverage
