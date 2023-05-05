@@ -79,7 +79,7 @@ public:
             if(hasCpuCallable && hasGpuCallable) {
                 heterogeneousTaskQueue.push(t);
             } else {
-                if(hasGpuCallable) {
+                if(hasCpuCallable) {
                     cpuTaskQueue.push(t);
                 } else {
                     gpuTaskQueue.push(t);

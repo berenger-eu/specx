@@ -41,31 +41,33 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 
 	# Add execs - 1 cpp = 1 exec
 	foreach(exec ${source_tests_files}) 
-	    get_filename_component(
-		    execname ${exec}
-		    NAME_WE
-	    )
+    		if(${SPECX_COMPILE_WITH_MPI} OR NOT ${exec} MATCHES "-mpi\.")
+		    get_filename_component(
+			    execname ${exec}
+			    NAME_WE
+		    )
 
-	    if($ENV{VERBOSE})
-		    MESSAGE(STATUS "Benchmark -- Add ${execname}")
-	    endif()
+		    if($ENV{VERBOSE})
+			    MESSAGE(STATUS "Benchmark -- Add ${execname}")
+		    endif()
 
-	    if(SPECX_COMPILE_WITH_CUDA)
-		    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
-		    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas;cusolver")
-	    endif()
-	    
-	    add_executable(${execname} ${exec})
-	    
-	    # TODO set_target_properties(${execname} PROPERTIES COMPILE_FLAGS "-llapack -lblas")
+		    if(SPECX_COMPILE_WITH_CUDA)
+			    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+			    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas;cusolver")
+		    endif()
+		    
+		    add_executable(${execname} ${exec})
+		    
+		    # TODO set_target_properties(${execname} PROPERTIES COMPILE_FLAGS "-llapack -lblas")
 
-	    target_link_libraries(
-		    ${execname}
-		    specx
-		    ${SPECX_LIBRARIES}
-		    ${BLAS_LIBRARIES}
-		    ${LAPACK_LIBRARIES}
-		)
+		    target_link_libraries(
+			    ${execname}
+			    specx
+			    ${SPECX_LIBRARIES}
+			    ${BLAS_LIBRARIES}
+			    ${LAPACK_LIBRARIES}
+			)
+		endif()
 	endforeach(exec)
 	
 else(BLAS_FOUND AND LAPACK_FOUND)

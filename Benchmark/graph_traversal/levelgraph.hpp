@@ -25,7 +25,8 @@ class Node{
 
   public:
 
-    Node(LevelGraph& graph, bool chosen, size_t level, int index, std::vector<int>& next_level_nodes)
+    Node(LevelGraph& graph, bool chosen, size_t level, int index,
+         std::vector<int> next_level_nodes)
       : _graph(graph), _chosen(chosen), _level(level), _idx(index) {
       _out_edges = std::move(next_level_nodes);
     }
@@ -54,7 +55,7 @@ class Node{
       std::cout << "\n" << "in_edges";
 
       for(const auto& in_edge: _in_edges){
-        std::cout << "(" << in_edge.first << "," << in_edge.second << ")\t";
+        std::cout << in_edge << "\t";
       }
 
       std::cout << "Status:" << _visited << std::endl;
@@ -66,9 +67,7 @@ class Node{
     int index() const { return _idx; }
     int level() const { return _level; }
 
-    int* edge_ptr(int edge_idx) { return &_out_edges[edge_idx]; }
-
-    std::vector<std::pair<int, int>> _in_edges;
+    std::vector<int> _in_edges;
     std::vector<int> _out_edges;
 
   private:
@@ -123,8 +122,6 @@ class LevelGraph {
             end = start + edge_num;
           }
 
-          //std::cout << "Level\t" << l << "\tidx\t" << i << "\tedge_num\t" << edge_num << "\tstart\t" << start << "\tend\t" << end << std::endl;
-
           std::vector<int> edges(next_level_nodes.begin()+start, next_level_nodes.begin()+end);
 
           //choose a node to do some work
@@ -153,16 +150,13 @@ class LevelGraph {
 
       for(size_t l=0; level > 0 && l<level-1; ++l){
         for(size_t i=0; i<length; ++i){
+          const int src_idx = _graph[l][i].index();
           for(size_t j=0; j<_graph[l][i]._out_edges.size(); ++j){
-            int src_idx = _graph[l][i].index();
-            int dest_idx = _graph[l][i]._out_edges[j];
-            _graph[l+1][dest_idx]._in_edges.push_back(std::make_pair(src_idx, j));
+            const int dest_idx = _graph[l][i]._out_edges[j];
+            _graph[l+1][dest_idx]._in_edges.push_back(src_idx);
           }
         }
       }
-
-      //print_graph();
-
     }
 
     void print_graph(){
@@ -238,7 +232,7 @@ class LevelGraph {
 
         for(size_t i=0; child_level>0 && i<n._in_edges.size(); i++){
           int parent_level = child_level-1;
-          int parent_index = n._in_edges[i].first;
+          int parent_index = n._in_edges[i];
           int parent = parent_level*_length_num + parent_index;
 
           if(idx_list.find(parent) == idx_list.end()){

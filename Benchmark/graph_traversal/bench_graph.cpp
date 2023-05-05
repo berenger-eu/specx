@@ -2,7 +2,9 @@
 // https://github.com/taskflow/taskflow
 // and updated to remove CLI11 use by clsimple.
 #include "levelgraph.hpp"
+#ifdef _OPENMP
 #include "lg_omp.hpp"
+#endif
 #include "lg_specx.hpp"
 #include <clsimple.hpp>
 
@@ -22,12 +24,19 @@ int main(int argc, char* argv[]) {
   args.addParameter<unsigned>({"r" ,"num_rounds"}, "number of rounds", num_rounds, 1);
 
   std::string model;
-  args.addParameter<std::string>({"m" ,"model"}, "model name specx|omp", model, "specx");
-  
+  args.addParameter<std::string>({"m" ,"model"}, "model name specx|omp|specx2", model, "specx");
+
+  unsigned size;
+  args.addParameter<unsigned>({"s" ,"size"}, "size", size, 256);
+
   args.parse();
 
   if(!args.isValid() || args.hasKey("help")
-        || !(model == "specx" || model == "omp")){
+        || !(model == "specx"
+#ifdef _OPENMP
+        	 || model == "omp"
+#endif        	 
+        	 || model == "specx2")){
     // Print the help
     args.printHelp(std::cout);
     return -1;
@@ -42,7 +51,7 @@ int main(int argc, char* argv[]) {
             << std::setw(12) << "Runtime"
              << '\n';
 
-  for(int i=1; i<=/*451*/256; i += 15) {
+  for(int i=1; i<=size; i += 15) {
 
     double runtime {0.0};
 
@@ -52,8 +61,13 @@ int main(int argc, char* argv[]) {
       if(model == "specx") {
         runtime += measure_time_specx(graph, num_threads).count();
       }
+#ifdef _OPENMP
       else if(model == "omp") {
         runtime += measure_time_omp(graph, num_threads).count();
+      }
+#endif
+      else if(model == "specx2") {
+        runtime += measure_time_specx2(graph, num_threads).count();
       }
       graph.clear_graph();
     }

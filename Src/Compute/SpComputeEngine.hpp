@@ -298,6 +298,7 @@ public:
     void stopIfNotAlreadyStopped();
     
     void wakeUpWaitingWorkers() {
+        SpDebugPrint() << "wakeUpWaitingWorkers ";
         if(nbWaitingWorkers.load(std::memory_order_acquire)){
             {
                 std::unique_lock<std::mutex> ceLock(ceMutex);

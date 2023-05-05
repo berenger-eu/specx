@@ -5,7 +5,6 @@
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #endif
-#include <cblas.h>
 
 extern "C" {
 void daxpy_(const int *n, const double *a, const double *x, const int *incx, double *y, const int *incy);
@@ -186,7 +185,12 @@ struct Block{
     int nbCols;
 
     std::unique_ptr<double[]> values;
-    std::unique_ptr<int[]> permutations;
+
+    Block() = default;
+    Block(const Block&) = default;
+    Block(Block&&) = default;
+    Block& operator=(const Block&) = default;
+    Block& operator=(Block&&) = default;
 
     /////////////////////////////////////////////////////////////
 
@@ -220,6 +224,28 @@ struct Block{
         double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
         mover.copyDeviceToHost(values.get(), doubleDevicePtr,  nbRows*nbCols*sizeof(double));
     }
+
+    /////////////////////////////////////////////////////////////
+#ifdef SPECX_COMPILE_WITH_MPI
+    Block(SpDeserializer &deserializer)
+        : rowOffset(deserializer.restore<decltype(rowOffset)>("rowOffset")),
+          colOffset(deserializer.restore<decltype(colOffset)>("colOffset")),
+          nbRows(deserializer.restore<decltype(nbRows)>("nbRows")),
+          nbCols(deserializer.restore<decltype(nbCols)>("nbCols")){
+
+        double* ptr = nullptr;
+        deserializer.restore(ptr, "values");
+        values.reset(ptr);
+    }
+
+    void serialize(SpSerializer &serializer) const {
+        serializer.append(rowOffset, "rowOffset");
+        serializer.append(colOffset, "colOffset");
+        serializer.append(nbRows, "nbRows");
+        serializer.append(nbCols, "nbCols");
+        serializer.append(values.get(), nbRows*nbCols, "values");
+    }
+#endif
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -283,7 +309,6 @@ std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, c
             blocks[m*nbBlocks+n].nbRows = std::min(inMatrixDim - m*inBlockDim, inBlockDim);
             blocks[m*nbBlocks+n].nbCols = std::min(inMatrixDim - n*inBlockDim, inBlockDim);
             blocks[m*nbBlocks+n].values.reset(new double[blocks[m*nbBlocks+n].nbRows * blocks[m*nbBlocks+n].nbCols]());
-            blocks[m*nbBlocks+n].permutations.reset(new int[blocks[m*nbBlocks+n].nbRows]());
         }
     }
 
@@ -301,7 +326,8 @@ std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, c
     return blocks;
 }
 
-double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, const int inBlockDim){
+double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, const int inBlockDim,
+                        const int Prank = 0, const int Psize = 1, const double alpha = 1.0){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
     double error = 0;
@@ -311,12 +337,14 @@ double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, 
         const int rowIdxInBlock = idxRow%inBlockDim;
         for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
             const int blockColIdx = idxCol/inBlockDim;
-            const int colIdxInBlock = idxCol%inBlockDim;
+            if(blockColIdx % Psize == Prank){
+                const int colIdxInBlock = idxCol%inBlockDim;
 
-            const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
-            const double matrixValue = matrix[idxRow*inMatrixDim+idxCol];
+                const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
+                const double matrixValue = alpha*matrix[idxRow*inMatrixDim+idxCol];
 
-            error = std::max(error, std::abs(blockValue-matrixValue)/(std::abs(matrixValue)+std::numeric_limits<double>::epsilon()));
+                error = std::max(error, std::abs(blockValue-matrixValue)/(std::abs(matrixValue)+std::numeric_limits<double>::epsilon()));
+            }
         }
     }
 

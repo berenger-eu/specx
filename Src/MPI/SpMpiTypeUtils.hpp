@@ -2,66 +2,53 @@
 #define SPMPITYPEUTILS_HPP
 
 #include <mpi.h>
+#include <type_traits>
 
 /// Return the correct MPI data type for a given native data type
 template <class ObjectType>
-struct SpGetMpiType;
-
-template <>
-struct SpGetMpiType<char>{
-   static constexpr MPI_Datatype type = MPI_CHAR;
-};
-template <>
-struct SpGetMpiType<unsigned char>{
-   static constexpr MPI_Datatype type = MPI_UNSIGNED_CHAR;
-};
-template <>
-struct SpGetMpiType<short>{
-   static constexpr MPI_Datatype type = MPI_SHORT;
-};
-template <>
-struct SpGetMpiType<unsigned short>{
-   static constexpr MPI_Datatype type = MPI_UNSIGNED_SHORT;
-};
-template <>
-struct SpGetMpiType<int>{
-   static constexpr MPI_Datatype type = MPI_INT;
-};
-template <>
-struct SpGetMpiType<unsigned>{
-   static constexpr MPI_Datatype type = MPI_UNSIGNED;
-};
-template <>
-struct SpGetMpiType<long>{
-   static constexpr MPI_Datatype type = MPI_LONG;
-};
-template <>
-struct SpGetMpiType<unsigned long>{
-   static constexpr MPI_Datatype type = MPI_UNSIGNED_LONG;
-};
-template <>
-struct SpGetMpiType<long long int>{
-   static constexpr MPI_Datatype type = MPI_LONG_LONG_INT;
-};
-template <>
-struct SpGetMpiType<float>{
-   static constexpr MPI_Datatype type = MPI_FLOAT;
-};
-template <>
-struct SpGetMpiType<double>{
-   static constexpr MPI_Datatype type = MPI_DOUBLE;
-};
-template <>
-struct SpGetMpiType<long double>{
-   static constexpr MPI_Datatype type = MPI_LONG_DOUBLE;
-};
-template <>
-struct SpGetMpiType<signed char>{
-   static constexpr MPI_Datatype type = MPI_SIGNED_CHAR;
-};
-template <>
-struct SpGetMpiType<unsigned long long>{
-   static constexpr MPI_Datatype type = MPI_UNSIGNED_LONG_LONG;
-};
+inline constexpr MPI_Datatype SpGetMpiType(){
+    if constexpr(std::is_same<char, ObjectType>::value){
+        return MPI_CHAR;
+    }
+    else if constexpr(std::is_same<unsigned char, ObjectType>::value){
+        return MPI_UNSIGNED_CHAR;
+    }
+    else if constexpr(std::is_same<short, ObjectType>::value){
+        return MPI_SHORT;
+    }
+    else if constexpr(std::is_same<unsigned short, ObjectType>::value){
+        return MPI_UNSIGNED_SHORT;
+    }
+    else if constexpr(std::is_same<int, ObjectType>::value){
+        return MPI_INT;
+    }
+    else if constexpr(std::is_same<unsigned, ObjectType>::value){
+        return MPI_UNSIGNED;
+    }
+    else if constexpr(std::is_same<long, ObjectType>::value){
+        return MPI_LONG;
+    }
+    else if constexpr(std::is_same<unsigned long, ObjectType>::value){
+        return MPI_UNSIGNED_LONG;
+    }
+    else if constexpr(std::is_same<long long int, ObjectType>::value){
+        return MPI_LONG_LONG_INT;
+    }
+    else if constexpr(std::is_same<float, ObjectType>::value){
+        return MPI_FLOAT;
+    }
+    else if constexpr(std::is_same<double, ObjectType>::value){
+        return MPI_DOUBLE;
+    }
+    else if constexpr(std::is_same<long double, ObjectType>::value){
+        return MPI_LONG_DOUBLE;
+    }
+    else if constexpr(std::is_same<signed char, ObjectType>::value){
+        return MPI_SIGNED_CHAR;
+    }
+    else if constexpr(std::is_same<unsigned long long, ObjectType>::value){
+        return MPI_UNSIGNED_LONG_LONG;
+    }
+}
 
 #endif // SPMPITYPEUTILS_HPP

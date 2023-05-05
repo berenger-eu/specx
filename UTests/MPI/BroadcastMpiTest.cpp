@@ -18,8 +18,8 @@
 #include "Config/SpConfig.hpp"
 #include "MPI/SpMpiUtils.hpp"
 
-class SimpleMpiTest : public UTester< SimpleMpiTest > {
-    using Parent = UTester< SimpleMpiTest >;
+class BroadcastMpiTest : public UTester< BroadcastMpiTest > {
+    using Parent = UTester< BroadcastMpiTest >;
 
     void Test(){
         SpMpiBackgroundWorker::GetWorker().init();
@@ -27,11 +27,11 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         int a = 1;
-        int b = 0;
+        int b = 1;
 
         tg.computeOn(ce);
 
-        // This test works only with at least 2 processes
+        // This test works with only 2 processes
         assert(SpMpiUtils::GetMpiSize() >= 2);
         if(SpMpiUtils::GetMpiRank() == 0){
             tg.task(SpRead(a), SpWrite(b),
@@ -40,31 +40,31 @@ class SimpleMpiTest : public UTester< SimpleMpiTest > {
                         })
             );
 
-            tg.mpiSend(b, 1, 0);
-            tg.mpiRecv(b, 1, 1);
+            tg.mpiBroadcastSend(b, 0);
+            tg.mpiBroadcastRecv(a, 1);
         }
         else if(SpMpiUtils::GetMpiRank() == 1){
-            tg.mpiRecv(b, 0, 0);
-
             tg.task(SpRead(a), SpWrite(b),
                         SpCpu([](const int& paramA, int& paramB) {
                             paramB = paramA + paramB;
                         })
             );
 
-            tg.mpiSend(b, 0, 1);
+            tg.mpiBroadcastRecv(a, 0);
+            tg.mpiBroadcastSend(b, 1);
         }
 
         tg.waitAllTasks();
 
+        UASSERTETRUE(a == 2);
         UASSERTETRUE(b == 2);
     }
 
 
     void SetTests() {
-        Parent::AddTest(&SimpleMpiTest::Test, "Basic MPI test");
+        Parent::AddTest(&BroadcastMpiTest::Test, "Basic Broadcast MPI test");
     }
 };
 
 // You must do this
-TestClass(SimpleMpiTest)
+TestClass(BroadcastMpiTest)

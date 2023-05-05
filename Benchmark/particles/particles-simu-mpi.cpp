@@ -20,7 +20,7 @@
 #include "Utils/SpTimer.hpp"
 
 
-class ParticlesGroup{
+class ParticlesGroup {
 public:
     enum ValueTypes{
         PHYSICAL,
@@ -50,6 +50,32 @@ public:
     ParticlesGroup(ParticlesGroup&&) = default;
     ParticlesGroup& operator=(const ParticlesGroup&) = default;
     ParticlesGroup& operator=(ParticlesGroup&&) = default;
+    ~ParticlesGroup(){}
+
+    ParticlesGroup(SpDeserializer &deserializer)
+        : nbParticles(deserializer.restore<decltype(nbParticles)>("nbParticles")){
+        deserializer.restore(values[0], "values[0]");
+        deserializer.restore(values[1], "values[1]");
+        deserializer.restore(values[2], "values[2]");
+        deserializer.restore(values[3], "values[3]");
+        deserializer.restore(values[4], "values[4]");
+        deserializer.restore(values[5], "values[5]");
+        deserializer.restore(values[6], "values[6]");
+        deserializer.restore(values[7], "values[7]");
+    }
+
+    virtual void serialize(SpSerializer &serializer) const {
+        serializer.append(nbParticles, "nbParticles");
+        serializer.append(values[0], "values[0]");
+        serializer.append(values[1], "values[1]");
+        serializer.append(values[2], "values[2]");
+        serializer.append(values[3], "values[3]");
+        serializer.append(values[4], "values[4]");
+        serializer.append(values[5], "values[5]");
+        serializer.append(values[6], "values[6]");
+        serializer.append(values[7], "values[7]");
+    }
+
 
     void setParticleValues(const std::size_t inIdxParticle,
                            const std::array<double, NB_VALUE_TYPES>& inValues){
@@ -158,6 +184,47 @@ public:
             inOther.values[FY][idxTarget] += tfy;
             inOther.values[FZ][idxTarget] += tfz;
             inOther.values[POTENTIAL][idxTarget] += tpo;
+        }
+    }
+
+
+    void computeOuter(const ParticlesGroup& inOther){
+        for(std::size_t idxTarget = 0 ; idxTarget < inOther.getNbParticles() ; ++idxTarget){
+            const double tx = double(inOther.values[X][idxTarget]);
+            const double ty = double(inOther.values[Y][idxTarget]);
+            const double tz = double(inOther.values[Z][idxTarget]);
+            const double tv = double(inOther.values[PHYSICAL][idxTarget]);
+
+            double  tfx = double(0.);
+            double  tfy = double(0.);
+            double  tfz = double(0.);
+            double  tpo = double(0.);
+
+            for(std::size_t idxSource = 0  ; idxSource < nbParticles ; ++idxSource){
+                double dx = tx - double(values[X][idxSource]);
+                double dy = ty - double(values[Y][idxSource]);
+                double dz = tz - double(values[Z][idxSource]);
+
+                double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
+                const double inv_distance = sqrt(inv_square_distance);
+
+                inv_square_distance *= inv_distance;
+                inv_square_distance *= tv * double(values[PHYSICAL][idxSource]);
+
+                dx *= - inv_square_distance;
+                dy *= - inv_square_distance;
+                dz *= - inv_square_distance;
+
+                tfx += dx;
+                tfy += dy;
+                tfz += dz;
+                tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+
+                values[FX][idxSource] -= dx;
+                values[FY][idxSource] -= dy;
+                values[FZ][idxSource] -= dz;
+                values[POTENTIAL][idxSource] += inv_distance * tv;
+            }
         }
     }
 
@@ -601,7 +668,6 @@ auto TuneBlockSize(){
 #endif
 }
 
-
 void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     CLsimple args("Particles", argc, argv);
 
@@ -627,14 +693,22 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
       return;
     }
 
-    std::vector<ParticlesGroup> particleGroups(NbGroups);
+    SpMpiBackgroundWorker::GetWorker().init();
 
-    {
+    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
+    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
+
+    static_assert(SpGetSerializationType<ParticlesGroup>() == SpSerializationType::SP_SERIALIZER_TYPE,
+            "We use serializer");
+
+    std::vector<ParticlesGroup> particleGroups(NbGroups);
+    ParticlesGroup leftParticleGroup;
+    ParticlesGroup rightParticleGroup;
+
+    for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
         std::random_device rd;
         std::uniform_int_distribution<int> dist(MinPartsPerGroup, MaxPartsPerGroup);
-        for(auto& group : particleGroups){
-            group = ParticlesGroup(dist(rd));
-        }
+        particleGroups[idxPart] = ParticlesGroup(dist(rd));
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -643,16 +717,20 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
-    SpTaskGraph tg;
-
+    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
     tg.computeOn(ce);
 
     SpTimer timer;
 
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
-        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
-            auto& group1 = particleGroups[idxGroup1];
-            tg.task(SpCommutativeWrite(group1),
+        tg.mpiSend(particleGroups[0], (Prank+Psize-1)%Psize, 0);
+        tg.mpiSend(particleGroups[NbGroups-1], (Prank+1)%Psize, 1);
+
+        tg.mpiRecv(leftParticleGroup, (Prank+Psize-1)%Psize, 1);
+        tg.mpiRecv(rightParticleGroup, (Prank+1)%Psize, 0);
+
+        for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
+            tg.task(SpCommutativeWrite(particleGroups[idxPart]),
                         SpCpu([](ParticlesGroup& particlesW) {
                             particlesW.computeSelf();
                 })
@@ -665,30 +743,57 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                 #endif
             );
 
-            const int idxGroup2 = (idxGroup1+1)%particleGroups.size();
-            auto& group2 = particleGroups[idxGroup2];
-
-            tg.task(SpCommutativeWrite(group1),SpCommutativeWrite(group2),
-                    SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
-                        particlesW.compute(particlesR);
-                    })
-                #ifdef SPECX_COMPILE_WITH_CUDA
-                    , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
-                        [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
-                        [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
-                                     (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
-                                     (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
-                    })
-                #endif
-            );
+            if(idxPart+1 < NbGroups){
+                const int idxPartOther = idxPart+1;
+                tg.task(SpCommutativeWrite(particleGroups[idxPart]),SpCommutativeWrite(particleGroups[idxPartOther]),
+                        SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
+                            particlesW.compute(particlesR);
+                        })
+                    #ifdef SPECX_COMPILE_WITH_CUDA
+                        , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                            [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                            [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                         (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                        })
+                    #endif
+                );
+            }
         }
+
+        tg.task(SpCommutativeWrite(particleGroups[NbGroups-1]),SpRead(leftParticleGroup),
+                SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+                    particlesW.computeOuter(particlesR);
+                })
+            #ifdef SPECX_COMPILE_WITH_CUDA
+                , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<const ParticlesGroup> paramB) {
+                    [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                    [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                    p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                 (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                })
+            #endif
+        );
+
+        tg.task(SpCommutativeWrite(particleGroups[0]),SpRead(rightParticleGroup),
+                SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
+                    particlesW.computeOuter(particlesR);
+                })
+            #ifdef SPECX_COMPILE_WITH_CUDA
+                , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, const SpDeviceDataView<const ParticlesGroup> paramB) {
+                    [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                    [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                    p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                 (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                })
+            #endif
+        );
     }
 
-    for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
-        auto& group1 = particleGroups[idxGroup1];
-        tg.task(SpWrite(group1),
+    for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
+        tg.task(SpWrite(particleGroups[idxPart]),
                 SpCpu([](ParticlesGroup& particlesW) {
                 })
         );
@@ -704,8 +809,9 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     std::cout << "NbGroups = " << NbGroups << std::endl;
     std::cout << "Duration = " << timer.getElapsed() << std::endl;
 
-    std::cout << "Generate trace ./particles-simu.svg" << std::endl;
-    tg.generateTrace("./particles-simu.svg", false);
+    const auto traceName = "./particles-simu" + std::to_string(SpMpiUtils::GetMpiRank()) + ".svg";
+    std::cout << "Generate trace " << traceName << std::endl;
+    tg.generateTrace(traceName, false);
 }
 
 

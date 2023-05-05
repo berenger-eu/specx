@@ -19,7 +19,7 @@
 #include "MPI/SpMpiUtils.hpp"
 #include "MPI/SpSerializer.hpp"
 
-class IntDataHolder : public SpAbstractSerializable {
+class IntDataHolder {
 public:
     IntDataHolder(int inKey = 0)
         : key{inKey} {
@@ -29,7 +29,7 @@ public:
         : key(deserializer.restore<decltype(key)>("value")) {
 	}
 	
-	void serialize(SpSerializer &serializer) const final {
+    void serialize(SpSerializer &serializer) const {
         serializer.append(key, "value");
     }
 
@@ -85,6 +85,8 @@ class SimpleUserDefinedSerializationMpiTest : public UTester< SimpleUserDefinedS
     using Parent = UTester< SimpleUserDefinedSerializationMpiTest >;
 
     void Test(){
+        SpMpiBackgroundWorker::GetWorker().init();
+
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         IntDataHolder a = 1;

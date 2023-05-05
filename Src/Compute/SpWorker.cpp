@@ -118,6 +118,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
             }
             
             if(nullTasksCounter == nbNullTasksBeforeWait){
+                SpDebugPrint() << "waitOnCe ";
                 waitOnCe(saveCe, inAtg);
             }
             else{

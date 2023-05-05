@@ -72,7 +72,7 @@ class ComputeEngineTest : public UTester< ComputeEngineTest > {
         }
         
         tg1.computeOn(ce1);
-        
+
         mainThreadPromise.get_future().get();
         
         auto workers = ce1.detachWorkers(SpWorkerTypes::Type::CPU_WORKER, 1, true);

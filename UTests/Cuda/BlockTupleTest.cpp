@@ -11,6 +11,7 @@
 #include "Task/SpTask.hpp"
 
 #include "Compute/SpComputeEngine.hpp"
+#include "Compute/SpWorkerTeamBuilder.hpp"
 #include "Compute/SpWorker.hpp"
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Utils/SpBlockTuple.hpp"
@@ -21,9 +22,11 @@ class BlockTupleTest : public UTester< BlockTupleTest > {
     using Parent = UTester< BlockTupleTest >;
 
     void Test(){
-        SpBlockTuple<SpArrayBlock<int>, SpArrayBlock<float>> bt({40, 2});
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(0,1,1));
         SpTaskGraph tg;
-        
+        tg.computeOn(ce);
+
+        SpBlockTuple<SpArrayBlock<int>, SpArrayBlock<float>> bt({40, 2});
         tg.task(SpWrite(bt), SpCuda([](auto btParam) {}));
     }
 
