@@ -72,6 +72,13 @@ if(SPECX_COMPILE_WITH_CUDA)
 	SET(CMAKE_CUDA_EXTENSIONS OFF)
 	include(FindCUDA)
 	include_directories(${CUDA_INCLUDE_DIRS})
+    
+    # Threads::Threads seems useless
+    list(REMOVE_ITEM CUDA_LIBRARIES "Threads::Threads")  
+    if($ENV{VERBOSE})  
+        message(STATUS "CUDA_LIBRARIES = ${CUDA_LIBRARIES}")
+    endif()
+    
     list(APPEND SPECX_LIBRARIES ${CUDA_LIBRARIES})
     if((CMAKE_BUILD_TYPE STREQUAL "DEBUG") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     	set(EXTRA_CUDA_NVCC_FLAGS "-G" CACHE STRING "Flags for NVCC")    
