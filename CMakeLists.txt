@@ -58,6 +58,7 @@ endif(insource)
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
+set(SPECX_INCLUDE_DIR "")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -70,8 +71,11 @@ if(SPECX_COMPILE_WITH_CUDA)
 	set(CMAKE_CUDA_STANDARD 17)
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
 	SET(CMAKE_CUDA_EXTENSIONS OFF)
+	
 	include(FindCUDA)
+	
 	include_directories(${CUDA_INCLUDE_DIRS})
+    list(APPEND SPECX_INCLUDE_DIR ${CUDA_INCLUDE_DIRS})
     
     # Threads::Threads seems useless
     list(REMOVE_ITEM CUDA_LIBRARIES "Threads::Threads")  
@@ -97,6 +101,7 @@ if(SPECX_COMPILE_WITH_MPI)
     find_package(MPI REQUIRED)
     include_directories(SYSTEM ${MPI_INCLUDE_PATH})
     list(APPEND SPECX_LIBRARIES ${MPI_CXX_LIBRARIES})
+    list(APPEND SPECX_INCLUDE_DIR ${CUDA_INCLUDE_DIRS})
 endif()
 
 # need pthread
