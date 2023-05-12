@@ -46,6 +46,8 @@ add_library(
 	${source_lib_files}
 )
 
+target_include_directories(specx PUBLIC ${SPECX_INCLUDE_DIR})
+
 if(SPECX_DO_INSTALL)
     target_include_directories(specx INTERFACE $<INSTALL_INTERFACE:include>)
     INSTALL(TARGETS specx EXPORT specx DESTINATION lib )

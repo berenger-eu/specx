@@ -14,15 +14,6 @@ if(SPECX_BUILD_UTESTS)
 	    ./*.cpp
 	    )
 
-
-    # Adding the project sources dir as an include dir
-    INCLUDE_DIRECTORIES(
-         ${SPECX_BINARY_DIR}/Src    
-         ${SPECX_SOURCE_DIR}/Src    
-         ${UTESTS_NOCOMPILE_SPECX_SOURCE_DIR}
-    )
-
-
     # Add execs - 1 cpp = 1 exec
     foreach(exec ${source_comptests_files}) 
         if($ENV{VERBOSE})
@@ -60,6 +51,17 @@ if(SPECX_BUILD_UTESTS)
                                EXCLUDE_FROM_ALL TRUE
                                EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 
+
+
+                # Adding the project sources dir as an include dir
+	            target_include_directories(
+			        ${execname}-${test_var}
+                    PRIVATE
+                     ${SPECX_BINARY_DIR}/Src    
+                     ${SPECX_SOURCE_DIR}/Src    
+                     ${UTESTS_NOCOMPILE_SPECX_SOURCE_DIR}
+                )
+
                 target_link_libraries(
                     ${execname}-${test_var}
                     specx
@@ -83,6 +85,16 @@ if(SPECX_BUILD_UTESTS)
                            EXCLUDE_FROM_ALL TRUE
                            EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 
+
+            # Adding the project sources dir as an include dir
+            target_include_directories(
+                ${execname}
+                PRIVATE
+                 ${SPECX_BINARY_DIR}/Src    
+                 ${SPECX_SOURCE_DIR}/Src    
+                 ${UTESTS_NOCOMPILE_SPECX_SOURCE_DIR}
+            )
+                
             target_link_libraries(
                 ${execname}
                 specx

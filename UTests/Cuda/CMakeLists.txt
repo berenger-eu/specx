@@ -13,15 +13,6 @@ file(
 	)
 
 
-# Adding the project sources dir as an include dir
-INCLUDE_DIRECTORIES(
-	 ${SPECX_BINARY_DIR}/Src    
-	 ${SPECX_SOURCE_DIR}/Src
-	 ${SPECX_SOURCE_DIR}/UTests    
-	 ${UTESTS_CUDA_SPECX_SOURCE_DIR}
-)
-
-
 # Add execs - 1 cpp = 1 exec
 foreach(exec ${source_tests_files}) 
 	get_filename_component(
@@ -32,10 +23,25 @@ foreach(exec ${source_tests_files})
 		MESSAGE(STATUS "UTests -- Add ${execname}")
 	endif()
 
+    if(SPECX_COMPILE_WITH_CUDA)
+        set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+    endif()
+
 	add_executable(
 			${execname}
 			${exec}
 		)
+   
+
+    # Adding the project sources dir as an include dir
+    target_include_directories(
+         ${execname}
+         PRIVATE
+	     ${SPECX_BINARY_DIR}/Src    
+	     ${SPECX_SOURCE_DIR}/Src
+	     ${SPECX_SOURCE_DIR}/UTests    
+	     ${UTESTS_CUDA_SPECX_SOURCE_DIR}
+    )
 
 	target_link_libraries(
 		${execname}
