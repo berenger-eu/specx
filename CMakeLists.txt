@@ -9,9 +9,7 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 #===========================================================================
 # Project Declaration
 #===========================================================================
-project(specx LANGUAGES CXX VERSION 1.0.0)
-set(SPECX_SOURCE_DIR ${specx_SOURCE_DIR} )
-set(SPECX_BINARY_DIR ${specx_BINARY_DIR} )
+project(SPECX LANGUAGES CXX VERSION 1.0.0)
 
 include(CheckLanguage)
 check_language(CUDA)
@@ -28,8 +26,7 @@ if(SPECX_COMPILE_WITH_CUDA)
 	enable_language(CUDA)
 		
 	if(NOT CMAKE_CUDA_ARCHITECTURES)
-      set(CMAKE_CUDA_ARCHITECTURES "75" CACHE STRING
-          "Set CUDA target architecture" FORCE)
+        set(CMAKE_CUDA_ARCHITECTURES "75" CACHE STRING "Set CUDA target architecture" FORCE)
     endif()
 endif()
 
@@ -48,9 +45,9 @@ if(insource)
   message(FATAL_ERROR "${PROJECT_NAME} requires an out of source build.\
                       Remove CMakeCache.txt (alternatively you can remove all untracked files with\
                       git clean -i, git clean -d or git clean -df). Then, create a subirectory outside\
-                      the specx source tree, cd into the directory you just created and then type\
-                      cmake <path to specx repository>.\
-                      Alternatively you can create a build directory at the root of the specx\
+                      the SPECX source tree, cd into the directory you just created and then type\
+                      cmake <path to SPECX repository>.\
+                      Alternatively you can create a build directory at the root of the SPECX\
                       source tree but then it is recommended to name it 'build' as it is the only\
                       build directory name that is explicitly marked as to be ignored by Git.")
 endif(insource)
@@ -74,7 +71,6 @@ if(SPECX_COMPILE_WITH_CUDA)
 	
 	include(FindCUDA)
 	
-	include_directories(${CUDA_INCLUDE_DIRS})
     list(APPEND SPECX_INCLUDE_DIR ${CUDA_INCLUDE_DIRS})
     
     # Threads::Threads seems useless
@@ -99,9 +95,8 @@ endif()
 OPTION(SPECX_COMPILE_WITH_MPI "Set to on to use MPI" OFF)
 if(SPECX_COMPILE_WITH_MPI)
     find_package(MPI REQUIRED)
-    include_directories(SYSTEM ${MPI_INCLUDE_PATH})
+    list(APPEND SPECX_INCLUDE_DIR ${MPI_INCLUDE_PATH})
     list(APPEND SPECX_LIBRARIES ${MPI_CXX_LIBRARIES})
-    list(APPEND SPECX_INCLUDE_DIR ${CUDA_INCLUDE_DIRS})
 endif()
 
 # need pthread
@@ -165,7 +160,7 @@ if( SPECX_USE_COVERAGE )
     list(APPEND SPECX_LIBRARIES gcov)
     # Then one can use these commands:
     # lcov --directory CMakeFiles/ -c -o coverage-rapport.info
-    # genhtml -o ./coverage -t "Coverage specx" coverage-rapport.info
+    # genhtml -o ./coverage -t "Coverage SPECX" coverage-rapport.info
 endif()
 
 # Extra-flags

@@ -28,17 +28,6 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 	    ./*.cpp
 	)
 
-
-	# Adding the project sources dir as an include dir
-	INCLUDE_DIRECTORIES(
-	     ${SPECX_BINARY_DIR}/Src    
-	     ${SPECX_SOURCE_DIR}/Src    
-	)
-
-    LINK_DIRECTORIES(
-    )
-
-
 	# Add execs - 1 cpp = 1 exec
 	foreach(exec ${source_tests_files}) 
     		if(${SPECX_COMPILE_WITH_MPI} OR NOT ${exec} MATCHES "-mpi\.")
@@ -53,10 +42,18 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 
 		    if(SPECX_COMPILE_WITH_CUDA)
 			    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
-			    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas;cusolver")
+			    set(CUBLAS_LIBRARIES "cublas;cusolver")
 		    endif()
 		    
-		    add_executable(${execname} ${exec})
+		    add_executable(${execname} ${exec})	    
+
+            # Adding the project sources dir as an include dir
+            target_include_directories(
+                 ${execname}
+                 PRIVATE
+                 ${SPECX_BINARY_DIR}/Src    
+                 ${SPECX_SOURCE_DIR}/Src    
+            )
 		    
 		    # TODO set_target_properties(${execname} PROPERTIES COMPILE_FLAGS "-llapack -lblas")
 
@@ -66,6 +63,7 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 			    ${SPECX_LIBRARIES}
 			    ${BLAS_LIBRARIES}
 			    ${LAPACK_LIBRARIES}
+			    ${CUBLAS_LIBRARIES}
 			)
 		endif()
 	endforeach(exec)

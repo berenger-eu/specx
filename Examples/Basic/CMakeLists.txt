@@ -18,15 +18,7 @@ if(SPECX_BUILD_EXAMPLES)
 	    source_tests_files
 	    ./*.cpp
 	    )
-
-
-    # Adding the project sources dir as an include dir
-    INCLUDE_DIRECTORIES(
-         ${SPECX_BINARY_DIR}/Src    
-         ${SPECX_SOURCE_DIR}/Src    
-    )
-
-
+	    
     # Add execs - 1 cpp = 1 exec
     foreach(exec ${source_tests_files}) 
 	    get_filename_component(
@@ -45,6 +37,15 @@ if(SPECX_BUILD_EXAMPLES)
 			    ${execname}
 			    ${exec}
 		    )
+
+	
+	    # Adding the project sources dir as an include dir
+	    target_include_directories(
+            ${execname}
+            PRIVATE
+            ${SPECX_BINARY_DIR}/Src    
+            ${SPECX_SOURCE_DIR}/Src    
+	    )
 
         target_link_libraries(
             ${execname}
