@@ -524,6 +524,10 @@ struct TuneResult{
 
 auto TuneBlockSize(){
 #ifdef SPECX_COMPILE_WITH_CUDA
+    if(SpCudaUtils::GetNbDevices() == 0){
+        return TuneResult();
+    }
+
     cudaDeviceProp prop;
     cudaGetDeviceProperties( &prop, 0);
 
