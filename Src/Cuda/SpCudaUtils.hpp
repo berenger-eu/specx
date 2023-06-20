@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <sstream>
 
 #include "Config/SpConfig.hpp"
 
@@ -82,10 +83,22 @@ public:
     static int GetNbDevices(){
         int num;
         CUDA_ASSERT(cudaGetDeviceCount(&num));
+        if(getenv("SPECX_NB_CUDA_GPUS")){
+            std::istringstream iss(getenv("SPECX_NB_CUDA_GPUS"),std::istringstream::in);
+            int nbGpus = -1;
+            iss >> nbGpus;
+            if( /*iss.tellg()*/ iss.eof() ) return std::min(nbGpus, num);
+        }
         return num;
     }
 
     static int GetDefaultNbStreams(){
+        if(getenv("SPECX_NB_CUDA_STREAMS")){
+            std::istringstream iss(getenv("SPECX_NB_CUDA_STREAMS"),std::istringstream::in);
+            int nbStreams = -1;
+            iss >> nbStreams;
+            if( /*iss.tellg()*/ iss.eof() ) return nbStreams;
+        }
         return 4;
     }
 

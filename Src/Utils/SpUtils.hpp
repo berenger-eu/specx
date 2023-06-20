@@ -44,6 +44,12 @@ namespace SpUtils{
             iss >> nbThreads;
             if( /*iss.tellg()*/ iss.eof() ) return nbThreads;
         }
+        if(getenv("SPECX_NB_CPU_THREADS")){
+            std::istringstream iss(getenv("SPECX_NB_CPU_THREADS"),std::istringstream::in);
+            int nbThreads = -1;
+            iss >> nbThreads;
+            if( /*iss.tellg()*/ iss.eof() ) return nbThreads;
+        }
         return static_cast<int>(std::thread::hardware_concurrency());
     }
 
