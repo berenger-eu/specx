@@ -20,7 +20,15 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuWorkers(const int nbWork
 }
 #ifdef SPECX_COMPILE_WITH_CUDA
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams(),
-                                             const int nbCudaWorkers = SpCudaUtils::GetNbDevices()) {
+                                             int nbCudaWorkers = SpCudaUtils::GetNbDevices()) {
+    if(SpCudaUtils::GetNbDevices() < nbCudaWorkers){
+        std::cout << "[SPECX] The number of devices asked ("
+                  << nbCudaWorkers << ") is above the real number of devices ("
+                  << SpCudaUtils::GetNbDevices() << ")" << std::endl;
+        std::cout << "[SPECX] The real number will be used instead." << std::endl;
+        nbCudaWorkers = SpCudaUtils::GetNbDevices();
+    }
+
     small_vector<std::unique_ptr<SpWorker>> res;
     res.reserve(nbWorkerPerCudas*nbCudaWorkers);
 
@@ -35,8 +43,16 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWor
 }
 
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
-                                             const int nbCudaWorkers = SpCudaUtils::GetNbDevices(),
+                                             int nbCudaWorkers = SpCudaUtils::GetNbDevices(),
                                              const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams()) {
+    if(SpCudaUtils::GetNbDevices() < nbCudaWorkers){
+        std::cout << "[SPECX] The number of devices asked ("
+                  << nbCudaWorkers << ") is above the real number of devices ("
+                  << SpCudaUtils::GetNbDevices() << ")" << std::endl;
+        std::cout << "[SPECX] The real number will be used instead." << std::endl;
+        nbCudaWorkers = SpCudaUtils::GetNbDevices();
+    }
+
     small_vector<std::unique_ptr<SpWorker>> res;
     res.reserve(nbCpuWorkers + nbWorkerPerCudas*nbCudaWorkers);
 
@@ -56,7 +72,15 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nb
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
 static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
-                                             const int nbHipWorkers = SpHipUtils::GetNbDevices()) {
+                                             int nbHipWorkers = SpHipUtils::GetNbDevices()) {
+    if(SpHipUtils::GetNbDevices() < nbCudaWorkers){
+        std::cout << "[SPECX] The number of devices asked ("
+                  << nbHipWorkers << ") is above the real number of devices ("
+                  << SpHipUtils::GetNbDevices() << ")" << std::endl;
+        std::cout << "[SPECX] The real number will be used instead." << std::endl;
+        nbHipWorkers = SpHipUtils::GetNbDevices();
+    }
+
     small_vector<std::unique_ptr<SpWorker>> res;
     res.reserve(nbWorkerPerHips*nbHipWorkers);
 
@@ -72,7 +96,15 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWork
 
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
                                              const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
-                                             const int nbHipWorkers = SpHipUtils::GetNbDevices()) {
+                                             int nbHipWorkers = SpHipUtils::GetNbDevices()) {
+    if(SpHipUtils::GetNbDevices() < nbCudaWorkers){
+        std::cout << "[SPECX] The number of devices asked ("
+                  << nbHipWorkers << ") is above the real number of devices ("
+                  << SpHipUtils::GetNbDevices() << ")" << std::endl;
+        std::cout << "[SPECX] The real number will be used instead." << std::endl;
+        nbHipWorkers = SpHipUtils::GetNbDevices();
+    }
+
     small_vector<std::unique_ptr<SpWorker>> res;
     res.reserve(nbCpuWorkers + nbWorkerPerHips*nbHipWorkers);
 
