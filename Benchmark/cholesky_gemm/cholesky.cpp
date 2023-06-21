@@ -180,11 +180,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
-            runtime.task(SpWrite(blocks[i*nbBlocks+j]),
-                SpCpu([](SpBlas::Block& block){
-                    // Move back to cpu
-                })
-            );
+            runtime.syncDataOnCpu(blocks[i*nbBlocks+j]);
         }
     }
 

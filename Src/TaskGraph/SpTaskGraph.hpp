@@ -1665,6 +1665,20 @@ public:
     void setSpeculationTest(std::function<bool(int,const SpProbability&)> inFormula){
         specFormula = std::move(inFormula);
     }
+
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    template <class ParamsType>
+    void syncDataOnCpu(ParamsType& inParam){
+        auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
+        if(bool(iterHandleFound) == false){
+            const int cudaSrc = iterHandleFound.value().get()->syncCpuDataIfNeeded(SpCudaManager::Managers);
+            if(cudaSrc != -1){
+                SpCudaManager::Managers[cudaSrc].syncExtraStream();
+            }
+        }
+    }
+#endif
 };
 
 template<>
@@ -1891,6 +1905,19 @@ public:
         });
         currentTaskIsMpiCom = false;
         return res;
+    }
+#endif
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    template <class ParamsType>
+    void syncDataOnCpu(ParamsType& inParam){
+        auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
+        if(bool(iterHandleFound) == false){
+            const int cudaSrc = iterHandleFound.value().get()->syncCpuDataIfNeeded(SpCudaManager::Managers);
+            if(cudaSrc != -1){
+                SpCudaManager::Managers[cudaSrc].syncExtraStream();
+            }
+        }
     }
 #endif
 };

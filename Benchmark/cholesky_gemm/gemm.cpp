@@ -89,11 +89,7 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
-            runtime.task(SpWrite(blocksC[i*nbBlocks+j]),
-                SpCpu([](SpBlas::Block& blockC){
-                    // Move back to cpu
-                })
-            );
+            runtime.syncDataOnCpu(blocksC[i*nbBlocks+j]);
         }
     }
 

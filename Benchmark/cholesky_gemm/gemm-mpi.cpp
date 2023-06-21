@@ -214,11 +214,7 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 
     for(int i = 0 ; i < processBlockDim ; ++i){
         for(int j = 0 ; j < processBlockDim ; ++j){
-            tg.task(SpWrite(blocksC[i*processBlockDim+j]),
-                SpCpu([](SpBlas::Block& blockC){
-                    // Move back to cpu
-                })
-            );
+            tg.syncDataOnCpu(blocksC[i*processBlockDim+j]);
         }
     }
 

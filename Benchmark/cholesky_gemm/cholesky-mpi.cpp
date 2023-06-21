@@ -213,11 +213,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
             if(j % Psize == Prank){
-                tg.task(SpWrite(blocks[i*nbBlocks+j]),
-                    SpCpu([](SpBlas::Block& /*block*/){
-                        // Move back to cpu
-                    })
-                );
+                tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
             }
         }
     }
