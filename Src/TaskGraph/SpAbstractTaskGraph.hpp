@@ -17,9 +17,6 @@ protected:
     
     //! Internal scheduler of tasks
     SpTaskManager scheduler;
-    
-    std::queue<SpDataHandle*> unusedDataHandles;
-    std::mutex unusedDataHandlesMutex;
 
 protected:
     
