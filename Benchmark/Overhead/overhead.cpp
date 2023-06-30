@@ -118,9 +118,9 @@ auto estimate_overhead_vecs_commut(const int NbLoops, const int NbThreads, const
     const double insertionTime = totalTime.getElapsed();
 
     tg.waitAllTasks();
-    ce.stopIfNotAlreadyStopped();
-
     totalTime.stop();
+
+    ce.stopIfNotAlreadyStopped();
 
     return std::make_tuple(insertionTime/(NbLoops*NbThreads), totalTime.getElapsed() - SleepDuration*NbLoops);
 }
@@ -169,7 +169,6 @@ int main(int argc, char** argv){
 
         csvFile << "\"single\",1," << sleepDuration << ","
                 << maxOverheadPerTask << ","
-                << maxOverheadPerTask << ","
                 << avgOverheadPerTask/double(totalNbTasks) << ","
                 << maxOverheadInsertionPerTask << ","
                 << avgOverheadInsertionPerTask/double(totalNbTasks) << "\n";
@@ -203,7 +202,6 @@ int main(int argc, char** argv){
                       << " avg insertion time = " << avgOverheadInsertionPerTask/double(totalNbTasks) << std::endl;
 
             csvFile << "\"array\"," << idxDep << "," << sleepDuration << ","
-                    << maxOverheadPerTask << ","
                     << maxOverheadPerTask << ","
                     << avgOverheadPerTask/double(totalNbTasks) << ","
                     << maxOverheadInsertionPerTask << ","
@@ -239,7 +237,6 @@ int main(int argc, char** argv){
                       << " avg insertion time = " << avgOverheadInsertionPerTask/double(totalNbTasks) << std::endl;
 
             csvFile << "\"commutearray\"," << idxDep << "," << sleepDuration << ","
-                    << maxOverheadPerTask << ","
                     << maxOverheadPerTask << ","
                     << avgOverheadPerTask/double(totalNbTasks) << ","
                     << maxOverheadInsertionPerTask << ","
