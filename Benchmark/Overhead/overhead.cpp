@@ -140,7 +140,7 @@ int main(int argc, char** argv){
         return -1;
     }
 
-    csvFile << "#mode,nbdeps,sleeptime,overhead-max,overhead-avg,insertion-max,insertion-avg\n";
+    csvFile << "mode,nbdeps,sleeptime,overhead-max,overhead-avg,insertion-max,insertion-avg\n";
 
     for(double sleepDuration = 0.00001 ; sleepDuration <= MaxTaskDuration ; sleepDuration *= 10){
         double maxOverheadPerTask = std::numeric_limits<double>::min();
