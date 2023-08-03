@@ -15,8 +15,9 @@
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "Compute/SpWorker.hpp"
 #include "Data/SpDataAccessMode.hpp"
+#include "SpAbstractScheduler.hpp"
 
-class SpHeterogeneousPrioScheduler{
+class SpHeterogeneousPrioScheduler : public SpAbstractScheduler{
     struct ComparePrio{
         bool operator()(const SpAbstractTask* lhs, const SpAbstractTask* rhs) const
         {
@@ -41,7 +42,7 @@ public:
     SpHeterogeneousPrioScheduler& operator=(const SpHeterogeneousPrioScheduler&) = delete;
     SpHeterogeneousPrioScheduler& operator=(SpHeterogeneousPrioScheduler&&) = delete;
 
-    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const{
+    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const final {
         // TO DO : need to figure out how to get rid of this mutex lock
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         if(wt == SpWorkerTypes::Type::CPU_WORKER) {
@@ -50,7 +51,7 @@ public:
         return static_cast<int>(gpuTaskQueue.size() + heterogeneousTaskQueue.size());
     }
 
-    int push(SpAbstractTask* newTask){
+    int push(SpAbstractTask* newTask) final {
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         const bool hasCpuCallable = newTask->hasCallableOfType(SpCallableType::CPU);
         const bool hasGpuCallable = newTask->hasCallableOfType(SpCallableType::CUDA)
@@ -68,7 +69,7 @@ public:
         return 1;
     }
     
-    int pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
+    int pushTasks(small_vector_base<SpAbstractTask*>& tasks)  final {
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         
         for(auto t : tasks) {
@@ -89,7 +90,7 @@ public:
         return int(tasks.size());
     }
 
-    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt){
+    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt) final {
         std::unique_lock<std::mutex> locker(mutexReadyTasks);
         std::priority_queue<SpAbstractTask*, small_vector<SpAbstractTask*>, ComparePrio >* queue = nullptr;
         

@@ -9,6 +9,7 @@
 #include <atomic>
 
 #include "Compute/SpWorker.hpp"
+#include "Scheduler/SpAbstractScheduler.hpp"
 #include "Scheduler/SpPrioScheduler.hpp"
 #include "Scheduler/SpSimpleScheduler.hpp"
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
@@ -23,18 +24,22 @@ class SpAbstractTaskGraph;
 class SpComputeEngine {
 
 private:
+#ifdef SPECX_COMPILE_WITH_CUDA
+    using DefaultScheduler = std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler>;
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    using DefaultScheduler = std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler>;
+#else
+    using DefaultScheduler = SpSimpleScheduler;
+#endif
+
     small_vector<std::unique_ptr<SpWorker>> workers;
     std::mutex ceMutex;
     std::condition_variable ceCondVar;
     std::mutex migrationMutex;
     std::condition_variable migrationCondVar;
-#ifdef SPECX_COMPILE_WITH_CUDA
-    std::conditional_t<SpConfig::CompileWithCuda, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
-#elif defined(SPECX_COMPILE_WITH_HIP)
-    std::conditional_t<SpConfig::CompileWithHip, SpHeterogeneousPrioScheduler, SpPrioScheduler> prioSched;
-#else
-    SpSimpleScheduler prioSched;
-#endif
+
+    std::unique_ptr<SpAbstractScheduler> prioSched;
+
     std::atomic<long int> nbWorkersToMigrate;
     std::atomic<long int> migrationSignalingCounter;
     SpWorkerTypes::Type workerTypeToMigrate;
@@ -155,7 +160,7 @@ private:
     }
     
     bool areThereAnyReadyTasksForWorkerType(SpWorkerTypes::Type wt) const {
-        return prioSched.getNbReadyTasksForWorkerType(wt) > 0;
+        return prioSched->getNbReadyTasksForWorkerType(wt) > 0;
     }
     
     bool areWorkersToMigrateOfType(SpWorkerTypes::Type inWt) {
@@ -163,7 +168,7 @@ private:
     }
     
     SpAbstractTask* getTaskForWorkerType(const SpWorkerTypes::Type wt) {
-        return prioSched.popForWorkerType(wt);
+        return prioSched->popForWorkerType(wt);
     }
     
     template <const bool updateTotalCounter, const bool updateAvailableCounter>
@@ -229,8 +234,9 @@ break;
     friend void SpWorker::doLoop(SpAbstractTaskGraph* atg);
 
 public:
-    explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers)
-    : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(), nbWorkersToMigrate(0),
+    explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers,
+                             std::unique_ptr<SpAbstractScheduler>&& inScheduler)
+        : workers(), ceMutex(), ceCondVar(), migrationMutex(), migrationCondVar(), prioSched(std::move(inScheduler)), nbWorkersToMigrate(0),
       migrationSignalingCounter(0),  workerTypeToMigrate(SpWorkerTypes::Type::CPU_WORKER), ceToMigrateTo(nullptr), nbAvailableCpuWorkers(0),
       totalNbCpuWorkers(0),
       #ifdef SPECX_COMPILE_WITH_CUDA
@@ -244,19 +250,28 @@ public:
         addWorkers(std::move(inWorkers));
     }
     
-    explicit SpComputeEngine() : SpComputeEngine(small_vector<std::unique_ptr<SpWorker>, 0>{}) {}
+    explicit SpComputeEngine() : SpComputeEngine(small_vector<std::unique_ptr<SpWorker>, 0>{},
+                          std::unique_ptr<SpAbstractScheduler>(new DefaultScheduler())) {}
+
+    explicit SpComputeEngine(std::unique_ptr<SpAbstractScheduler>&& inScheduler) :
+                            SpComputeEngine(small_vector<std::unique_ptr<SpWorker>, 0>{},
+                        std::move(inScheduler)) {}
+
+    explicit SpComputeEngine(small_vector_base<std::unique_ptr<SpWorker>>&& inWorkers)
+        : SpComputeEngine(std::move(inWorkers),
+                          std::unique_ptr<SpAbstractScheduler>(new DefaultScheduler())) {}
     
     ~SpComputeEngine() {
         stopIfNotAlreadyStopped();
     }
     
     void pushTask(SpAbstractTask* t) {
-        prioSched.push(t);
+        prioSched->push(t);
         wakeUpWaitingWorkers();
     }
     
     void pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
-        prioSched.pushTasks(tasks);
+        prioSched->pushTasks(tasks);
         wakeUpWaitingWorkers();
     }
     

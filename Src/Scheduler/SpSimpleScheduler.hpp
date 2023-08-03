@@ -12,10 +12,11 @@
 #include "Utils/small_vector.hpp"
 #include "Speculation/SpSpeculativeModel.hpp"
 #include "Compute/SpWorker.hpp"
+#include "SpAbstractScheduler.hpp"
 
 
 //! The runtime is the main component of specx.
-class SpSimpleScheduler{
+class SpSimpleScheduler : public SpAbstractScheduler{
     std::atomic<SpAbstractTask*> tasksReady;
     std::atomic<int> nbReadyTasks;
 
@@ -29,7 +30,7 @@ public:
     SpSimpleScheduler& operator=(const SpSimpleScheduler&) = delete;
     SpSimpleScheduler& operator=(SpSimpleScheduler&&) = delete;
 
-    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const{
+    int getNbReadyTasksForWorkerType(const SpWorkerTypes::Type wt) const final {
         if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             return nbReadyTasks;
         }
@@ -37,7 +38,7 @@ public:
         return 0;
     }
 
-    int push(SpAbstractTask* newTask){
+    int push(SpAbstractTask* newTask) final {
         int cpt = nbReadyTasks;
         while(!nbReadyTasks.compare_exchange_strong(cpt, cpt+1)){
         }
@@ -49,14 +50,14 @@ public:
         return 1;
     }
 
-    int pushTasks(small_vector_base<SpAbstractTask*>& tasks) {
+    int pushTasks(small_vector_base<SpAbstractTask*>& tasks)  final {
         for(auto tk : tasks){
             push(tk);
         }
         return int(tasks.size());
     }
 
-    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt){
+    SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt) final {
         if(wt == SpWorkerTypes::Type::CPU_WORKER) {
             while(true){
                 int ticket = nbReadyTasks;
