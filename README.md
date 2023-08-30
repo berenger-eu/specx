@@ -2,6 +2,9 @@
 [![coverage report](https://gitlab.inria.fr/bramas/specx/badges/master/coverage.svg)](https://bramas.gitlabpages.inria.fr/specx/)
 
 
+This work has been funded by the Inria ADT project SPETABARU-H, and
+the ANR National project AUTOSPEC (ANR-21-CE25-0009).
+
 # Introduction
 SPECX is a task-based runtime system.
 It shares several similarities with StarPU but is written in modern C++.
