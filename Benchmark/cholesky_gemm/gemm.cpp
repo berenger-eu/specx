@@ -87,11 +87,13 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         }
     }
 
+#ifdef SPECX_COMPILE_WITH_CUDA
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
             runtime.syncDataOnCpu(blocksC[i*nbBlocks+j]);
         }
     }
+#endif
 
     runtime.waitAllTasks();
 
@@ -106,6 +108,7 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 
     runtime.stopAllThreads();
     runtime.generateDot("/tmp/graph.dot");
+    runtime.generateTrace("/tmp/gemm-simu.svg", false);
 }
 
 int main(int argc, char** argv){

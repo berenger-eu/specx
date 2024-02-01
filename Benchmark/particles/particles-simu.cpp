@@ -215,8 +215,9 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
 
-    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticles+gridDim.x-1 ; idxTarget += nbThreads){
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticles);
 
         double tx;
@@ -309,8 +310,9 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
 
-    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticlesTgt+gridDim.x-1 ; idxTarget += nbThreads){
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticlesTgt);
 
         double tx;

@@ -230,7 +230,6 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #endif
 
     ce.stopIfNotAlreadyStopped();
-    tg.generateDot("/tmp/graph.dot");
 }
 
 int main(int argc, char** argv){
