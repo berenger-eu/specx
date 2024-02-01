@@ -42,19 +42,6 @@ if(SPECX_COMPILE_WITH_HIP)
     set(GPU_TARGETS "gfx900" CACHE STRING "GPU targets to compile for")
 endif()
 
-# check if compiling into source directories
-string(COMPARE EQUAL "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" insource)
-if(insource)
-  message(FATAL_ERROR "${PROJECT_NAME} requires an out of source build.\
-                      Remove CMakeCache.txt (alternatively you can remove all untracked files with\
-                      git clean -i, git clean -d or git clean -df). Then, create a subirectory outside\
-                      the specx source tree, cd into the directory you just created and then type\
-                      cmake <path to specx repository>.\
-                      Alternatively you can create a build directory at the root of the specx\
-                      source tree but then it is recommended to name it 'build' as it is the only\
-                      build directory name that is explicitly marked as to be ignored by Git.")
-endif(insource)
-
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
