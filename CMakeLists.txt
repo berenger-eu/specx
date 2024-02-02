@@ -47,15 +47,17 @@ INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
 set(SPECX_INCLUDE_DIR "")
 
-set(CMAKE_CXX_STANDARD 17)
+set(SPECX_CXX_STD 20)
+
+set(CMAKE_CXX_STANDARD ${SPECX_CXX_STD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 if(SPECX_COMPILE_WITH_CUDA)
     # TODO https://stackoverflow.com/questions/68950463/cmake-cuda-compiler-flag-is-false-despite-cuda-being-found
-	#set(CMAKE_CUDA_FLAGS "-std=c++17")
-	set(CMAKE_CUDA_STANDARD 17)
+	#set(CMAKE_CUDA_FLAGS "-std=c++${SPECX_CXX_STD}")
+	set(CMAKE_CUDA_STANDARD ${SPECX_CXX_STD})
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
 	SET(CMAKE_CUDA_EXTENSIONS OFF)
 	
@@ -157,7 +159,7 @@ endif()
 
 # Extra-flags
 SET( SPECX_EXTRA_CXX_FLAGS "-funroll-loops" CACHE STRING "These flags are used for all configurations"  )
-set(SPECX_CXX_FLAGS  "-std=c++17 ${SPECX_CXX_FLAGS} ${SPECX_EXTRA_CXX_FLAGS}")
+set(SPECX_CXX_FLAGS  "-std=c++${SPECX_CXX_STD} ${SPECX_CXX_FLAGS} ${SPECX_EXTRA_CXX_FLAGS}")
 
 # Options
 if(NOT SPECX_AS_SUBPROJECT)

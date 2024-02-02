@@ -16,6 +16,8 @@ class SpMap{
             KeyType key;
             ValueType value;
 
+            KKV(std::size_t inHkey, KeyType&& inKey, ValueType&& inValue)
+                : hkey(inHkey), key(std::forward<KeyType>(inKey)), value(std::forward<ValueType>(inValue)) {}
             KKV() = default;
             KKV(const KKV&) = default;
             KKV(KKV&&) = default;

@@ -178,11 +178,13 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
         }
      }
 
+#ifdef SPECX_COMPILE_WITH_CUDA
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
             runtime.syncDataOnCpu(blocks[i*nbBlocks+j]);
         }
     }
+#endif
 
     runtime.waitAllTasks();
 
