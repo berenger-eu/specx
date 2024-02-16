@@ -23,7 +23,7 @@
 class CLsimple{
     template <class ParamType>
     static ParamType Convert(const std::string& str, bool* outFlag = nullptr){
-        ParamType value;
+        ParamType value = ParamType();
         if(str.length() == 0){
             if(outFlag){
                 (*outFlag) = false;

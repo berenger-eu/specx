@@ -31,6 +31,10 @@ if(SPECX_COMPILE_WITH_CUDA)
       set(CMAKE_CUDA_ARCHITECTURES "75" CACHE STRING
           "Set CUDA target architecture" FORCE)
     endif()
+    
+    if($ENV{VERBOSE})  
+        message(STATUS "CMAKE_CUDA_ARCHITECTURES = ${CMAKE_CUDA_ARCHITECTURES}")
+    endif()
 endif()
 
 if(SPECX_COMPILE_WITH_HIP)
@@ -47,7 +51,11 @@ INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
 set(SPECX_INCLUDE_DIR "")
 
-set(SPECX_CXX_STD 20)
+if(SPECX_COMPILE_WITH_CUDA)
+    set(SPECX_CXX_STD 17)
+else()
+    set(SPECX_CXX_STD 20)
+endif()
 
 set(CMAKE_CXX_STANDARD ${SPECX_CXX_STD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
