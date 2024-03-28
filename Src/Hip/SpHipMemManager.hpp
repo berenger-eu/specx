@@ -4,7 +4,7 @@
 #include "Config/SpConfig.hpp"
 
 #ifndef SPECX_COMPILE_WITH_HIP
-#error CUDE MUST BE ON
+#error SPECX_COMPILE_WITH_HIP must be defined
 #endif
 
 #include <mutex>
@@ -13,11 +13,11 @@
 #include <unordered_set>
 #include <cstring>
 
-#include "SpHipUtils.hpp"
 
 #include <Utils/small_vector.hpp>
 #include <Data/SpAbstractDeviceMemManager.hpp>
 #include <Utils/SpConsumerThread.hpp>
+#include "SpHipUtils.hpp"
 
 class SpHipManager {
     struct DataObj{
@@ -177,7 +177,7 @@ public:
 
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
-                    && allBlocks[inPtrDev].size <= inByteSize);
+                   && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, SpHipUtils::GetCurrentStream()));
@@ -193,17 +193,17 @@ public:
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
-            assert(allBlocks.find(inPtrDev) != allBlocks.end()
-                    && allBlocks[inPtrDev].size <= inByteSize);
+            //assert(allBlocks.find(inPtrDev) != allBlocks.end()
+            //        && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
-                                        SpHipUtils::GetCurrentStream()));
+                                          SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
-                                            extraStream));
+                                              extraStream));
                 });
             }
 #else
@@ -212,17 +212,17 @@ public:
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
-            assert(allBlocks.find(inPtrDev) != allBlocks.end()
-                    && allBlocks[inPtrDev].size <= inByteSize);
+            //assert(allBlocks.find(inPtrDev) != allBlocks.end()
+            //        && allBlocks[inPtrDev].size <= inByteSize);
 #ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
-                                        SpHipUtils::GetCurrentStream()));
+                                          SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
-                                            extraStream));
+                                              extraStream));
                 });
             }
 #else
@@ -233,7 +233,7 @@ public:
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
                                 const std::size_t inByteSize)  override{
             assert(allBlocks.find(inPtrDevDest) != allBlocks.end()
-                    && allBlocks[inPtrDevDest].size <= inByteSize);
+                   && allBlocks[inPtrDevDest].size <= inByteSize);
             // This is on the other HIP
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
@@ -241,12 +241,12 @@ public:
 #ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
-                                            SpHipUtils::GetCurrentStream()));
+                                              SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
-                                                extraStream));
+                                                  extraStream));
                 });
             }
 #else

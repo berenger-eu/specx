@@ -163,59 +163,63 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         SpCudaManager::Unlock();
 #elif defined(SPECX_COMPILE_WITH_HIP) // SPECX_COMPILE_WITH_CUDA
         SpHipManager::Lock();
-       std::size_t extraHandlesOffset = 0;
+        std::size_t extraHandlesOffset = 0;
 
         SpUtils::foreach_in_tuple(
-        [&, this](auto index, auto&& scalarOrContainerData) -> void {
-            using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
+            [&, this](auto index, auto&& scalarOrContainerData) -> void {
+                using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
-            constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+                using CallDataType = decltype(std::get<index>(hipCallableArgs));
 
-            long int indexHh = 0;
+                long int indexHh = 0;
 
-            for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
-                SpDataHandle* h = nullptr;
+                for([[maybe_unused]] typename ScalarOrContainerType::HandleTypePtr ptr : scalarOrContainerData.getAllData()){
+                    SpDataHandle* h = nullptr;
 
-                if(indexHh == 0) {
-                    h = dataHandles[index];
-                } else {
-                    h = dataHandlesExtra[extraHandlesOffset];
-                    ++extraHandlesOffset;
-                }
-
-                h->lock();
-
-                if(ct == SpCallableType::CPU){
-                    const int cudaSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
-                    if(cudaSrc != -1){
-                        SpHipManager::Managers[cudaSrc].syncExtraStream();
+                    if(indexHh == 0) {
+                        h = dataHandles[index];
+                    } else {
+                        h = dataHandlesExtra[extraHandlesOffset];
+                        ++extraHandlesOffset;
                     }
-                    if(accessMode != SpDataAccessMode::READ){
-                        h->setCpuOnlyValid(SpHipManager::Managers);
+
+                    h->lock();
+
+                    if(ct == SpCallableType::CPU){
+                        const int cudaSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
+                        if(cudaSrc != -1){
+                            SpHipManager::Managers[cudaSrc].syncExtraStream();
+                        }
+                        if(accessMode != SpDataAccessMode::READ){
+                            h->setCpuOnlyValid(SpHipManager::Managers);
+                        }
                     }
-                }
-                else if(ct == SpCallableType::HIP){
-                    const int hipId = SpHipUtils::CurrentHipId();
-                    auto dataObj = h->getDeviceData(SpHipManager::Managers, hipId);
-                    if(accessMode != SpDataAccessMode::READ){
-                        h->setGpuOnlyValid(SpHipManager::Managers, hipId);
+                    else if(ct == SpCallableType::HIP){
+                        const int hipId = SpHipUtils::CurrentHipId();
+                        auto dataObj = h->getDeviceData(SpHipManager::Managers, hipId);
+                        if(accessMode != SpDataAccessMode::READ){
+                            h->setGpuOnlyValid(SpHipManager::Managers, hipId);
+                        }
+                        else{
+                            SpHipUtils::SyncCurrentStream();
+                        }
+                        SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
+                        std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
+                        if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
+                            std::get<index>(hipCallableArgs).setDataDescriptor(h->getRawPtr());
+                        }
+                        else{
+                            assert(dataObj.viewPtr == nullptr);
+                        }
                     }
                     else{
-                        SpHipUtils::SyncCurrentStream();
+                        assert(0);
                     }
-                    SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
-                    std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
-                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
-                        std::get<index>(cudaCallableArgs).setDataDescriptor(h->getRawPtr());
-                    }
-                }
-                else{
-                    assert(0);
-                }
 
-                h->unlock();
-            }
-        }, this->getDataDependencyTupleRef());
+                    h->unlock();
+                }
+            }, this->getDataDependencyTupleRef());
 
         SpHipManager::Unlock();
 #endif // SPECX_COMPILE_WITH_HIP
