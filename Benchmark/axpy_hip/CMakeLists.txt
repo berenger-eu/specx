@@ -19,6 +19,9 @@ file(
     ./*.cpp
     )
 
+set_source_files_properties(axpy_hip.cpp PROPERTIES LANGUAGE ${GPU_RUNTIME})
+include_directories(/opt/rocm-5.7.2/hip/include)
+
 
 # Adding the project sources dir as an include dir
 INCLUDE_DIRECTORIES(
@@ -39,9 +42,16 @@ foreach(exec ${source_tests_files})
             MESSAGE(STATUS "Benchmark -- Add ${execname}")
         endif()
 
-        if(SPECX_COMPILE_WITH_CUDA)
-            set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
-        endif()
+
+        #if(SPECX_COMPILE_WITH_CUDA)
+        #    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+        #endif()
+
+
+        #if(SPECX_COMPILE_WITH_HIP)
+        #    set_source_files_properties(${exec} PROPERTIES LANGUAGE AMD)
+        #endif()
+
         add_executable(
 		        ${execname}
 		        ${exec}
@@ -52,6 +62,8 @@ foreach(exec ${source_tests_files})
             specx
             ${SPECX_LIBRARIES}
             )
-    endif()
+        endif()
+
+
 endforeach(exec)
 

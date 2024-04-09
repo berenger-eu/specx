@@ -36,6 +36,7 @@ else()
     foreach(src_file ${source_lib_files}) 
         message(STATUS "${src_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1")
         set_source_files_properties(${src_file} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1) 
+        message(${src_file})
     endforeach()
 endif()
 

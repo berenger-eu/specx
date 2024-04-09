@@ -9,6 +9,7 @@
 #include "hip/hip_runtime.h"
 #include "hip/hip_runtime_api.h"
 
+
 #define HIP_ASSERT(X)\
 {\
     hipError_t ___resHip = (X);\
@@ -77,11 +78,31 @@ public:
     static int GetNbDevices(){
         int num;
         HIP_ASSERT(hipGetDeviceCount(&num));
+        /*
+        if(getenv("SPECX_NB_HIP_GPUS")){
+            std::istringstream iss(getenv("SPECX_NB_HIP_GPUS"),std::istringstream::in);
+            int nbGpus = -1;
+            iss >> nbGpus;
+            if(iss.eof() ) return std::min(nbGpus, num);
+        }
+        */
+
         return num;
     }
 
     static int GetDefaultNbStreams(){
-        return 4;
+        
+        /*
+        if(getenv("SPECX_NB_HIP_STREAMS")){
+            std::istringstream iss(getenv("SPECX_NB_HIP_STREAMS"),std::istringstream::in);
+            int nbStreams = -1;
+            iss >> nbStreams;
+            if(iss.eof() ) return nbStreams;
+        }
+        */
+        
+        //return 4;
+        return 1;
     }
 
     static void PrintDeviceName(const int hipId){

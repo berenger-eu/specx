@@ -56,6 +56,7 @@ struct Vector{
         NumType* doubleDevicePtr = reinterpret_cast<NumType*>(devicePtr);
         mover.copyDeviceToHost(data.data(), doubleDevicePtr, sizeof(NumType)*data.size());
     }
+
 };
 
 
@@ -72,6 +73,9 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 
 
 void BenchmarkTest(int argc, char** argv){
+//./axpy --sz=50 --th=256
+
+
     CLsimple args("Axpy", argc, argv);
 
     args.addParameterNoArg({"help"}, "help");
@@ -99,6 +103,7 @@ void BenchmarkTest(int argc, char** argv){
     const float a = 2;
 
 #ifdef SPECX_COMPILE_WITH_CUDA
+    std::cout<<"In Cuda Part..."<<"\n";
     SpCudaUtils::PrintInfo();
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
 #else
@@ -108,6 +113,7 @@ void BenchmarkTest(int argc, char** argv){
 
     tg.computeOn(ce);
 
+/*
     tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
 #ifndef SPECX_COMPILE_WITH_CUDA
             SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
@@ -127,7 +133,30 @@ void BenchmarkTest(int argc, char** argv){
 #endif
             );
 
+*/
+
+    tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
 #ifdef SPECX_COMPILE_WITH_CUDA
+            SpCuda([a, nbthreads](SpDeviceDataView<Vector<float>> paramZ,
+                       const SpDeviceDataView<const Vector<float>> paramX,
+                       const SpDeviceDataView<const Vector<float>> paramY) {
+                const int size = paramZ.data().getSize();
+                const int nbBlocks = (size + nbthreads-1)/nbthreads;
+                cu_axpy<float><<<nbBlocks, nbthreads,0,SpCudaUtils::GetCurrentStream()>>>
+                    (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
+            })
+#else
+            SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
+                for(int idx = 0 ; idx < int(tz.data.size()) ; ++idx){
+                    tz.data[idx] = ta*tx.data[idx]*ty.data[idx];
+                }
+            })
+#endif
+            );
+
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+    std::cout<<"In Cuda Part 3..."<<"\n";
     tg.task(SpWrite(z),
     SpCpu([](Vector<float>&) {
     })
@@ -138,6 +167,23 @@ void BenchmarkTest(int argc, char** argv){
 
     std::cout << "Generate trace ./axpy-simu.svg" << std::endl;
     tg.generateTrace("./axpy-simu.svg", false);
+
+
+    for(int k=0;k<size;k++) {
+        std::cout<<x.data[k];
+    } 
+    std::cout<<"\n";
+    for(int k=0;k<size;k++) {
+        std::cout<<y.data[k];
+    } 
+    std::cout<<"\n";
+    for(int k=0;k<size;k++) {
+        std::cout<<z.data[k];
+    } 
+    std::cout<<"\n";
+
+
+    std::cout<<"Finished..."<<"\n";
 }
 
 

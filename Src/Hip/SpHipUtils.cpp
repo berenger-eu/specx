@@ -25,3 +25,4 @@ void SpHipUtils::SyncCurrentStream(){
     assert(CurrentWorkerIsHip());
     return SpWorker::getWorkerForThread()->getHipData().synchronize();
 }
+

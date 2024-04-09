@@ -161,7 +161,8 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
         }, this->getDataDependencyTupleRef());
 
         SpCudaManager::Unlock();
-#elif defined(SPECX_COMPILE_WITH_HIP) // SPECX_COMPILE_WITH_CUDA
+
+#elif defined(SPECX_COMPILE_WITH_HIP) // SPECX_COMPILE_WITH_HIP
         SpHipManager::Lock();
        std::size_t extraHandlesOffset = 0;
 
@@ -170,6 +171,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             using ScalarOrContainerType = std::remove_reference_t<decltype(scalarOrContainerData)>;
 
             constexpr SpDataAccessMode accessMode = ScalarOrContainerType::AccessMode;
+            using CallDataType = decltype(std::get<index>(hipCallableArgs));
 
             long int indexHh = 0;
 
@@ -183,12 +185,13 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     ++extraHandlesOffset;
                 }
 
+
                 h->lock();
 
                 if(ct == SpCallableType::CPU){
-                    const int cudaSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
-                    if(cudaSrc != -1){
-                        SpHipManager::Managers[cudaSrc].syncExtraStream();
+                    const int hipSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
+                    if(hipSrc != -1){
+                        SpHipManager::Managers[hipSrc].syncExtraStream();
                     }
                     if(accessMode != SpDataAccessMode::READ){
                         h->setCpuOnlyValid(SpHipManager::Managers);
@@ -203,11 +206,24 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     else{
                         SpHipUtils::SyncCurrentStream();
                     }
+
                     SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
                     std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
+                    if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(hipCallableArgs))>::value){
+                            std::get<index>(hipCallableArgs).setDataDescriptor(h->getRawPtr());
+                    }
+                    else{
+                        assert(dataObj.viewPtr == nullptr);
+                    }
+
+
+                    /*
                     if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
                         std::get<index>(cudaCallableArgs).setDataDescriptor(h->getRawPtr());
                     }
+                    */
+
+
                 }
                 else{
                     assert(0);

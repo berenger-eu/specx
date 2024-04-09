@@ -6,6 +6,11 @@ cmake_minimum_required (VERSION 3.20 FATAL_ERROR)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
+set(SPECX_COMPILE_WITH_HIP ON)
+#cmake .. -DSPECX_COMPILE_WITH_HIP=ON
+
+message(${CMAKE_CURRENT_SOURCE_DIR})
+
 #===========================================================================
 # Project Declaration
 #===========================================================================
@@ -15,6 +20,7 @@ set(SPECX_BINARY_DIR ${specx_BINARY_DIR} )
 
 include(CheckLanguage)
 check_language(CUDA)
+
 
 OPTION(SPECX_COMPILE_WITH_CUDA "Set to on to compile tasks with CUDA callables" ${CMAKE_CUDA_COMPILER})
 OPTION(SPECX_COMPILE_WITH_HIP "Set to on to compile tasks with HIP callables" ${CMAKE_HIP_COMPILER})
@@ -37,29 +43,87 @@ if(SPECX_COMPILE_WITH_CUDA)
     endif()
 endif()
 
+
 if(SPECX_COMPILE_WITH_HIP)
+    MESSAGE("{SPECX_COMPILE_WITH_HIP}")
+    #include_directories(/opt/rocm/hip/include)
+    include_directories(/opt/rocm-5.7.2/hip/include)
+
     # Search for rocm in common locations
-    list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+    #list(APPEND CMAKE_PREFIX_PATH /opt/rocm/hip /opt/rocm)
+    list(APPEND CMAKE_PREFIX_PATH /opt/rocm-5.7.2 /opt/rocm-5.7.2)
     # Find hip
     find_package(hip)
     # Set the GPU to compile for
-    set(GPU_TARGETS "gfx900" CACHE STRING "GPU targets to compile for")
+    #set(GPU_TARGETS "gfx900" CACHE STRING "GPU targets to compile for")
+
+    set(GPU_TARGETS "gfx900:gfx906:gfx1032;gfx1035" CACHE STRING "GPU targets to compile for")
+    #set(GPU_TARGETS "gfx906" CACHE STRING "GPU targets to compile for")
 endif()
+
 
 # Adds the CMAKE_DEPENDENT_OPTION command
 INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
 set(SPECX_INCLUDE_DIR "")
 
-if(SPECX_COMPILE_WITH_CUDA)
-    set(SPECX_CXX_STD 17)
-else()
-    set(SPECX_CXX_STD 20)
-endif()
+#if(SPECX_COMPILE_WITH_CUDA)
+#    set(SPECX_CXX_STD 17)
+#else()
+#    set(SPECX_CXX_STD 20)
+#endif()
+
+
+#if(SPECX_COMPILE_WITH_HIP)
+#    set(SPECX_CXX_STD 17)
+#else()
+#    set(SPECX_CXX_STD 20)
+#endif()
+
+set(SPECX_CXX_STD 20)
+
+
 
 set(CMAKE_CXX_STANDARD ${SPECX_CXX_STD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+
+if(SPECX_COMPILE_WITH_HIP)
+    set(GPU_RUNTIME "HIP" CACHE STRING "Switches between HIP and CUDA")
+    set(GPU_RUNTIMES "HIP" "CUDA")
+    set_property(CACHE GPU_RUNTIME PROPERTY STRINGS ${GPU_RUNTIMES})
+
+    if(NOT "${GPU_RUNTIME}" IN_LIST GPU_RUNTIMES)
+        set(ERROR_MESSAGE "GPU_RUNTIME is set to \"${GPU_RUNTIME}\".\nGPU_RUNTIME must be either HIP or CUDA.")
+        message(FATAL_ERROR ${ERROR_MESSAGE})
+    endif()
+
+    enable_language(${GPU_RUNTIME})
+    set(CMAKE_${GPU_RUNTIME}_STANDARD 17)
+    set(CMAKE_${GPU_RUNTIME}_EXTENSIONS OFF)
+    set(CMAKE_${GPU_RUNTIME}_STANDARD_REQUIRED ON)
+ 
+    #set(ROCM_ROOT "/opt/rocm" CACHE PATH "Root directory of the ROCm installation")
+    set(ROCM_ROOT "/opt/rocm-5.7.2" CACHE PATH "Root directory of the ROCm installation")
+
+    list(APPEND CMAKE_PREFIX_PATH "${ROCM_ROOT}")
+    #set(include_dirs "../../Common")
+
+    if(GPU_RUNTIME STREQUAL "HIP")
+        list(APPEND include_dirs "${ROCM_ROOT}/include")
+        MESSAGE(${ROCM_ROOT}/include)
+    endif()
+
+    add_compile_definitions( __HIP_PLATFORM_AMD__ )
+    #add_compile_definitions( __HIP_PLATFORM_CUDA__ )
+
+    
+
+    list(APPEND SPECX_LIBRARIES hip::device hip::host)  
+    MESSAGE("{OK_HIP}")
+endif()
+
 
 
 if(SPECX_COMPILE_WITH_CUDA)
@@ -88,10 +152,6 @@ if(SPECX_COMPILE_WITH_CUDA)
     
 endif()
 
-# if(SPECX_COMPILE_WITH_HIP)
-#     # https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation_new.html
-#     list(APPEND SPECX_LIBRARIES hip::device hip::host)    
-# endif()
 
 OPTION(SPECX_COMPILE_WITH_MPI "Set to on to use MPI" OFF)
 if(SPECX_COMPILE_WITH_MPI)
@@ -214,6 +274,8 @@ configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/Src/Config/SpConfig.hpp.cmake
 #===========================================================================
 # Build lib
 #===========================================================================
+
+MESSAGE("{BUILS LIB}")
 add_subdirectory(Src)
 
 
@@ -223,30 +285,37 @@ if(NOT SPECX_JUST_LIB)
     #===========================================================================
     # Build unit tests
     #===========================================================================
-    enable_testing()
-    add_subdirectory(UTests)
-    add_subdirectory(UTests/ShouldNotCompile)
-    
-    if(SPECX_COMPILE_WITH_CUDA)
-		add_subdirectory(UTests/Cuda)
-	endif()
-	
-    if(SPECX_COMPILE_WITH_HIP)
-		add_subdirectory(UTests/Hip)
-	endif()
-	
-    if(SPECX_COMPILE_WITH_MPI)
-		add_subdirectory(UTests/MPI)
-	endif()
+    if (FALSE)
+        enable_testing()
+        add_subdirectory(UTests)
+        add_subdirectory(UTests/ShouldNotCompile)
+        
+        if(SPECX_COMPILE_WITH_CUDA)
+            add_subdirectory(UTests/Cuda)
+        endif()
+        
+        if(SPECX_COMPILE_WITH_HIP)
+            add_subdirectory(UTests/Hip)
+        endif()
+        
+        if(SPECX_COMPILE_WITH_MPI)
+            add_subdirectory(UTests/MPI)
+        endif()
+    endif()
 	
     #===========================================================================
     # Build examples
     #===========================================================================
-    add_subdirectory(Examples)
+    if (FALSE)
+        add_subdirectory(Examples)
+    endif()
     #===========================================================================
     # Build benchmark
     #===========================================================================
-    add_subdirectory(Benchmark)
+    if (TRUE)
+        add_subdirectory(Benchmark)
+    endif()
+
 endif()
 
 #===========================================================================
