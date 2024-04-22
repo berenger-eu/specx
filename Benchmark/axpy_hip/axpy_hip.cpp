@@ -1,3 +1,11 @@
+#pragma GCC diagnostic warning "-Wunused-result"
+#pragma clang diagnostic ignored "-Wunused-result"
+
+#pragma GCC diagnostic warning "-Wunknown-attributes"
+#pragma clang diagnostic ignored "-Wunknown-attributes"
+
+
+
 ///////////////////////////////////////////////////////////////////////////
 // Specx - Berenger Bramas MPCDF - 2017
 // Under LGPL Licence, please you must read the LICENCE file.
@@ -7,7 +15,9 @@
 #include <chrono>
 #include <iostream>
 
-#include <clsimple.hpp>
+//#include <clsimple.hpp>
+
+
 
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
@@ -22,11 +32,6 @@
 #include "hip/hip_runtime.h"
 
  
-#define SPECX_COMPILE_WITH_HIP
-
-
-
-
 
 #ifdef NDEBUG
 #define HIP_ASSERT(x) x
@@ -93,37 +98,10 @@ struct Vector{
 
 
 
-class MemmovClassExample{
-    int data[10];
-public:
-    std::size_t memmovNeededSize() const{
-        return 10*sizeof(int);
-    }
-
-    template <class DeviceMemmov>
-    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10*sizeof(int));
-        mover.copyHostToDevice(reinterpret_cast<int*>(devicePtr), &data[0], 10*sizeof(int));
-    }
-
-    template <class DeviceMemmov>
-    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10*sizeof(int));
-        mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr), 10*sizeof(int));
-    }
-
-    struct DataDescr{
-        DataDescr(){}
-    };
-
-    auto getDeviceDataDescription() const{
-        return DataDescr();
-    }
-};
 
 
  
-#ifdef SPECX_COMPILE_WITH_HIP
+
 template <class NumType>
 __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 {
@@ -142,7 +120,11 @@ __global__ void inc_var(int* ptr, int size){
     }
 }
 
-
+__global__ void my_AMD(int* ptr, int size){
+   int i = hipBlockDim_x*hipBlockIdx_x+hipThreadIdx_x;
+   if (i < size)
+        ptr[i]=9;
+}
 
 
 __global__ void vector_add(double* __restrict__ a, const double* __restrict__ b, const double* __restrict__ c, int width, int height) 
@@ -155,21 +137,7 @@ __global__ void vector_add(double* __restrict__ a, const double* __restrict__ b,
       }
   }
 
-#if 0
-__kernel__ void vector_add(double* a, const double* b, const double* c, int width, int height) {
- 
-  int x = blockDimX * blockIdx.x + threadIdx.x;
-  int y = blockDimY * blockIdy.y + threadIdx.y;
 
-  int i = y * width + x;
-  if ( i < (width * height)) {
-    a[i] = b[i] + c[i];
-  }
-}
-#endif
-
-
-#endif
 
 
 void check_solution(double* a_in,double* b_in,double* c_in,int nb)
@@ -190,9 +158,11 @@ void write_vector(char *ch,double* v,int nb)
 }
 
 
+
  
 void Test001()
 {
+    /*
     double* hostCpu_A;
     double* hostCpu_B;
     double* hostCpu_C;
@@ -246,12 +216,24 @@ void Test001()
     free(hostCpu_A);
     free(hostCpu_B);
     free(hostCpu_C);
+    */
 
 }
 
 
-void Test002(){
+void Test002A() {
+
+        hipDeviceProp_t devProp;
+        hipGetDeviceProperties(&devProp, 0);
+
+        std::cout << "Device name " << devProp.name << std::endl;
+
+
         SpHipUtils::PrintInfo();
+
+        std::cout<<"nbCpuWorkers="<<SpUtils::DefaultNumThreads()<<"\n";
+        std::cout<<"GetDefaultNbStreams="<<SpHipUtils::GetDefaultNbStreams()<<"\n";       
+        std::cout<<"GetNbDevices="<<SpHipUtils::GetNbDevices()<<"\n";
 
         /*
         TeamOfCpuHipWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
@@ -259,75 +241,14 @@ void Test002(){
                                              int nbHipWorkers = SpHipUtils::GetNbDevices()) 
         */
 
-        //SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
-        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(),SpHipUtils::GetDefaultNbStreams(),SpHipUtils::GetNbDevices()));
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(),1,SpHipUtils::GetNbDevices()));
         SpTaskGraph tg;
-        std::vector<int> a(100,0);
-        std::vector<int> b(100,0);
+        int nx=10;
+        std::vector<int> a(nx,0);
 
-        static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,
-                      "should be stdvec");
+        const int block_size=SpUtils::DefaultNumThreads();
+        int grid_size=(nx+block_size-1)/block_size;
 
-        tg.computeOn(ce);
-
-        tg.task(SpRead(a),
-            SpHip([]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
-            })
-        );
-
-        tg.task(SpWrite(a),
-            SpHip([](SpDeviceDataView<std::vector<int>> paramA) {
-                inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
-                                                                   paramA.nbElements());
-
-                std::this_thread::sleep_for(std::chrono::seconds(2));
-            })
-        );
-
-        tg.task(SpWrite(b),
-            SpHip([](SpDeviceDataView<std::vector<int>> paramB) {
-                inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramB.array(),
-                    paramB.nbElements());
-            })
-        );
-
-        if (false) {
-            tg.task(SpRead(a), SpWrite(b),
-                SpCpu([](const std::vector<int>& paramA, std::vector<int>& paramB) {
-                    assert(paramA.size() == paramB.size());
-                    for(int idx = 0 ; idx < int(paramA.size()) ; ++idx){
-                        paramB[idx] = paramA[idx] + paramB[idx];
-                    }
-                })
-            );
-
-            tg.task(SpWrite(a),
-                SpCpu([](std::vector<int>& paramA) {
-                    for(auto& va : paramA){
-                        va++;
-                    }
-                }),
-                SpHip([](SpDeviceDataView<std::vector<int>> paramA) {
-                    inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
-                                                                    paramA.nbElements());
-                })
-            );
-        }    
-              
-        tg.task(SpWrite(a), SpWrite(b),
-            SpCpu([](std::vector<int>& paramA, std::vector<int>& paramB) {
-                if (false) {
-                    for(auto& va : paramA){
-                        va++;
-                    }
-                    for(auto& vb : paramB){
-                        vb++;
-                    }
-                }
-            })
-        );
-
-        tg.waitAllTasks();
 
         std::cout<<"va"<<"\n";
         for(auto& va : a){
@@ -335,14 +256,52 @@ void Test002(){
         }
         std::cout<<"\n";
 
-        std::cout<<"vb"<<"\n";
-        for(auto& vb : b){
-            std::cout<<vb;
+
+        //SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(grid_size,block_size,3));
+        //SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(),SpHipUtils::GetDefaultNbStreams(),SpHipUtils::GetNbDevices()));
+
+        static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,"should be stdvec");
+
+        tg.computeOn(ce);
+
+
+        tg.task(SpRead(a),
+            SpHip([&]([[maybe_unused]] SpDeviceDataView<const std::vector<int>> paramA) {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::cout<<"NbElements="<<paramA.nbElements()<<"\n";
+                //std::cout<<"Array="<<paramA.array()<<"\n";
+            })
+        );
+
+
+        tg.task(SpWrite(a),
+            SpHip([&](SpDeviceDataView<std::vector<int>> paramA) {
+                //inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),paramA.nbElements());
+                std::cout<<"NbElements="<<paramA.nbElements()<<"\n";
+                std::cout<<"Array="<<paramA.array()<<"\n";
+                hipLaunchKernelGGL(my_AMD,grid_size,block_size,0,SpHipUtils::GetCurrentStream(),paramA.array(),paramA.nbElements());
+            })            
+        );
+
+
+        tg.task(SpWrite(a),
+            SpCpu([](std::vector<int>& paramA) {
+            })
+        );
+
+        tg.waitAllTasks();
+
+
+        std::cout<<"va"<<"\n";
+        for(auto& va : a){
+            std::cout<<va;
         }
         std::cout<<"\n";
-    }
- 
- 
+};
+
+
+
+ /*
 void BenchmarkTest(int argc, char** argv){
 //./axpy --sz=50 --th=256
 
@@ -372,48 +331,44 @@ void BenchmarkTest(int argc, char** argv){
     z.data.resize(size, 0);
     const float a = 2;
 
-
-    /*
-    std::cout<<"Vector x\n";
-    for(int k=0;k<size;k++) {
-        std::cout<<x.data[k];
-    } 
-    std::cout<<"\n";
-    
-    std::cout<<"Vector y\n";
-    for(int k=0;k<size;k++) {
-        std::cout<<y.data[k];
-    } 
-    std::cout<<"\n";
-    */
-
-#ifdef SPECX_COMPILE_WITH_HIP
     std::cout<<"In HIP Part..."<<"\n";
     SpHipUtils::PrintInfo();
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers());
-#else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
-#endif
+
+    static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,
+                      "should be stdvec");
+
     SpTaskGraph tg;
     tg.computeOn(ce);
     tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
-#ifdef SPECX_COMPILE_WITH_HIP
+
             SpHip([a, nbthreads](SpDeviceDataView<Vector<float>> paramZ,
                        const SpDeviceDataView<const Vector<float>> paramX,
                        const SpDeviceDataView<const Vector<float>> paramY) {
-                const int size = paramZ.data().getSize();
+
+                std::cout<<"HELLO\n";
+                std::cout<<"NbElements="<<paramZ.getRawSize()<<"\n";
+                std::cout<<"NbElements="<<paramX.getRawSize()<<"\n";
+
+                //const int size = paramZ.data().getSize();
+                //std::cout<<"NbElements="<<size<<"\n";
+                const int size = 100;
+                
                 const int nbBlocks = (size + nbthreads-1)/nbthreads;
-                cu_axpy<float>
-                <<<nbBlocks, nbthreads,0,SpHipUtils::GetCurrentStream()>>>
-                (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
+
+                //cu_axpy<float>
+                //<<<nbBlocks, nbthreads,0,SpHipUtils::GetCurrentStream()>>>
+                //(size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
+
+                hipLaunchKernelGGL(cu_axpy<float>,nbBlocks, nbthreads,0,SpHipUtils::GetCurrentStream(),
+                 size, a,
+                 (float*)paramX.getRawPtr(), 
+                 (float*)paramY.getRawPtr(), 
+                 (float*)paramZ.getRawPtr()
+                );
+
             })
-#else
-            SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
-                for(int idx = 0 ; idx < int(tz.data.size()) ; ++idx){
-                    tz.data[idx] = ta*tx.data[idx]*ty.data[idx];
-                }
-            })
-#endif
+
             );
 
 
@@ -438,7 +393,7 @@ void BenchmarkTest(int argc, char** argv){
     std::cout<<"\n";
 
 
-/**/
+
 
 #ifdef SPECX_COMPILE_WITH_HIP
     std::cout<<"In HIP Part 3..."<<"\n";
@@ -455,15 +410,79 @@ void BenchmarkTest(int argc, char** argv){
     //tg.generateTrace("./axpy-simu.svg", false);
 
 }
+*/
+
+/*
+class MemmovClassExample{
+public:
+    std::size_t memmovNeededSize() const{
+        return 10;
+    }
+
+    template <class DeviceMemmov>
+    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == 10);
+    }
+
+    struct View{
+        View(){}
+        View(void* devicePtr, std::size_t size){}
+    };
+    using DeviceDataType = View;
+};
+*/
+
+
+/*
+void TestMemMove()
+{
+    
+        SpHipUtils::PrintInfo();
+
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
+        SpTaskGraph tg;
+        tg.computeOn(ce);
+
+        static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,
+                      "should be memmov");
+
+        MemmovClassExample obj;
+
+        
+        tg.task(SpRead(obj),
+            SpHip([]([[maybe_unused]] SpDeviceDataView<const MemmovClassExample> objv) {
+            })
+        );
+        
+
+        tg.task(SpWrite(obj),
+            SpHip([](SpDeviceDataView<MemmovClassExample> objv) {
+            })
+        );
 
 
 
-
+        tg.waitAllTasks(); 
+    }
+*/
 
 
 
 int main(int argc, char** argv){
 
+
+    //TestMemMove();
+
+    //BenchmarkTest(argc, argv);
+
+    Test002A();
+
+/*
     std::cout<<"Test 001"<<"\n";
     Test001();
 
@@ -481,6 +500,9 @@ int main(int argc, char** argv){
 
     std::cout<<"\n";
     std::cout<<"Finished..."<<"\n";
+*/
+
+
 
     return 0;
 }

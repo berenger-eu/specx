@@ -100,9 +100,7 @@ public:
             if(iss.eof() ) return nbStreams;
         }
         */
-        
-        //return 4;
-        return 1;
+        return 4;
     }
 
     static void PrintDeviceName(const int hipId){

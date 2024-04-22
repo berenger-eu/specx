@@ -77,13 +77,14 @@ private:
                 case SpWorkerTypes::Type::CPU_WORKER:
                     return compute(totalNbCpuWorkers, nbAvailableCpuWorkers, allowBusyWorkersToBeDetached, maxCount);
                     #ifdef SPECX_COMPILE_WITH_CUDA
-                case SpWorkerTypes::Type::CUDA_WORKER:
-                    return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
-                case SpWorkerTypes::Type::HIP_WORKER:
-                     return compute(totalNbHipWorkers, nbAvailableHipWorkers, allowBusyWorkersToBeDetached, maxCount);
-#endif
+                        case SpWorkerTypes::Type::CUDA_WORKER:
+                        return compute(totalNbCudaWorkers, nbAvailableCudaWorkers, allowBusyWorkersToBeDetached, maxCount);
+                    #endif
+
+                    #ifdef SPECX_COMPILE_WITH_HIP
+                        case SpWorkerTypes::Type::HIP_WORKER:
+                        return compute(totalNbHipWorkers, nbAvailableHipWorkers, allowBusyWorkersToBeDetached, maxCount);
+                    #endif
                 default:
                     return static_cast<long int>(0);
             }
@@ -183,7 +184,7 @@ private:
                 }
                 break;
                 #ifdef SPECX_COMPILE_WITH_CUDA
-            case SpWorkerTypes::Type::CUDA_WORKER:
+                case SpWorkerTypes::Type::CUDA_WORKER:
                 if constexpr(updateTotalCounter) {
                     totalNbCudaWorkers += addend;
                 }
@@ -192,18 +193,18 @@ private:
                     nbAvailableCudaWorkers += addend;
                 }
                 break;
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
-case SpWorkerTypes::Type::HIP_WORKER:
-if constexpr(updateTotalCounter) {
-    totalNbHipWorkers += addend;
-}
+                #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                case SpWorkerTypes::Type::HIP_WORKER:
+                if constexpr(updateTotalCounter) {
+                    totalNbHipWorkers += addend;
+                }
 
-if constexpr(updateAvailableCounter) {
-    nbAvailableHipWorkers += addend;
-}
-break;
-#endif
+                if constexpr(updateAvailableCounter) {
+                    nbAvailableHipWorkers += addend;
+                }
+                break;
+                #endif
             default:
                 break;
         }
@@ -241,10 +242,10 @@ public:
       totalNbCpuWorkers(0),
       #ifdef SPECX_COMPILE_WITH_CUDA
       nbAvailableCudaWorkers(0), totalNbCudaWorkers(0),
-  #endif
-  #ifdef SPECX_COMPILE_WITH_HIP
-  nbAvailableHipWorkers(0), totalNbHipWorkers(0),
-#endif
+      #endif
+      #ifdef SPECX_COMPILE_WITH_HIP
+      nbAvailableHipWorkers(0), totalNbHipWorkers(0),
+      #endif
       hasBeenStopped(false),
       nbWaitingWorkers(0){
         addWorkers(std::move(inWorkers));

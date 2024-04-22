@@ -19,8 +19,15 @@ file(
     ./*.cpp
     )
 
+#include_directories(/home/u2/lemoine/Specx20/specx_HIP/Benchmark)
+#include_directories(/home/u2/lemoine/Specx20/specx_HIP/build/Src) 
+#include_directories(/home/u2/lemoine/Specx20/specx_HIP/Src) 
+
+
 set_source_files_properties(axpy_hip.cpp PROPERTIES LANGUAGE ${GPU_RUNTIME})
 include_directories(/opt/rocm-5.7.2/hip/include)
+
+
 
 
 # Adding the project sources dir as an include dir
@@ -48,9 +55,9 @@ foreach(exec ${source_tests_files})
         #endif()
 
 
-        #if(SPECX_COMPILE_WITH_HIP)
-        #    set_source_files_properties(${exec} PROPERTIES LANGUAGE AMD)
-        #endif()
+        if(SPECX_COMPILE_WITH_HIP)
+            set_source_files_properties(${exec} PROPERTIES LANGUAGE HIP)
+        endif()
 
         add_executable(
 		        ${execname}

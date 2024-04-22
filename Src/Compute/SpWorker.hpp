@@ -82,12 +82,12 @@ private:
             case SpWorkerTypes::Type::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
-case SpWorkerTypes::Type::HIP_WORKER:
-task->execute(SpCallableType::HIP);
-break;
-#endif
+            #endif
+            #ifdef SPECX_COMPILE_WITH_HIP
+                case SpWorkerTypes::Type::HIP_WORKER:
+                task->execute(SpCallableType::HIP);
+                break;
+            #endif
             default:
                 assert(false && "Worker is of unknown type.");
         }

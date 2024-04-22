@@ -100,14 +100,14 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
 						execute(task);
 						atg->postTaskExecution(task, *this);
                     }
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
+                    #endif
+                    #ifdef SPECX_COMPILE_WITH_HIP
                     else if(workerType == SpWorkerTypes::Type::HIP_WORKER) {
                         atg->preTaskExecution(task, *this);
                         execute(task);
                         atg->postTaskExecution(task, *this);
                     }
-#endif
+                    #endif
                     else {
                         assert(0);
                     }
