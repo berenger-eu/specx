@@ -15,16 +15,19 @@
 #include "SpAbstractTask.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Utils/small_vector.hpp"
+
 #ifdef SPECX_COMPILE_WITH_CUDA
 #include "Cuda/SpCudaMemManager.hpp"
 #include "Cuda/SpCudaWorkerData.hpp"
 #include "Data/SpDeviceData.hpp"
 #endif // SPECX_COMPILE_WITH_CUDA
+
 #ifdef SPECX_COMPILE_WITH_HIP
 #include "Hip/SpHipMemManager.hpp"
 #include "Hip/SpHipWorkerData.hpp"
 #include "Data/SpDeviceData.hpp"
 #endif // SPECX_COMPILE_WITH_HIP
+
 #include "Data/SpDataHandle.hpp"
 
 #ifdef __GNUG__
@@ -60,9 +63,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     DataDependencyTupleTy tupleParams;
     
     //! Arguments for cuda callable
+
 #ifdef SPECX_COMPILE_WITH_CUDA
     DeviceViewTyple<DataDependencyTupleTy> cudaCallableArgs;
 #endif // SPECX_COMPILE_WITH_CUDA
+
 #ifdef SPECX_COMPILE_WITH_HIP
     DeviceViewTyple<DataDependencyTupleTy> hipCallableArgs;
 #endif // SPECX_COMPILE_WITH_HIP
@@ -100,6 +105,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     }
     
     void preTaskExecution([[maybe_unused]] SpCallableType ct) final {
+        
 #ifdef SPECX_COMPILE_WITH_CUDA
         SpCudaManager::Lock();
        std::size_t extraHandlesOffset = 0;

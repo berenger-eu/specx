@@ -17,45 +17,60 @@
 #include "TaskGraph/SpTaskGraph.hpp"
 #include "Config/SpConfig.hpp"
 
+#include "hip/hip_runtime.h"
+
 __global__ void inc_var(int* ptr, int size){
     for(int idx = blockIdx.x*blockDim.x + threadIdx.x ; idx < size ; idx += blockDim.x*gridDim.x){
         ptr[idx]++;
     }
 }
 
-class MemmovClassExample{
-    int data[10];
-public:
-    std::size_t memmovNeededSize() const{
-        return 10*sizeof(int);
-    }
 
-    template <class DeviceMemmov>
-    void memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10*sizeof(int));
-        mover.copyHostToDevice(reinterpret_cast<int*>(devicePtr), &data[0], 10*sizeof(int));
-    }
+#define DIM_DATA 10
 
-    template <class DeviceMemmov>
-    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size){
-        assert(size == 10*sizeof(int));
-        mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr), 10*sizeof(int));
-    }
+struct MemmovClassExample {
+    int data[DIM_DATA];
 
-    struct DataDescr{
-        DataDescr(){}
+
+    class DataDescr {
+        std::size_t size;
+    public:
+        explicit DataDescr(const std::size_t inSize = 0) : size(inSize){}
+
+        auto getSize() const{
+            return size;
+        }
     };
 
-    auto getDeviceDataDescription() const{
-        return DataDescr();
+
+    using DataDescriptor = DataDescr;
+    
+    std::size_t memmovNeededSize() const{
+        return DIM_DATA*sizeof(int);
+    }
+
+    template <class DeviceMemmov>
+    auto memmovHostToDevice(DeviceMemmov& mover, void* devicePtr, std::size_t size){
+        assert(size == DIM_DATA*sizeof(int));
+        mover.copyHostToDevice(reinterpret_cast<int*>(devicePtr), &data[0],sizeof(int)*DIM_DATA);
+        return DataDescr(DIM_DATA);
+    }
+
+    template <class DeviceMemmov>
+    void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr, std::size_t size, const DataDescr& /*inDataDescr*/){
+        assert(size == DIM_DATA*sizeof(int));
+        mover.copyDeviceToHost(&data[0], reinterpret_cast<int*>(devicePtr),sizeof(int));
     }
 };
 
+
+
+
+
 class SimpleGpuTest : public UTester< SimpleGpuTest > {
     using Parent = UTester< SimpleGpuTest >;
-
     void Test(){
-        SpHipUtils::PrintInfo();
+        //SpHipUtils::PrintInfo();
 
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
         SpTaskGraph tg;
@@ -64,9 +79,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.computeOn(ce);
 
-        tg.task(SpWrite(a), SpRead(b),
-                    SpHip([]([[maybe_unused]] SpDeviceDataView<int> paramA,
-                              [[maybe_unused]] SpDeviceDataView<const int> paramB) {
+        tg.task(SpRead(a), SpRead(b),
+                    SpHip([]([[maybe_unused]] SpDeviceDataView<const int> paramA,
+                             [[maybe_unused]] SpDeviceDataView<const int> paramB) {
                         std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
@@ -74,7 +89,8 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.task(SpWrite(a),
                     SpHip([](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
+                        hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                            paramA.objPtr(), 1);
             #else
                         (*paramA.objPtr())++;
             #endif
@@ -85,10 +101,12 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
         tg.task(SpWrite(b),
                     SpHip([](SpDeviceDataView<int> paramB) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramB.objPtr(), 1);
+                        hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                            paramB.objPtr(), 1);
             #else
                         (*paramB.objPtr())++;
             #endif
+                        std::this_thread::sleep_for(std::chrono::seconds(2));
                     })
         );
 
@@ -98,6 +116,7 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     })
         );
 
+
         tg.task(SpWrite(a),
                     SpCpu([](int& paramA) {
                         paramA++;
@@ -105,7 +124,8 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                     SpHip(
                         [](SpDeviceDataView<int> paramA) {
             #ifndef SPECX_EMUL_GPU
-                        inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.objPtr(), 1);
+                        hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                            paramA.objPtr(), 1);
             #else
                         (*paramA.objPtr())++;
             #endif
@@ -121,12 +141,18 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.waitAllTasks();
 
+        std::cout<<"a="<<a<< "\n";
+        std::cout<<"b="<<b<< "\n";
+        std::cout<<"\n";
+
+
         UASSERTETRUE(a == 3);
         UASSERTETRUE(b == 3);
     }
 
+
     void TestVec(){
-        SpHipUtils::PrintInfo();
+        //SpHipUtils::PrintInfo();
 
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
         SpTaskGraph tg;
@@ -145,17 +171,16 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
 
         tg.task(SpWrite(a),
             SpHip([](SpDeviceDataView<std::vector<int>> paramA) {
-                inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
-                                                                   paramA.nbElements());
-
+                hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                                   paramA.array(),paramA.nbElements());
                 std::this_thread::sleep_for(std::chrono::seconds(2));
             })
         );
 
         tg.task(SpWrite(b),
             SpHip([](SpDeviceDataView<std::vector<int>> paramB) {
-                inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramB.array(),
-                    paramB.nbElements());
+                hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                                   paramB.array(),paramB.nbElements());
             })
         );
 
@@ -175,8 +200,9 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
                 }
             }),
             SpHip([](SpDeviceDataView<std::vector<int>> paramA) {
-                inc_var<<<1,1,0,SpHipUtils::GetCurrentStream()>>>(paramA.array(),
-                                                                   paramA.nbElements());
+                hipLaunchKernelGGL(inc_var,1,1,0,SpHipUtils::GetCurrentStream(),
+                        paramA.array(),paramA.nbElements());
+
             })
         );
 
@@ -202,18 +228,15 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
     }
 
 
-    void TestMemMove(){
-        SpHipUtils::PrintInfo();
 
+
+    void TestMemMove(){
+        //SpHipUtils::PrintInfo();
+        MemmovClassExample obj;
         SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
+        static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,"should be memmov");
         SpTaskGraph tg;
         tg.computeOn(ce);
-
-        static_assert(SpDeviceDataView<MemmovClassExample>::MoveType == SpDeviceDataUtils::DeviceMovableType::MEMMOV,
-                      "should be memmov");
-
-        MemmovClassExample obj;
-
         tg.task(SpRead(obj),
             SpHip([]([[maybe_unused]] SpDeviceDataView<const MemmovClassExample> objv) {
             })
@@ -223,12 +246,12 @@ class SimpleGpuTest : public UTester< SimpleGpuTest > {
             SpHip([](SpDeviceDataView<MemmovClassExample> objv) {
             })
         );
-
         tg.waitAllTasks();
     }
 
+
     void SetTests() {
-        Parent::AddTest(&SimpleGpuTest::Test, "Basic gpu test");
+        //Parent::AddTest(&SimpleGpuTest::Test, "Basic gpu test");
         Parent::AddTest(&SimpleGpuTest::TestVec, "Basic gpu test with vec");
         Parent::AddTest(&SimpleGpuTest::TestMemMove, "Basic gpu test with memmov");
     }

@@ -13,10 +13,12 @@
 #include "Cuda/SpCudaWorkerData.hpp"
 #include "Cuda/SpCudaMemManager.hpp"
 #endif
+
 #ifdef SPECX_COMPILE_WITH_HIP
 #include "Hip/SpHipWorkerData.hpp"
 #include "Hip/SpHipMemManager.hpp"
 #endif
+
 #include "Data/SpDataAccessMode.hpp"
 #include "Utils/SpUtils.hpp"
 #include "Task/SpAbstractTask.hpp"
@@ -42,9 +44,11 @@ private:
     std::atomic<SpComputeEngine*> ce;
     long int threadId;
     std::thread t;
+
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaWorkerData cudaData;
 #endif
+
 #ifdef SPECX_COMPILE_WITH_HIP
     SpHipWorkerData hipData;
 #endif

@@ -8,6 +8,7 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 
 set(SPECX_COMPILE_WITH_HIP ON)
 #cmake .. -DSPECX_COMPILE_WITH_HIP=ON
+#cmake -DCMAKE_INSTALL_PREFIX=/Specx20/specx/build -DCMAKE_BUILD_TYPE=Release -DSPECX_COMPILE_WITH_HIP=ON ..
 
 message(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -67,21 +68,16 @@ INCLUDE(CMakeDependentOption)
 set(SPECX_LIBRARIES "")
 set(SPECX_INCLUDE_DIR "")
 
-#if(SPECX_COMPILE_WITH_CUDA)
-#    set(SPECX_CXX_STD 17)
-#else()
-#    set(SPECX_CXX_STD 20)
-#endif()
-
-
-#if(SPECX_COMPILE_WITH_HIP)
-#    set(SPECX_CXX_STD 17)
-#else()
-#    set(SPECX_CXX_STD 20)
-#endif()
 
 set(SPECX_CXX_STD 20)
 
+if(SPECX_COMPILE_WITH_CUDA)
+    set(SPECX_CXX_STD 17)
+endif()
+
+if(SPECX_COMPILE_WITH_HIP)
+    set(SPECX_CXX_STD 17)
+endif()
 
 
 set(CMAKE_CXX_STANDARD ${SPECX_CXX_STD})
@@ -285,7 +281,7 @@ if(NOT SPECX_JUST_LIB)
     #===========================================================================
     # Build unit tests
     #===========================================================================
-    if (FALSE)
+    if (TRUE)
         enable_testing()
         add_subdirectory(UTests)
         add_subdirectory(UTests/ShouldNotCompile)
@@ -302,6 +298,14 @@ if(NOT SPECX_JUST_LIB)
             add_subdirectory(UTests/MPI)
         endif()
     endif()
+
+    if (FALSE)
+        if(SPECX_COMPILE_WITH_HIP)
+            add_subdirectory(UTests/Hip)
+    endif()
+    
+
+endif()
 	
     #===========================================================================
     # Build examples
@@ -316,7 +320,11 @@ if(NOT SPECX_JUST_LIB)
         add_subdirectory(Benchmark)
     endif()
 
+
+
 endif()
+ 
+
 
 #===========================================================================
 # Export cmake info
@@ -378,5 +386,3 @@ set(CPACK_DEBIAN_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
 
 # set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_SOURCE_DIR}/cmake/debian/postinst")
 include(CPack)
-
-

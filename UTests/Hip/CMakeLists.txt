@@ -9,8 +9,13 @@ file(
 	GLOB	
 	source_tests_files
 	./*.cpp
-	./*.cu
 	)
+
+if(SPECX_COMPILE_WITH_HIP)
+    set_source_files_properties(axpy_hip.cpp PROPERTIES LANGUAGE ${GPU_RUNTIME})
+    include_directories(/opt/rocm-5.7.2/hip/include)
+endif()
+
 
 
 # Adding the project sources dir as an include dir
@@ -31,6 +36,16 @@ foreach(exec ${source_tests_files})
 	if($ENV{VERBOSE})
 		MESSAGE(STATUS "UTests -- Add ${execname}")
 	endif()
+
+
+	if(SPECX_COMPILE_WITH_CUDA)
+		set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
+	endif()
+
+	if(SPECX_COMPILE_WITH_HIP)
+		set_source_files_properties(${exec} PROPERTIES LANGUAGE HIP)
+	endif()
+
 
 	add_executable(
 			${execname}

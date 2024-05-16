@@ -19,6 +19,7 @@ file(
     ./*.cpp
     )
 
+
 if(SPECX_COMPILE_WITH_HIP)
     set_source_files_properties(axpy_hip.cpp PROPERTIES LANGUAGE ${GPU_RUNTIME})
     include_directories(/opt/rocm-5.7.2/hip/include)
@@ -30,7 +31,6 @@ INCLUDE_DIRECTORIES(
      ${SPECX_BINARY_DIR}/Src    
      ${SPECX_SOURCE_DIR}/Src    
 )
-
 
 # Add execs - 1 cpp = 1 exec
 foreach(exec ${source_tests_files})
@@ -62,6 +62,8 @@ foreach(exec ${source_tests_files})
             specx
             ${SPECX_LIBRARIES}
             )
-    endif()
+        endif()
+
+
 endforeach(exec)
 

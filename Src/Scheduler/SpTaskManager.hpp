@@ -230,7 +230,7 @@ inline void SpTaskManager::preTaskExecution([[maybe_unused]] SpAbstractTaskGraph
 	nbRunningTasks += 1;
 	t->takeControl();
 	
-	if constexpr(SpConfig::CompileWithCuda) {	
+	if constexpr(SpConfig::CompileWithCuda || SpConfig::CompileWithHip) {	
 		switch(w.getType()) {
             case SpWorkerTypes::Type::CPU_WORKER:
                 t->preTaskExecution(SpCallableType::CPU);
@@ -282,7 +282,7 @@ inline void SpTaskManager::preMPITaskExecution(SpAbstractTask* t) {
 inline void SpTaskManager::postTaskExecution(SpAbstractTaskGraph& atg, SpAbstractTask* t, SpWorker& w) {
 	t->setState(SpTaskState::POST_RUN);
 	
-	if constexpr(SpConfig::CompileWithCuda) {	
+	if constexpr(SpConfig::CompileWithCuda || SpConfig::CompileWithHip) {		
 		switch(w.getType()) {
             case SpWorkerTypes::Type::CPU_WORKER:
 				t->postTaskExecution(atg, SpCallableType::CPU);

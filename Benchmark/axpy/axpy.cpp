@@ -35,7 +35,7 @@ struct Vector{
             return size;
         }
     };
-
+ 
     using DataDescriptor = DataDescr;
 
     std::size_t memmovNeededSize() const{
@@ -73,8 +73,10 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 
 
 void BenchmarkTest(int argc, char** argv){
-//./axpy --sz=50 --th=256
+    
+    //./axpy --sz=50 --th=256
 
+    std::cout<<"[INFO] BENCHMARK Vr=a*Va+Vb"<<"\n";
 
     CLsimple args("Axpy", argc, argv);
 
@@ -94,12 +96,9 @@ void BenchmarkTest(int argc, char** argv){
       return;
     }
 
-    Vector<float> x;
-    x.data.resize(size, 1);
-    Vector<float> y;
-    y.data.resize(size, 1);
-    Vector<float> z;
-    z.data.resize(size, 0);
+    Vector<float> x; x.data.resize(size, 3);
+    Vector<float> y; y.data.resize(size, 3);
+    Vector<float> z; z.data.resize(size, 0);
     const float a = 2;
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -113,28 +112,6 @@ void BenchmarkTest(int argc, char** argv){
 
     tg.computeOn(ce);
 
-/*
-    tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
-#ifndef SPECX_COMPILE_WITH_CUDA
-            SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
-                for(int idx = 0 ; idx < int(tz.data.size()) ; ++idx){
-                    tz.data[idx] = ta*tx.data[idx]*ty.data[idx];
-                }
-            })
-#else
-            SpCuda([a, nbthreads](SpDeviceDataView<Vector<float>> paramZ,
-                       const SpDeviceDataView<const Vector<float>> paramX,
-                       const SpDeviceDataView<const Vector<float>> paramY) {
-                const int size = paramZ.data().getSize();
-                const int nbBlocks = (size + nbthreads-1)/nbthreads;
-                cu_axpy<float><<<nbBlocks, nbthreads,0,SpCudaUtils::GetCurrentStream()>>>
-                    (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
-            })
-#endif
-            );
-
-*/
-
     tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
 #ifdef SPECX_COMPILE_WITH_CUDA
             SpCuda([a, nbthreads](SpDeviceDataView<Vector<float>> paramZ,
@@ -148,7 +125,7 @@ void BenchmarkTest(int argc, char** argv){
 #else
             SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
                 for(int idx = 0 ; idx < int(tz.data.size()) ; ++idx){
-                    tz.data[idx] = ta*tx.data[idx]*ty.data[idx];
+                    tz.data[idx] = ta*tx.data[idx]+ty.data[idx];
                 }
             })
 #endif
@@ -165,30 +142,22 @@ void BenchmarkTest(int argc, char** argv){
 
     tg.waitAllTasks();
 
-    std::cout << "Generate trace ./axpy-simu.svg" << std::endl;
+    std::cout<<"[INFO]: Generate trace..."<<"\n";
     tg.generateTrace("./axpy-simu.svg", false);
 
-
-    for(int k=0;k<size;k++) {
-        std::cout<<x.data[k];
-    } 
-    std::cout<<"\n";
-    for(int k=0;k<size;k++) {
-        std::cout<<y.data[k];
-    } 
-    std::cout<<"\n";
-    for(int k=0;k<size;k++) {
-        std::cout<<z.data[k];
-    } 
+    std::cout<<"[INFO]: Results..."<<"\n";
+    std::cout<<"[INFO]: a         = "<<a<<"\n";
+    std::cout<<"[INFO]: Vector   x= "; for(int k=0;k<size;k++) { std::cout<<x.data[k]; } std::cout<<"\n";
+    std::cout<<"[INFO]: Vector   y= "; for(int k=0;k<size;k++) { std::cout<<y.data[k]; } std::cout<<"\n";
+    std::cout<<"[INFO]: z=a*x+y   = ";   for(int k=0;k<size;k++) { std::cout<<z.data[k]; } std::cout<<"\n";
     std::cout<<"\n";
 
-
-    std::cout<<"Finished..."<<"\n";
 }
 
 
 int main(int argc, char** argv){
+    std::cout<<"\n";
     BenchmarkTest(argc, argv);
-
+    std::cout<<"[INFO] FINISHED..."<<"\n";
     return 0;
 }

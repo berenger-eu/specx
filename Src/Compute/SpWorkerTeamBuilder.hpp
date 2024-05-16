@@ -123,10 +123,13 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbC
 }
 #endif
 static auto DefaultTeamOfWorkers() {
+
 #if defined(SPECX_COMPILE_WITH_CUDA)
     return TeamOfCpuCudaWorkers(); 
+
 #elif defined(SPECX_COMPILE_WITH_HIP)
     return TeamOfCpuHipWorkers();
+    
 #else
     return TeamOfCpuWorkers();
 #endif

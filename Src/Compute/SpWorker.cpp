@@ -12,11 +12,13 @@ void SpWorker::start() {
             SpUtils::SetThreadId(threadId);
             SpUtils::SetThreadType(getType());
             SpWorker::setWorkerForThread(this);
+
 #ifdef SPECX_COMPILE_WITH_CUDA
             if(this->getType() == SpWorkerTypes::Type::CUDA_WORKER){
                 cudaData.initByWorker();
             }
 #endif
+
 #ifdef SPECX_COMPILE_WITH_HIP
             if(this->getType() == SpWorkerTypes::Type::HIP_WORKER){
                 hipData.initByWorker();
@@ -30,6 +32,7 @@ void SpWorker::start() {
                 cudaData.destroyByWorker();
             }
 #endif
+
 #ifdef SPECX_COMPILE_WITH_HIP
             if(this->getType() == SpWorkerTypes::Type::HIP_WORKER){
                 hipData.destroyByWorker();
@@ -94,6 +97,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         execute(task);
                         atg->postTaskExecution(task, *this);
                     }
+
                     #ifdef SPECX_COMPILE_WITH_CUDA
                     else if(workerType == SpWorkerTypes::Type::CUDA_WORKER) {
 						atg->preTaskExecution(task, *this);
@@ -101,6 +105,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
 						atg->postTaskExecution(task, *this);
                     }
                     #endif
+
                     #ifdef SPECX_COMPILE_WITH_HIP
                     else if(workerType == SpWorkerTypes::Type::HIP_WORKER) {
                         atg->preTaskExecution(task, *this);
@@ -108,6 +113,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         atg->postTaskExecution(task, *this);
                     }
                     #endif
+                    
                     else {
                         assert(0);
                     }

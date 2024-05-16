@@ -183,6 +183,7 @@ private:
                     nbAvailableCpuWorkers += addend;
                 }
                 break;
+
                 #ifdef SPECX_COMPILE_WITH_CUDA
                 case SpWorkerTypes::Type::CUDA_WORKER:
                 if constexpr(updateTotalCounter) {
@@ -194,6 +195,7 @@ private:
                 }
                 break;
                 #endif
+
                 #ifdef SPECX_COMPILE_WITH_HIP
                 case SpWorkerTypes::Type::HIP_WORKER:
                 if constexpr(updateTotalCounter) {
@@ -204,6 +206,7 @@ private:
                     nbAvailableHipWorkers += addend;
                 }
                 break;
+                
                 #endif
             default:
                 break;
