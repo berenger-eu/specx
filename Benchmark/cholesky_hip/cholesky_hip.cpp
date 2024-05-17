@@ -36,6 +36,7 @@ struct Matrix {
  	  unsigned int num_columns;
    	  unsigned int num_rows;
       unsigned int dimension; 
+      unsigned int dimensionSizeof; 
  	  unsigned int pitch; 
  	  double* data;
 
@@ -54,23 +55,22 @@ struct Matrix {
         using DataDescriptor = DataDescr;
 
         std::size_t memmovNeededSize() const{
-            return sizeof(double)*dimension;
+            return dimensionSizeof;
         }
 
-         template <class DeviceMemmov>
+        template <class DeviceMemmov>
             auto memmovHostToDevice(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size){
-                assert(size == sizeof(double)*dimension);
+                assert(size == dimensionSizeof);
                 double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
-                mover.copyHostToDevice(doubleDevicePtr, data, sizeof(double)*dimension);
+                mover.copyHostToDevice(doubleDevicePtr, data, dimensionSizeof);
                 return DataDescr(dimension);
             }
 
         template <class DeviceMemmov>
             void memmovDeviceToHost(DeviceMemmov& mover, void* devicePtr,[[maybe_unused]] std::size_t size, const DataDescr& /*inDataDescr*/){
-                //int dim=num_columns*num_rows;
-                assert(size == sizeof(double)*dimension);
+                assert(size == dimensionSizeof);
                 double* doubleDevicePtr = reinterpret_cast<double*>(devicePtr);
-                mover.copyDeviceToHost(data, doubleDevicePtr, sizeof(double)*dimension);
+                mover.copyDeviceToHost(data, doubleDevicePtr, dimensionSizeof);
             }
 };
 
@@ -141,11 +141,16 @@ __global__ void matrix_transpose(double *R, double *A, int r, int c) {
 __global__ void matrix_lower_triangular(double *R, int r, int c) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x; 
 	unsigned int i,j;
-	if (idx < r*c) { i=idx/r; j=idx-i*r;  if (j<i) { R[i * r + j]; } }
+	if (idx < r*c) { i=idx/r; j=idx-i*r;  if (j<i) { R[i * r + j]=0.0; } }
 }
+
 
 #endif
 
+
+
+
+//BEGIN::Tools for Matrix manipulation
 
 void writeMatrix(const Matrix M)
 {
@@ -186,11 +191,12 @@ int check_if_diagonal_dominant(const Matrix M)
 Matrix build_init_matrix(unsigned int num_rows, unsigned int num_columns)
 {
 	Matrix M;
-	M.num_columns = M.pitch = num_columns;
-	M.num_rows = num_rows; 
-	unsigned int size = M.num_rows * M.num_columns;
-    M.dimension=M.num_rows * M.num_columns;
-	M.data = (double *)malloc(size * sizeof(double));
+	M.num_columns     = M.pitch = num_columns;
+	M.num_rows        = num_rows; 
+    unsigned int size = M.num_rows * M.num_columns;
+    M.dimension       = size;
+    M.dimensionSizeof = size*sizeof(double);
+	M.data            = (double *)malloc(M.dimensionSizeof);
 
 	// Step 1: Create a matrix with random numbers between [-.5 and .5]
     std::cout<<"[INFO]: Create Matrix definite positiv"<<"\n";
@@ -246,9 +252,10 @@ Matrix allocate_matrix(int num_rows, int num_columns, int init) {
     M.num_columns = M.pitch = num_columns;
     M.num_rows = num_rows;
     M.dimension=M.num_rows * M.num_columns;
-    int size = M.dimension;
-
-    M.data = (double *) malloc(size * sizeof (double));
+    unsigned int size = M.num_rows * M.num_columns;
+    M.dimension=size;
+    M.dimensionSizeof=size*sizeof(double);
+	M.data = (double *)malloc(M.dimensionSizeof);
     for (unsigned int i = 0; i < size; i++) {
         if (init == 0) M.data[i] = 0;
         else
@@ -259,24 +266,20 @@ Matrix allocate_matrix(int num_rows, int num_columns, int init) {
 
 Matrix allocate_matrix_on_gpu(const Matrix M){
     Matrix Mdevice = M;
-    int size = M.num_rows * M.num_columns * sizeof(double);
-    hipMalloc((void**)&Mdevice.data, size);
+    hipMalloc((void**)&Mdevice.data, M.dimensionSizeof);
     return Mdevice;
 }
 
-
 void copy_matrix_to_device(Matrix Mdevice, const Matrix Mhost)
 {
-    int size = Mhost.num_rows * Mhost.num_columns * sizeof(double);
     Mdevice.num_rows = Mhost.num_rows;
     Mdevice.num_columns = Mhost.num_columns;
     Mdevice.pitch = Mhost.pitch;
-    hipMemcpy(Mdevice.data, Mhost.data, size, hipMemcpyHostToDevice);
+    hipMemcpy(Mdevice.data, Mhost.data,Mhost.dimensionSizeof,hipMemcpyHostToDevice);
 }
 
 void copy_matrix_from_device(Matrix Mhost, const Matrix Mdevice){
-    int size = Mdevice.num_rows * Mdevice.num_columns * sizeof(double);
-    hipMemcpy(Mhost.data, Mdevice.data, size, hipMemcpyDeviceToHost);
+    hipMemcpy(Mhost.data, Mdevice.data,Mdevice.dimensionSizeof,hipMemcpyDeviceToHost);
 }
 
 void matrix_lower_triangular(Matrix M) 
@@ -296,7 +299,13 @@ Matrix matrix_copy(const Matrix M)
 			R.data[i * M.num_rows + j] = M.data[i * M.num_rows + j];
   return R;
 }
+ 
+//END::Tools for Matrix manipulation
 
+
+//BEGIN::Tools for Matrix manipulation in GPU
+
+#ifdef SPECX_COMPILE_WITH_HIP
 
 Matrix matrix_product_GPU(const Matrix A, const Matrix B) 
 {
@@ -339,7 +348,7 @@ Matrix matrix_transpose_GPU(const Matrix A)
 {
 	int block_size = 512;
     //Matrix R= allocate_matrix(A.num_rows,A.num_columns,0);
-	Matrix R= allocate_matrix(A.num_columns,A.num_rows,0);
+	Matrix R= allocate_matrix(A.num_columns,A.num_rows,0); //<== Transpose Matrix
 
 	hipEvent_t start, stop;
     hipEventCreate(&start);
@@ -353,7 +362,7 @@ Matrix matrix_transpose_GPU(const Matrix A)
 	copy_matrix_to_device(gpu_A, A );
 	copy_matrix_to_device(gpu_R, R );
 	
-	int num_blocks = (A.num_columns*A.num_rows + block_size - 1) / block_size;
+	int num_blocks = (A.dimension + block_size - 1) / block_size;
 	
 	dim3 thread_block(block_size, 1, 1);
 	dim3 grid(num_blocks, 1);
@@ -368,11 +377,36 @@ Matrix matrix_transpose_GPU(const Matrix A)
 	return R;
 }
 
+Matrix matrix_lower_triangular_GPU(const Matrix A) 
+{
+	int block_size = 512;
+	hipEvent_t start, stop;
+    hipEventCreate(&start);
+    hipEventCreate(&stop);
+
+	Matrix gpu_A = allocate_matrix_on_gpu(A);
+	hipEventRecord(start, 0);   
+
+	copy_matrix_to_device(gpu_A, A );
+	
+	int num_blocks = (A.dimension + block_size - 1) / block_size;
+	
+	dim3 thread_block(block_size, 1, 1);
+	dim3 grid(num_blocks, 1);
+
+	hipLaunchKernelGGL(matrix_lower_triangular,grid, thread_block,0,0,gpu_A.data,A.num_rows,A.num_columns); 
+
+	copy_matrix_from_device(A,gpu_A);
+	hipEventRecord(stop, 0);
+    hipEventSynchronize(stop);
+	hipFree(gpu_A.data);
+	return A;
+}
+
 Matrix matrix_copy_GPU(const Matrix A) 
 {
 	int block_size = 512;
-    //Matrix R= allocate_matrix(A.num_rows,A.num_columns,0);
-	Matrix R= allocate_matrix(A.num_rows,A.num_columns,0);
+	Matrix R= allocate_matrix(A.num_rows,A.num_columns,0); 
 
 	hipEvent_t start, stop;
     hipEventCreate(&start);
@@ -400,6 +434,7 @@ Matrix matrix_copy_GPU(const Matrix A)
 	hipFree(gpu_R.data);
 	return R;
 }
+
 
 
 bool is_matrix_equal_GPU(const Matrix A, const Matrix B,const double deltaError) 
@@ -437,18 +472,18 @@ bool is_matrix_equal_GPU(const Matrix A, const Matrix B,const double deltaError)
 	return (h_Q[0]);
 }
 
-bool is_matrix_equal_GPU(const Matrix A, const Matrix B) 
-{
-	double deltaError=0.000001;
-	return(is_matrix_equal_GPU(A,B,deltaError));
-}
-
-
 void checkSolution_GPU(Matrix A,Matrix B)
 {
-	bool res=is_matrix_equal_GPU(A,B);
+    const double deltaError=0.000001;
+	bool res=is_matrix_equal_GPU(A,B,deltaError);
 	printf("[INFO]:	%s\n", (true == res) ? "WELL DONE PASSED :-)" : "FAILED");
 }
+
+#endif
+
+//END::Tools for Matrix manipulation in GPU
+
+
 
 
 
@@ -456,6 +491,8 @@ void checkSolution_GPU(Matrix A,Matrix B)
 void BenchmarkTest(int argc, char** argv){
     // ./axpy_hip --sz=10 --th=256
     std::cout<<"[INFO]: BENCHMARK Cholesky Resolution"<<"\n";
+    bool qView=true;
+    //qView=false;	
 
     // BEGIN:: Init size vectors and Nb Threads in GPU HIP AMD
     CLsimple args("Cholesky", argc, argv);
@@ -474,8 +511,6 @@ void BenchmarkTest(int argc, char** argv){
     // BEGIN:: Init part
     std::chrono::steady_clock::time_point t_begin,t_end;
     long int t_laps;
-    bool qView=true;
-    //qView=false;	
 
     Matrix MatA; MatA = build_init_matrix(matrixSize,matrixSize); 
     Matrix MatU=matrix_copy(MatA); 
@@ -486,73 +521,80 @@ void BenchmarkTest(int argc, char** argv){
     // END:: Init part
 
     #ifdef SPECX_COMPILE_WITH_HIP
-    std::cout<<"[INFO]: Start Hip Part..."<<"\n";
-    t_begin = std::chrono::steady_clock::now();
-    // BEGIN:: Task definition
-    //SpHipUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers());
-    static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,"should be stdvec");
-    SpTaskGraph tg;
-    tg.computeOn(ce);
-       tg.task(SpCommutativeWrite(MatU),SpRead(MatA),
-            SpHip([nbthreads](SpDeviceDataView<Matrix> paramU,
-                       const SpDeviceDataView<const Matrix> paramA) {
-                            const int size = paramA.getRawSize()/sizeof(double);
-                            int matrixSize=sqrt(size);
-                            int threads_per_block = nbthreads;
-                            int stride            = threads_per_block;
-                            //std::cout<<"*********** Nbdata="<<size<<"\n";
-                            //std::cout<<"*********** matrixSize="<<matrixSize<<"\n";
-                            int k;
-                            for (k = 0; k < matrixSize; k++) {
-                                int isize = (matrixSize - 1) - (k + 1) + 1;
-                                int num_blocks = isize;
-                                if (num_blocks <= 0) { num_blocks = 1; }
-                                dim3 thread_block(threads_per_block, 1, 1);
-                                dim3 grid(num_blocks, 1);
-                                hipLaunchKernelGGL(chol_kernel_optimized_div,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
-                                hipLaunchKernelGGL(chol_kernel_optimized,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
-                            }
+        std::cout<<"[INFO]: Start Hip Part..."<<"\n";
+        t_begin = std::chrono::steady_clock::now();
+        // BEGIN:: Task definition
+        //SpHipUtils::PrintInfo();
+        SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers());
+        static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,"should be stdvec");
+        SpTaskGraph tg;
+        tg.computeOn(ce);
+        tg.task(SpCommutativeWrite(MatU),SpRead(MatA),
+                SpHip([nbthreads](SpDeviceDataView<Matrix> paramU,
+                        const SpDeviceDataView<const Matrix> paramA) {
+                            //BEGIN:: Cholesky part
+                                const int size = paramA.getRawSize()/sizeof(double);
+                                const unsigned int matrixSize=sqrt(size);
+                                const unsigned int threads_per_block = nbthreads;
+                                const unsigned int stride            = threads_per_block;
+                                unsigned int k;
+                                for (k = 0; k < matrixSize; k++) {
+                                    int isize = (matrixSize - 1) - (k + 1) + 1;
+                                    int num_blocks = isize;
+                                    if (num_blocks <= 0) { num_blocks = 1; }
+                                    dim3 thread_block(threads_per_block, 1, 1);
+                                    dim3 grid(num_blocks, 1);
+                                    hipLaunchKernelGGL(chol_kernel_optimized_div,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
+                                    hipLaunchKernelGGL(chol_kernel_optimized,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
+                                }
+                            //END:: Cholesky part
 
-            })
-    );
+                            //BEGIN:: lower_triangular
+                            const unsigned int block_size_2 = nbthreads;
+                            const unsigned int num_blocks_2 = (size+ block_size_2 - 1) / block_size_2;
+                            dim3 thread_block_2(block_size_2, 1, 1);
+                            dim3 grid_2(num_blocks_2, 1);
+                            hipLaunchKernelGGL(matrix_lower_triangular,grid_2,thread_block_2,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),matrixSize,matrixSize); 
+                            //END:: lower_triangular
+                })
+        );
 
-    tg.task(SpWrite(MatU), SpCpu([](Matrix&) { }));
-    // END:: Task definition
+        tg.task(SpWrite(MatU), SpCpu([](Matrix&) { }));
+        // END:: Task definition
 
-    // BEGIN:: Task execution
-    tg.waitAllTasks();
-    //tg.stopIfNotAlreadyStopped();
-    t_end = std::chrono::steady_clock::now();
-    // END:: Task execution
+        // BEGIN:: Task execution
+        tg.waitAllTasks();
+        //tg.stopIfNotAlreadyStopped();
+        t_end = std::chrono::steady_clock::now();
+        // END:: Task execution
 
 
-    // BEGIN:: Show results
-    std::cout<<"[INFO]: Generate trace..."<<"\n";
-    tg.generateTrace("./Cholesky-hip.svg",true);
+        // BEGIN:: Show results
+        std::cout<<"[INFO]: Generate trace..."<<"\n";
+        tg.generateTrace("./Cholesky-hip.svg",true);
 
-    std::cout << "\n";
-    std::cout<<"[INFO]: Results..."<<"\n";
-    matrix_lower_triangular(MatU);
-    std::cout<<"\n";
-    if (qView) { 
+        std::cout << "\n";
+        std::cout<<"[INFO]: Results..."<<"\n";
+
         std::cout<<"\n";
-        std::cout << "Matrix U ===>\n\n";	writeMatrix(MatU); std::cout << "\n";
-    }
+        if (qView) { 
+            std::cout<<"\n";
+            std::cout << "Matrix U ===>\n\n";	writeMatrix(MatU); std::cout << "\n";
+        }
 
-    t_laps= std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_begin).count();
-    std::cout << "[INFO]: Elapsed microseconds inside: "<<t_laps<< " us\n";
-	std::cout << "\n";
+        t_laps= std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_begin).count();
+        std::cout << "[INFO]: Elapsed microseconds inside: "<<t_laps<< " us\n";
+        std::cout << "\n";
 
-    std::cout<<"[INFO]: CheckSolution"<<"\n";
-    Matrix MatUt=matrix_transpose_GPU(MatU);
-    Matrix MatT=matrix_product_GPU(MatUt,MatU);
-    checkSolution_GPU(MatA,MatT);
+        std::cout<<"[INFO]: CheckSolution"<<"\n";
+        Matrix MatUt=matrix_transpose_GPU(MatU);
+        Matrix MatT=matrix_product_GPU(MatUt,MatU);
+        checkSolution_GPU(MatA,MatT);
 
-    // END:: End results
+        // END:: End results
 
-    free(MatU.data);
-    free(MatA.data);
+        free(MatU.data);
+        free(MatA.data);
     #endif
 }
 
