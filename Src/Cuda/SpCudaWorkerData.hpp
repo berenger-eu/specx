@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include <Config/SpConfig.hpp>
+#include <Utils/SpUtils.hpp>
 
 #include "SpCudaUtils.hpp"
 
@@ -23,6 +24,7 @@ struct SpCudaWorkerData {
         assert(cudaId != -1);
         SpCudaUtils::UseDevice(cudaId);
         CUDA_ASSERT(cudaStreamCreate(&stream));
+        SpUtils::SetDeviceId(cudaId);
     }
 
     void destroyByWorker(){

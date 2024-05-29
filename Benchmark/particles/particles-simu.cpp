@@ -19,6 +19,7 @@
 #include "Config/SpConfig.hpp"
 #include "Utils/SpTimer.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
 
 class ParticlesGroup{
 public:
@@ -215,7 +216,7 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
-    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    const std::size_t nbIterations = ((nbParticles+nbThreads-1)/nbThreads)*nbThreads;
 
     for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticles);
@@ -310,7 +311,7 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
-    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    const std::size_t nbIterations = ((nbParticlesTgt+nbThreads-1)/nbThreads)*nbThreads;
 
     for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticlesTgt);
@@ -645,7 +646,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
+    std::unique_ptr<SpAbstractScheduler> scheduler(new SpMultiPrioScheduler);
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -709,6 +711,11 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     std::cout << "MaxPartsPerGroup = " << MaxPartsPerGroup << std::endl;
     std::cout << "NbGroups = " << NbGroups << std::endl;
     std::cout << "Duration = " << timer.getElapsed() << std::endl;
+
+    std::cout << "Nb CPU workers = " << ce.getNbCpuWorkers() << std::endl;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    std::cout << "Nb CUDA workers = " << ce.getNbCudaWorkers() << std::endl;    
+#endif
 
     std::cout << "Generate trace ./particles-simu.svg" << std::endl;
     tg.generateTrace("./particles-simu.svg", false);

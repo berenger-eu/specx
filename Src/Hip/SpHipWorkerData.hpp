@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include <Config/SpConfig.hpp>
+#include <Utils/SpUtils.hpp>
 
 #include "SpHipUtils.hpp"
 
@@ -23,6 +24,7 @@ struct SpHipWorkerData {
         assert(hipId != -1);
         SpHipUtils::UseDevice(hipId);
         HIP_ASSERT(hipStreamCreate(&stream));
+        SpUtils::SetDeviceId(hipId);
     }
 
     void destroyByWorker(){

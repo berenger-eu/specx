@@ -113,6 +113,12 @@ namespace SpUtils{
     /** Set current thread Id */
     SpWorkerTypes::Type GetThreadType();
 
+    /** Return the curren thread device id */
+    long int GetDeviceId();
+
+    /** Set the device thread id (should be call by the runtime */
+    void SetDeviceId(const long int inThreadDeviceId);
+
     /** Replace all substring in a string */
     inline std::string ReplaceAllInString(std::string sentence, const std::string& itemToReplace, const std::string& inSubstitutionString){
         for(std::string::size_type idxFound = sentence.find(itemToReplace); idxFound != std::string::npos; idxFound = sentence.find(itemToReplace)){
