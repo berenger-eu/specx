@@ -23,6 +23,8 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
+
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -32,12 +34,31 @@ void choleskyFactorizationMatrix(const int NbLoops, double matrix[], const int i
     }
 }
 
-void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim){
+void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
+                           const std::string& schedulerName){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
     const int Psize = SpMpiUtils::GetMpiSize();
     const int Prank = SpMpiUtils::GetMpiRank();
 
-    SpComputeEngine ce(SpWorkerTeamBuilder::DefaultTeamOfWorkers());
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaUtils::PrintInfo();
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(schedulerName == "default"){
+        std::cout << "Default scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else if(schedulerName == "multiprio"){
+        std::cout << "Multi prio scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    else{
+        std::cout << "Unknown scheduler " << schedulerName << std::endl;
+        return;
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+#endif
     SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
     tg.computeOn(ce);
 
@@ -250,6 +271,9 @@ int main(int argc, char** argv){
     int BlockSize;
     args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
 
+    std::string schedulerName;
+    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
+
     args.parse();
 
     if(!args.isValid() || args.hasKey("help")){
@@ -279,7 +303,7 @@ int main(int argc, char** argv){
     const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
     std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
     /////////////////////////////////////////////////////////
-    choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize);
+    choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, schedulerName);
     if(printValues && Prank == 0){
         std::cout << "Blocks after facto:\n";
         SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);

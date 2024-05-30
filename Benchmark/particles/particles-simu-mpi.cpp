@@ -19,6 +19,8 @@
 #include "Config/SpConfig.hpp"
 #include "Utils/SpTimer.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
+
 
 class ParticlesGroup {
 public:
@@ -685,6 +687,9 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     int NbGroups;
     args.addParameter<int>({"nbgroups"}, "NbGroups", NbGroups, 10);
 
+    std::string schedulerName;
+    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
+
     args.parse();
 
     if(!args.isValid() || args.hasKey("help")){
@@ -713,7 +718,20 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(schedulerName == "default"){
+        std::cout << "Default scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else if(schedulerName == "multiprio"){
+        std::cout << "Multi prio scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    else{
+        std::cout << "Unknown scheduler " << schedulerName << std::endl;
+        return;
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif

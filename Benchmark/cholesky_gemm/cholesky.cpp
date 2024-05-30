@@ -23,6 +23,8 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
+
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -32,10 +34,31 @@ void choleskyFactorizationMatrix(const int NbLoops, double matrix[], const int i
     }
 }
 
-void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim){
+void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
+                           const std::string& schedulerName){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
-    SpRuntime<> runtime;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaUtils::PrintInfo();
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(schedulerName == "default"){
+        std::cout << "Default scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else if(schedulerName == "multiprio"){
+        std::cout << "Multi prio scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    else{
+        std::cout << "Unknown scheduler " << schedulerName << std::endl;
+        return;
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+#endif
+    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+    tg.computeOn(ce);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     struct CudaHandles{
@@ -45,13 +68,13 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
         double* solverBuffer;
         int* cuinfo;
     };
-     std::vector<CudaHandles> handles(runtime.getNbCudaWorkers());
-     const int offsetWorker = runtime.getNbCpuWorkers() + 1;
-     runtime.execOnWorkers([&handles, offsetWorker, &runtime, inBlockDim, &blocks](auto id, auto type){
+     std::vector<CudaHandles> handles(ce.getNbCudaWorkers());
+     const int offsetWorker = ce.getNbCpuWorkers() + 1;
+     ce.execOnWorkers([&handles, offsetWorker, &ce, inBlockDim, &blocks](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
-             assert(offsetWorker <= id && id < offsetWorker + runtime.getNbCudaWorkers());
+             assert(offsetWorker <= id && id < offsetWorker + ce.getNbCudaWorkers());
              SpDebugPrint() << "Worker " << id << " will now initiate cublas...";
              auto& hdl = handles[id-offsetWorker];
              CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
@@ -76,7 +99,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
         for(int k = 0 ; k < nbBlocks ; ++k){
             // TODO put for syrk and gemm ? const double rbeta = (j==0) ? beta : 1.0;
             // POTRF( RW A(k,k) )
-            runtime.task(SpPriority(0), SpWrite(blocks[k*nbBlocks+k]),
+            tg.task(SpPriority(0), SpWrite(blocks[k*nbBlocks+k]),
                 SpCpu([inBlockDim](SpBlas::Block& block){
                     SpBlas::potrf( SpBlas::FillMode::LWPR, inBlockDim, block.values.get(), inBlockDim );
                 })
@@ -104,7 +127,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 
             for(int m = k + 1 ; m < nbBlocks ; ++m){
                 // TRSM( R A(k,k), RW A(m, k) )
-                runtime.task(SpPriority(1), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[k*nbBlocks+m]),
+                tg.task(SpPriority(1), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[k*nbBlocks+m]),
                 SpCpu([inBlockDim](const SpBlas::Block& blockA, SpBlas::Block& blockB){
                     SpBlas::trsm( SpBlas::Side::RIGHT, SpBlas::FillMode::LWPR,
                                     SpBlas::Transa::TRANSPOSE, SpBlas::DiagUnit::NON_UNIT_TRIANGULAR,
@@ -128,7 +151,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 
             for(int n = k+1 ; n < nbBlocks ; ++n){
                 // SYRK( R A(n,k), RW A(n, n) )
-                runtime.task(SpPriority(1), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+n]),
+                tg.task(SpPriority(1), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+n]),
                 SpCpu([inBlockDim](const SpBlas::Block& blockA, SpBlas::Block& blockC){
                     SpBlas::syrk( SpBlas::FillMode::LWPR,
                                     SpBlas::Transa::NORMAL,
@@ -152,7 +175,7 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 
                 for(int m = k+1 ; m < nbBlocks ; ++m){
                     // GEMM( R A(m, k), R A(n, k), RW A(m, n))
-                    runtime.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[m*nbBlocks+n]),
+                    tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[m*nbBlocks+n]),
                     SpCpu([inBlockDim](const SpBlas::Block& blockA, const SpBlas::Block& blockB, SpBlas::Block& blockC){
                         SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::TRANSPOSE,
                                         inBlockDim, inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
@@ -181,15 +204,15 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #ifdef SPECX_COMPILE_WITH_CUDA
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
-            runtime.syncDataOnCpu(blocks[i*nbBlocks+j]);
+            tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
         }
     }
 #endif
 
-    runtime.waitAllTasks();
+    tg.waitAllTasks();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    runtime.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+    ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
             auto& hdl = handles[id-offsetWorker];
             CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
@@ -199,8 +222,8 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
      });
 #endif
 
-    runtime.stopAllThreads();
-    runtime.generateDot("/tmp/graph.dot");
+    ce.stopIfNotAlreadyStopped();
+    tg.generateDot("/tmp/graph.dot");
 }
 
 int main(int argc, char** argv){
@@ -216,6 +239,9 @@ int main(int argc, char** argv){
 
     int BlockSize;
     args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
+
+    std::string schedulerName;
+    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
 
     args.parse();
 
@@ -242,7 +268,7 @@ int main(int argc, char** argv){
     const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
     std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
     /////////////////////////////////////////////////////////
-    choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize);
+    choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, schedulerName);
     if(printValues){
         std::cout << "Blocks after facto:\n";
         SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);

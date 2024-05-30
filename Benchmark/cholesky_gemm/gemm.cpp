@@ -23,6 +23,8 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
+
 //////////////////////////////////////////////////////////////////////////////
 
 void gemm(const int NbLoops, double matrixC[], const double matrixA[], const double matrixB[], const int inMatrixDim){
@@ -35,19 +37,40 @@ void gemm(const int NbLoops, double matrixC[], const double matrixA[], const dou
 }
 
 void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
-                           const int inMatrixDim, const int inBlockDim){
+                           const int inMatrixDim, const int inBlockDim,
+                           const std::string& schedulerName){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
-     SpRuntime<> runtime;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaUtils::PrintInfo();
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(schedulerName == "default"){
+        std::cout << "Default scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else if(schedulerName == "multiprio"){
+        std::cout << "Multi prio scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    else{
+        std::cout << "Unknown scheduler " << schedulerName << std::endl;
+        return;
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+#endif
+    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+    tg.computeOn(ce);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-     std::vector<cublasHandle_t> handles(runtime.getNbCudaWorkers());
-     const int offsetWorker = runtime.getNbCpuWorkers() + 1;
-     runtime.execOnWorkers([&handles, offsetWorker, &runtime](auto id, auto type){
+     std::vector<cublasHandle_t> handles(ce.getNbCudaWorkers());
+     const int offsetWorker = ce.getNbCpuWorkers() + 1;
+     ce.execOnWorkers([&handles, offsetWorker, &ce](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
-             assert(offsetWorker <= id && id < offsetWorker + runtime.getNbCudaWorkers());
+             assert(offsetWorker <= id && id < offsetWorker + ce.getNbCudaWorkers());
              SpDebugPrint() << "Worker " << id << " will now initiate cublas...";
              auto& hdl = handles[id-offsetWorker];
             CUBLAS_ASSERT(cublasCreate(&hdl));
@@ -55,12 +78,13 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
          }
      });
 #endif
+
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
         // Compute the blocks
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
                 for(int k = 0 ; k < nbBlocks ; ++k){
-                    runtime.task(SpPriority(1), SpCommutativeWrite(blocksC[i*nbBlocks+j]),
+                    tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*nbBlocks+j]),
                             SpRead(blocksA[k*nbBlocks+j]), SpRead(blocksB[i*nbBlocks+k]),
                         SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                             SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -90,15 +114,15 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #ifdef SPECX_COMPILE_WITH_CUDA
     for(int i = 0 ; i < nbBlocks ; ++i){
         for(int j = 0 ; j < nbBlocks ; ++j){
-            runtime.syncDataOnCpu(blocksC[i*nbBlocks+j]);
+            tg.syncDataOnCpu(blocksC[i*nbBlocks+j]);
         }
     }
 #endif
 
-    runtime.waitAllTasks();
+    tg.waitAllTasks();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    runtime.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+    ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
             auto& hdl = handles[id-offsetWorker];
             CUBLAS_ASSERT(cublasDestroy(hdl));
@@ -106,9 +130,9 @@ void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
      });
 #endif
 
-    runtime.stopAllThreads();
-    runtime.generateDot("/tmp/graph.dot");
-    runtime.generateTrace("/tmp/gemm-simu.svg", false);
+    ce.stopIfNotAlreadyStopped();
+    tg.generateDot("/tmp/graph.dot");
+    tg.generateTrace("/tmp/gemm-simu.svg", false);
 }
 
 int main(int argc, char** argv){
@@ -124,6 +148,9 @@ int main(int argc, char** argv){
 
     int BlockSize;
     args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
+
+    std::string schedulerName;
+    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
 
     args.parse();
 
@@ -155,7 +182,7 @@ int main(int argc, char** argv){
     }
     /////////////////////////////////////////////////////////
     auto blocksC = SpBlas::matrixToBlock(matrixC.get(), MatrixSize, BlockSize);
-    gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), MatrixSize, BlockSize);
+    gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), MatrixSize, BlockSize, schedulerName);
     if(printValues){
         std::cout << "Blocks after gemm C:\n";
         SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);

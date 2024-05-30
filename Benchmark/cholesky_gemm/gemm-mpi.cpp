@@ -23,6 +23,8 @@
 
 #include "CholeskyFunctionsWrapper.hpp"
 
+#include "Scheduler/SpMultiPrioScheduler.hpp"
+
 //////////////////////////////////////////////////////////////////////////////
 
 void gemm(const int NbLoops, double matrixC[], const double matrixA[], const double matrixB[], const int inMatrixDim){
@@ -40,14 +42,33 @@ struct Coord{
 
 void gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
           const Coord& processIdxInGrid, const int processBlockDim,
-          const Coord& processGridDim, const int inMatrixDim, const int inBlockDim){
+          const Coord& processGridDim, const int inMatrixDim, const int inBlockDim,
+                           const std::string& schedulerName){
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
     std::unique_ptr<SpBlas::Block[]> buffersA(new SpBlas::Block[processBlockDim*processBlockDim]);
     std::unique_ptr<SpBlas::Block[]> buffersB(new SpBlas::Block[processBlockDim*processBlockDim]);
 
-    SpComputeEngine ce(SpWorkerTeamBuilder::DefaultTeamOfWorkers());
+#ifdef SPECX_COMPILE_WITH_CUDA
+    SpCudaUtils::PrintInfo();
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(schedulerName == "default"){
+        std::cout << "Default scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else if(schedulerName == "multiprio"){
+        std::cout << "Multi prio scheduler" << std::endl;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    else{
+        std::cout << "Unknown scheduler " << schedulerName << std::endl;
+        return;
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+#endif
     SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
     tg.computeOn(ce);
 
@@ -246,6 +267,9 @@ int main(int argc, char** argv){
     int BlockSize;
     args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
 
+    std::string schedulerName;
+    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
+
     args.parse();
 
     if(!args.isValid() || args.hasKey("help")){
@@ -293,7 +317,7 @@ int main(int argc, char** argv){
     std::cout << Prank << "] processBlockDim = " << processBlockDim << std::endl;
 
     gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
-         processBlockDim, processGridDim, MatrixSize, BlockSize);
+         processBlockDim, processGridDim, MatrixSize, BlockSize, schedulerName);
     if(printValues){
         std::cout << "Blocks after gemm C:\n";
         SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);
