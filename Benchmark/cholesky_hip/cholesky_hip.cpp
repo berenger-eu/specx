@@ -188,7 +188,7 @@ int check_if_diagonal_dominant(const Matrix M)
 	return 1;
 }
 
-Matrix build_init_matrix(unsigned int num_rows, unsigned int num_columns)
+Matrix build_init_matrix(unsigned int num_rows, unsigned int num_columns,bool qView)
 {
 	Matrix M;
 	M.num_columns     = M.pitch = num_columns;
@@ -199,16 +199,16 @@ Matrix build_init_matrix(unsigned int num_rows, unsigned int num_columns)
 	M.data            = (double *)malloc(M.dimensionSizeof);
 
 	// Step 1: Create a matrix with random numbers between [-.5 and .5]
-    std::cout<<"[INFO]: Create Matrix definite positiv"<<"\n";
-    std::cout<<"[INFO]: Creating a"<<num_rows<<"x"<<num_columns<<"matrix with random numbers between [-.5, .5]... ";
+    if (qView) { std::cout<<"[INFO]: Create Matrix definite positiv"<<"\n"; }
+    if (qView) { std::cout<<"[INFO]: Creating a "<<num_rows<<"x"<<num_columns<<" matrix with random numbers between [-.5, .5]... "; }
 	unsigned int i;
 	unsigned int j;
 	for(i = 0; i < size; i++)
 		M.data[i] = ((double)rand()/(double)RAND_MAX) - 0.5;
-        std::cout<<"done"<<"\n";
+        if (qView) { std::cout<<"done"<<"\n"; }
 
 	// Step 2: Make the matrix symmetric by adding its transpose to itself
-    std::cout<<"[INFO]: Generating the symmetric matrix...";
+    if (qView) { std::cout<<"[INFO]: Generating the symmetric matrix... ";}
 	Matrix transpose;
 	transpose.num_columns = transpose.pitch = num_columns;
 	transpose.num_rows = num_rows; 
@@ -222,24 +222,32 @@ Matrix build_init_matrix(unsigned int num_rows, unsigned int num_columns)
 
 	for(i = 0; i < size; i++)
 		M.data[i] += transpose.data[i];
+
 	if (check_if_symmetric(M))
-		std::cout<<"done"<<"\n";
-	else{ 
-        std::cout<<"error !!!"<<"\n";
+	{ 
+        if (qView) { std::cout<<"done"<<"\n"; } 
+    }
+	else
+    { 
+        if (qView) {std::cout<<"error !!!"<<"\n"; }
 		free(M.data);
 		M.data = NULL;
 	}
 	// Step 3: Make the diagonal entries large with respect to the row and column entries
-    std::cout<<"Generating the positive definite matrix...";
+    if (qView) {  std::cout<<"[INFO]: Generating the positive definite matrix... "; }
 	for(i = 0; i < num_rows; i++)
-		for(j = 0; j < num_columns; j++){
+		for(j = 0; j < num_columns; j++)
+        {
 			if(i == j) 
 				M.data[i * M.num_rows + j] += 0.5 * M.num_rows;
 		}
-	if(check_if_diagonal_dominant(M))
-		std::cout<<"done"<<"\n";
-	else{
-		std::cout<<"error !!!"<<"\n";
+	if (check_if_diagonal_dominant(M))
+    {
+		if (qView) { std::cout<<"done"<<"\n"; }
+    }
+	else
+    {
+		if (qView) { std::cout<<"error !!!"<<"\n"; }
 		free(M.data);
 		M.data = NULL;
 	}
@@ -512,7 +520,7 @@ void BenchmarkTest(int argc, char** argv){
     std::chrono::steady_clock::time_point t_begin,t_end;
     long int t_laps;
 
-    Matrix MatA; MatA = build_init_matrix(matrixSize,matrixSize); 
+    Matrix MatA; MatA = build_init_matrix(matrixSize,matrixSize,qView); 
     Matrix MatU=matrix_copy(MatA); 
     if (qView) { 
         std::cout<<"\n";
@@ -599,9 +607,179 @@ void BenchmarkTest(int argc, char** argv){
 }
 
 
+Matrix getCholeskyGPUVers3(Matrix A,int threads_per_block)
+{
+	int matrixSize=A.num_rows;
+    Matrix U= allocate_matrix(matrixSize,matrixSize,0);
+    hipEvent_t start, stop;
+    hipEventCreate(&start);
+    hipEventCreate(&stop);
+    //int threads_per_block = 256; 
+    int stride = threads_per_block;    
+    hipEventRecord(start, 0);    
+    Matrix gpu_u = allocate_matrix_on_gpu(U);
+    copy_matrix_to_device(gpu_u, A);
+    int k;
+    for (k = 0; k < matrixSize; k++) {
+        int isize = (matrixSize - 1) - (k + 1) + 1;
+        int num_blocks = isize;
+        if (num_blocks <= 0) { num_blocks = 1; }
+        dim3 thread_block(threads_per_block, 1, 1);
+        dim3 grid(num_blocks, 1);
+        hipLaunchKernelGGL(chol_kernel_optimized_div,grid, thread_block,0,0,gpu_u.data,k,stride,matrixSize); 
+        hipLaunchKernelGGL(chol_kernel_optimized,grid, thread_block,0,0,gpu_u.data,k,stride,matrixSize); 
+    }
+
+	const unsigned int block_size_2 = threads_per_block;
+    const unsigned int num_blocks_2 = (A.dimension+ block_size_2 - 1) / block_size_2;
+    dim3 thread_block_2(block_size_2, 1, 1);
+    dim3 grid_2(num_blocks_2, 1);
+	hipLaunchKernelGGL(matrix_lower_triangular,grid_2, thread_block_2,0,0,gpu_u.data,matrixSize,matrixSize);
+
+    copy_matrix_from_device(U, gpu_u);  				 
+    hipEventRecord(stop, 0);
+    hipEventSynchronize(stop);
+    hipFree(gpu_u.data);
+
+	//matrix_lower_triangular(U);
+
+    return U;
+}
+
+void TestPerform()
+{
+	std::ofstream myfile;
+	myfile.open ("DataSpecx.csv");
+    bool qView=true;
+    qView=false;	
+	bool qCTRL=true;
+	qCTRL=false;
+
+	myfile <<"DimMatrix,ModeSpecxHipAMD,ModeNormalGPU"<<"\n";	
+	std::chrono::steady_clock::time_point t_begin,t_end;
+
+    for (int i = 1; i <= 10; i++)
+    {
+        const int matrixSize=10000+i*(1000);
+        int nbthreads=512;
+        myfile <<matrixSize<<",";
+
+        // BEGIN:: Init part
+        std::chrono::steady_clock::time_point t_begin,t_end;
+        long int t_laps_specx,t_laps_gpu;
+
+        Matrix MatA; MatA = build_init_matrix(matrixSize,matrixSize,true); 
+        Matrix MatU=matrix_copy(MatA); 
+        if (qView) { 
+            std::cout<<"\n";
+            std::cout << "Matrix A ===>\n\n";	writeMatrix(MatA); std::cout << "\n";
+        }  
+        // END:: Init part
+
+            std::cout<<"[INFO]: Start Hip Part..."<<"\n";
+            sleep(1);
+            t_begin = std::chrono::steady_clock::now();
+            // BEGIN:: Task definition
+            //SpHipUtils::PrintInfo();
+            SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers());
+            static_assert(SpDeviceDataView<std::vector<int>>::MoveType == SpDeviceDataUtils::DeviceMovableType::STDVEC,"should be stdvec");
+            SpTaskGraph tg;
+            tg.computeOn(ce);
+            tg.task(SpCommutativeWrite(MatU),SpRead(MatA),
+                    SpHip([nbthreads](SpDeviceDataView<Matrix> paramU,
+                            const SpDeviceDataView<const Matrix> paramA) {
+                                //BEGIN:: Cholesky part
+                                    const int size = paramA.getRawSize()/sizeof(double);
+                                    const unsigned int matrixSize=sqrt(size);
+                                    const unsigned int threads_per_block = nbthreads;
+                                    const unsigned int stride            = threads_per_block;
+                                    unsigned int k;
+                                    for (k = 0; k < matrixSize; k++) {
+                                        int isize = (matrixSize - 1) - (k + 1) + 1;
+                                        int num_blocks = isize;
+                                        if (num_blocks <= 0) { num_blocks = 1; }
+                                        dim3 thread_block(threads_per_block, 1, 1);
+                                        dim3 grid(num_blocks, 1);
+                                        hipLaunchKernelGGL(chol_kernel_optimized_div,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
+                                        hipLaunchKernelGGL(chol_kernel_optimized,grid,thread_block,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),k,stride,matrixSize); 
+                                    }
+                                //END:: Cholesky part
+
+                                //BEGIN:: lower_triangular
+                                const unsigned int block_size_2 = nbthreads;
+                                const unsigned int num_blocks_2 = (size+ block_size_2 - 1) / block_size_2;
+                                dim3 thread_block_2(block_size_2, 1, 1);
+                                dim3 grid_2(num_blocks_2, 1);
+                                hipLaunchKernelGGL(matrix_lower_triangular,grid_2,thread_block_2,0,SpHipUtils::GetCurrentStream(),(double*)paramU.getRawPtr(),matrixSize,matrixSize); 
+                                //END:: lower_triangular
+
+                    })
+            );
+
+            tg.task(SpWrite(MatU), SpCpu([](Matrix&) { }));
+            // END:: Task definition
+
+            //matrix_lower_triangular(MatU);
+
+            // BEGIN:: Task execution
+            tg.waitAllTasks();
+            //tg.stopIfNotAlreadyStopped();
+            t_end = std::chrono::steady_clock::now();
+            // END:: Task execution
+
+
+            std::cout << "\n";
+            std::cout << "\n";
+            std::cout << "[INFO]: matrixSize= "<<matrixSize<<" x "<<matrixSize<<"\n";
+            t_laps_specx= std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_begin).count();
+            myfile<<t_laps_specx;
+            myfile<<",";
+            std::cout << "[INFO]: Elapsed microseconds inside SpecX  : "<<t_laps_specx<< " us\n";
+            std::cout << "\n";
+
+            sleep(1);
+            t_begin = std::chrono::steady_clock::now();
+            Matrix MatU_gpu2=getCholeskyGPUVers3(MatA,nbthreads);
+            t_end = std::chrono::steady_clock::now();
+            t_laps_gpu= std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_begin).count();
+            myfile<<t_laps_gpu;
+            std::cout << "[INFO]: Elapsed microseconds inside my GPU : "<<t_laps_gpu<< " us\n";
+            std::cout << "\n";
+            std::cout << "\n";
+
+
+            //writeMatrix(MatU);
+            //writeMatrix(MatU_gpu2);
+
+            //std::cout<<"[INFO]: CheckSolution"<<"\n";
+            //Matrix MatUt=matrix_transpose_GPU(MatU);
+            //Matrix MatT=matrix_product_GPU(MatUt,MatU);
+            //checkSolution_GPU(MatA,MatT);
+
+
+
+
+
+            // END:: End results
+            free(MatU_gpu2.data);
+            free(MatU.data);
+            free(MatA.data);
+            myfile<<"\n";
+
+            sleep(1);
+
+
+    }
+
+    myfile.close();
+
+}
+
+
 int main(int argc, char** argv){
     std::cout<<"\n";
-    BenchmarkTest(argc, argv);
+    //BenchmarkTest(argc, argv);
+    TestPerform();
     std::cout<<"[INFO]: FINISHED..."<<"\n";
     return 0;
 }
