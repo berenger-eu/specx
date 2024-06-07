@@ -496,7 +496,7 @@ ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& in
 void AccuracyTest(){
 #ifdef SPECX_COMPILE_WITH_HIP
     SpHipUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
 #endif
@@ -594,7 +594,7 @@ auto TuneBlockSize(){
     hipDeviceProp prop;
     hipGetDeviceProperties( &prop, 0);
 
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(0,1,1));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(0,1,1));
     SpTaskGraph tg;
     tg.computeOn(ce);
 

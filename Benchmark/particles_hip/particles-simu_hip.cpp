@@ -220,7 +220,8 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
-    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    //const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    const std::size_t nbIterations = ((nbParticles+nbThreads-1)/nbThreads)*nbThreads;
 
     for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticles);
@@ -315,7 +316,8 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
-    const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    //const std::size_t nbIterations = ((nbParticlesTargets+nbThreads-1)/nbThreads)*nbThreads;
+    const std::size_t nbIterations = ((nbParticlesTgt+nbThreads-1)/nbThreads)*nbThreads;
 
     for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticlesTgt);
@@ -436,7 +438,7 @@ ValueType ChechAccuracy(const ParticlesGroup& inGroup1, const ParticlesGroup& in
 void AccuracyTest(){
 #ifdef SPECX_COMPILE_WITH_HIP
     SpHipUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
 #endif
@@ -468,7 +470,8 @@ void AccuracyTest(){
         #ifdef SPECX_COMPILE_WITH_HIP
             , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                p2p_inner_gpu<<<10,10,0,SpHipUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                hipLaunchKernelGGL(p2p_inner_gpu,10,10,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize());
+
             })
         #endif
     );
@@ -483,7 +486,7 @@ void AccuracyTest(){
         #ifdef SPECX_COMPILE_WITH_HIP
             , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                p2p_inner_gpu<<<10,10,0,SpHipUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                hipLaunchKernelGGL(p2p_inner_gpu,10,10,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
     );
@@ -499,10 +502,13 @@ void AccuracyTest(){
             , SpHip([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                 [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
                 [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                p2p_neigh_gpu<<<10,10,0,SpHipUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
+
+                hipLaunchKernelGGL(p2p_neigh_gpu,10,10,0,SpHipUtils::GetCurrentStream(),paramB.getRawPtr(), paramB.getRawSize(),
                                                                          paramA.getRawPtr(), paramA.getRawSize());
-                p2p_neigh_gpu<<<10,10,0,SpHipUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+
+                hipLaunchKernelGGL(p2p_neigh_gpu,10,10,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
+
             })
         #endif
     );
@@ -535,10 +541,10 @@ auto TuneBlockSize(){
         return TuneResult();
     }
 
-    hipDeviceProp prop;
+    hipDeviceProp_t prop;
     hipGetDeviceProperties( &prop, 0);
 
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(0,1,1));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(0,1,1));
     SpTaskGraph tg;
     tg.computeOn(ce);
 
@@ -562,7 +568,8 @@ auto TuneBlockSize(){
                     SpTimer timer;
                     HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                    p2p_inner_gpu<<<idxBlock,idxThread,0,SpHipUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                    hipLaunchKernelGGL(p2p_inner_gpu,idxBlock,idxThread,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize());
+
                     HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     timer.stop();
 
@@ -581,10 +588,13 @@ auto TuneBlockSize(){
                     HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
                     [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                    p2p_neigh_gpu<<<idxBlock,idxThread,0,SpHipUtils::GetCurrentStream()>>>(paramB.getRawPtr(), paramB.getRawSize(),
+
+                    hipLaunchKernelGGL(p2p_neigh_gpu,idxBlock,idxThread,0,SpHipUtils::GetCurrentStream(),paramB.getRawPtr(), paramB.getRawSize(),
                                                                              paramA.getRawPtr(), paramA.getRawSize());
-                    p2p_neigh_gpu<<<idxBlock,idxThread,0,SpHipUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
+                    hipLaunchKernelGGL(p2p_neigh_gpu,idxBlock,idxThread,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize(),
                                                                              paramB.getRawPtr(), paramB.getRawSize());
+
+
                     HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     timer.stop();
 
@@ -650,7 +660,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
 #ifdef SPECX_COMPILE_WITH_HIP
     SpHipUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers());
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -670,8 +680,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                 #ifdef SPECX_COMPILE_WITH_HIP
                     , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
-                        p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpHipUtils::GetCurrentStream()>>>
-                                       (paramA.getRawPtr(), paramA.getRawSize());
+                        hipLaunchKernelGGL(p2p_inner_gpu,inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpHipUtils::GetCurrentStream(),paramA.getRawPtr(), paramA.getRawSize());
                     })
                 #endif
             );
@@ -687,10 +696,12 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                     , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                         [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
                         [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpHipUtils::GetCurrentStream()>>>
-                                     (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
-                        p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpHipUtils::GetCurrentStream()>>>
-                                     (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+
+                        hipLaunchKernelGGL(p2p_neigh_gpu,inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpHipUtils::GetCurrentStream(),
+                                    paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+
+                        hipLaunchKernelGGL(p2p_neigh_gpu,inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpHipUtils::GetCurrentStream(),
+                                    paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
                     })
                 #endif
             );
