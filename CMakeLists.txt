@@ -198,9 +198,18 @@ if(NOT SPECX_AS_SUBPROJECT)
     endif(SPECX_ATTACHE_SOURCE)
 endif()
 
+# Compiler specific options
+message(STATUS "CMAKE_CXX_COMPILER_ID = ${CMAKE_CXX_COMPILER_ID}")
+
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "icpc.*$")
 else()
   set(SPECX_CXX_FLAGS "${SPECX_CXX_FLAGS} -Wold-style-cast")
+endif()
+
+# Check if the compiler is nvcc
+if(CMAKE_CUDA_COMPILER MATCHES ".*nvcc.*" AND SPECX_COMPILE_WITH_CUDA)
+    message(STATUS "NVCC compiler is used CMAKE_CUDA_COMPILER = ${CMAKE_CUDA_COMPILER}")
+    set(SPECX_CXX_FLAGS "-Xcompiler=\"${SPECX_CXX_FLAGS}\"")
 endif()
 
 option(SPECX_USE_DEBUG_PRINT "Should be ON to enable debug print mechanism" ON)
