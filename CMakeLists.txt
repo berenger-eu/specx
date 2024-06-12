@@ -207,7 +207,10 @@ else()
 endif()
 
 # Check if the compiler is nvcc
-if(CMAKE_CUDA_COMPILER MATCHES ".*nvcc.*" AND SPECX_COMPILE_WITH_CUDA)
+# if we pass CXX=nvcc then CMAKE_CXX_COMPILER_ID=GNU,
+# but if we only enable cuda then CMAKE_CXX_COMPILER_ID=GNU 11.4.0 (with the version)
+# if course if someone use clang it will be different...
+if(CMAKE_CUDA_COMPILER MATCHES ".*nvcc.*" AND SPECX_COMPILE_WITH_CUDA AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     message(STATUS "NVCC compiler is used CMAKE_CUDA_COMPILER = ${CMAKE_CUDA_COMPILER}")
     set(SPECX_CXX_FLAGS "-Xcompiler=\"${SPECX_CXX_FLAGS}\"")
 endif()
