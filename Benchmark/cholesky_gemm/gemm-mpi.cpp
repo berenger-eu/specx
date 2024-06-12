@@ -387,9 +387,9 @@ int main(int argc, char** argv){
 
     // Print out csv
     if(Prank == 0){
-        std::ofstream file(outputDir + "/gemm.csv");
+        std::ofstream file(outputDir + "/gemm-mpi.csv");
         if(!file.is_open()){
-            std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
+            std::cerr << "Cannot open file " << outputDir + "/gemm-mpi.csv" << std::endl;
             return 1;
         }
 

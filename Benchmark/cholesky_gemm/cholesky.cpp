@@ -333,9 +333,9 @@ int main(int argc, char** argv){
         }
     }
 
-    std::ofstream file(outputDir + "/gemm.csv");
+    std::ofstream file(outputDir + "/cholesky.csv");
     if(!file.is_open()){
-        std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
+        std::cerr << "Cannot open file " << outputDir + "/cholesky.csv" << std::endl;
         return 1;
     }
 

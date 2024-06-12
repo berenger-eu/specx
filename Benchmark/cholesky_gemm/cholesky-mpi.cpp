@@ -359,9 +359,9 @@ int main(int argc, char** argv){
     }
 
     if(Prank == 0){
-        std::ofstream file(outputDir + "/gemm.csv");
+        std::ofstream file(outputDir + "/cholesky-mpi.csv");
         if(!file.is_open()){
-            std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
+            std::cerr << "Cannot open file " << outputDir + "/cholesky-mpi.csv" << std::endl;
             return 1;
         }
 
