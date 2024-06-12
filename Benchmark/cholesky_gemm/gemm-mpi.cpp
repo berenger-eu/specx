@@ -43,7 +43,7 @@ struct Coord{
 auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
           const Coord& processIdxInGrid, const int processBlockDim,
           const Coord& processGridDim, const int inMatrixDim, const int inBlockDim,
-                           const std::string& schedulerName){
+          const int nbGpu, const bool useMultiPrioScheduler){
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
@@ -51,21 +51,23 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     std::unique_ptr<SpBlas::Block[]> buffersB(new SpBlas::Block[processBlockDim*processBlockDim]);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    SpCudaUtils::PrintInfo();
     std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(schedulerName == "default"){
-        std::cout << "Default scheduler" << std::endl;
+    if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
-    else if(schedulerName == "multiprio"){
-        std::cout << "Multi prio scheduler" << std::endl;
+    else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    else{
-        std::cout << "Unknown scheduler " << schedulerName << std::endl;
-        return std::vector<double>(3);
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(useMultiPrioScheduler == false){
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+    else{
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));    
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -245,14 +247,14 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         timer.stop();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    for(int i = 0 ; i < processBlockDim ; ++i){
-        for(int j = 0 ; j < processBlockDim ; ++j){
-            tg.syncDataOnCpu(blocksC[i*processBlockDim+j]);
+        for(int i = 0 ; i < processBlockDim ; ++i){
+            for(int j = 0 ; j < processBlockDim ; ++j){
+                tg.syncDataOnCpu(blocksC[i*processBlockDim+j]);
+            }
         }
-    }
 #endif
 
-    tg.waitAllTasks();
+        tg.waitAllTasks();
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
@@ -297,10 +299,6 @@ int main(int argc, char** argv){
     std::string outputDir = "./";
     args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
 
-
-    std::string schedulerName;
-    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
-
     args.parse();
 
     if(!args.isValid() || args.hasKey("help")){
@@ -309,9 +307,11 @@ int main(int argc, char** argv){
       return -1;
     }
 
-#ifdef SPECX_COMPILE_WITH_CUDA   
+#ifdef SPECX_COMPILE_WITH_CUDA  
+    SpCudaUtils::PrintInfo(); 
     const int nbGpus = SpCudaUtils::GetNbDevices();
 #elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
     const int nbGpus = SpHipUtils::GetNbDevices();
 #else    
     const int nbGpus = 0;
@@ -323,83 +323,90 @@ int main(int argc, char** argv){
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
-    for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-        for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
-            for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                const bool printValues = (MatrixSize <= 16);
-                const bool checkAccuracy = (MatrixSize <= 16);
-                /////////////////////////////////////////////////////////
-                auto matrixA = SpBlas::generateAMatrix(MatrixSize);
-                auto matrixB = SpBlas::generateAMatrix(MatrixSize);
-                auto matrixC = SpBlas::generateAMatrix(MatrixSize, 0);
-                if(printValues){
-                    std::cout << "Matrix A:\n";
-                    SpBlas::printMatrix(matrixA.get(), MatrixSize);
-                    std::cout << "Matrix B:\n";
-                    SpBlas::printMatrix(matrixB.get(), MatrixSize);
-                }
-                /////////////////////////////////////////////////////////
-                auto blocksA = SpBlas::matrixToBlock(matrixA.get(), MatrixSize, BlockSize);
-                auto blocksB = SpBlas::matrixToBlock(matrixB.get(), MatrixSize, BlockSize);
-                if(printValues){
-                    std::cout << "Blocks A:\n";
-                    SpBlas::printBlocks(blocksA.get(), MatrixSize, BlockSize);
-                    std::cout << "Blocks B:\n";
-                    SpBlas::printBlocks(blocksB.get(), MatrixSize, BlockSize);
-                }
-                /////////////////////////////////////////////////////////
-                auto blocksC = SpBlas::matrixToBlock(matrixC.get(), MatrixSize, BlockSize);
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
+                for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    const bool printValues = (MatrixSize <= 16);
+                    const bool checkAccuracy = (MatrixSize <= 16);
+                    /////////////////////////////////////////////////////////
+                    auto matrixA = SpBlas::generateAMatrix(MatrixSize);
+                    auto matrixB = SpBlas::generateAMatrix(MatrixSize);
+                    auto matrixC = SpBlas::generateAMatrix(MatrixSize, 0);
+                    if(printValues){
+                        std::cout << "Matrix A:\n";
+                        SpBlas::printMatrix(matrixA.get(), MatrixSize);
+                        std::cout << "Matrix B:\n";
+                        SpBlas::printMatrix(matrixB.get(), MatrixSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    auto blocksA = SpBlas::matrixToBlock(matrixA.get(), MatrixSize, BlockSize);
+                    auto blocksB = SpBlas::matrixToBlock(matrixB.get(), MatrixSize, BlockSize);
+                    if(printValues){
+                        std::cout << "Blocks A:\n";
+                        SpBlas::printBlocks(blocksA.get(), MatrixSize, BlockSize);
+                        std::cout << "Blocks B:\n";
+                        SpBlas::printBlocks(blocksB.get(), MatrixSize, BlockSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    auto blocksC = SpBlas::matrixToBlock(matrixC.get(), MatrixSize, BlockSize);
 
-                const int sqrtPsize = std::round(std::sqrt(Psize));
-                assert(sqrtPsize*sqrtPsize == Psize);
-                Coord processGridDim{sqrtPsize, sqrtPsize};
-                Coord processIdxInGrid{Prank/sqrtPsize, Prank%sqrtPsize};
-                int processBlockDim = MatrixSize/BlockSize;
+                    const int sqrtPsize = std::round(std::sqrt(Psize));
+                    assert(sqrtPsize*sqrtPsize == Psize);
+                    Coord processGridDim{sqrtPsize, sqrtPsize};
+                    Coord processIdxInGrid{Prank/sqrtPsize, Prank%sqrtPsize};
+                    int processBlockDim = MatrixSize/BlockSize;
 
-                std::cout << Prank << "] sqrtPsize = " << sqrtPsize << std::endl;
-                std::cout << Prank << "] processGridDim = " << processGridDim.i << " " << processGridDim.j << std::endl;
-                std::cout << Prank << "] processIdxInGrid = " << processIdxInGrid.i << " " << processIdxInGrid.j << std::endl;
-                std::cout << Prank << "] processBlockDim = " << processBlockDim << std::endl;
+                    std::cout << Prank << "] sqrtPsize = " << sqrtPsize << std::endl;
+                    std::cout << Prank << "] processGridDim = " << processGridDim.i << " " << processGridDim.j << std::endl;
+                    std::cout << Prank << "] processIdxInGrid = " << processIdxInGrid.i << " " << processIdxInGrid.j << std::endl;
+                    std::cout << Prank << "] processBlockDim = " << processBlockDim << std::endl;
 
-                const auto minMaxAvg = gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
-                    processBlockDim, processGridDim, MatrixSize, BlockSize, schedulerName);
-                allDurations.push_back(minMaxAvg);
-                std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
-                if(printValues){
-                    std::cout << "Blocks after gemm C:\n";
-                    SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);
+                    const auto minMaxAvg = gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
+                        processBlockDim, processGridDim, MatrixSize, BlockSize, idxGpu, useMultiprio);
+                    allDurations.push_back(minMaxAvg);
+                    std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
+                    if(printValues){
+                        std::cout << "Blocks after gemm C:\n";
+                        SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    gemm(NbLoops, matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
+                    if(printValues){
+                        std::cout << "Matrix after gemm C:\n";
+                        SpBlas::printMatrix(matrixC.get(), MatrixSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrixC.get(), blocksC.get(), MatrixSize, BlockSize,
+                                                                            0, 1, Psize);
+                    std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
                 }
-                /////////////////////////////////////////////////////////
-                gemm(NbLoops, matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
-                if(printValues){
-                    std::cout << "Matrix after gemm C:\n";
-                    SpBlas::printMatrix(matrixC.get(), MatrixSize);
-                }
-                /////////////////////////////////////////////////////////
-                const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrixC.get(), blocksC.get(), MatrixSize, BlockSize,
-                                                                        0, 1, Psize);
-                std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
             }
         }
     }
 
     // Print out csv
-    std::ofstream file(outputDir + "/gemm.csv");
-    if(!file.is_open()){
-        std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
-        return 1;
-    }
+    if(Prank == 0){
+        std::ofstream file(outputDir + "/gemm.csv");
+        if(!file.is_open()){
+            std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
+            return 1;
+        }
 
-    file << "NbGpu,MatrixSize,BlockSize,MinDuration,MaxDuration,AvgDuration" << std::endl;
-    int idxDuration = 0;
-    for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-        for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
-            for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
-                    << allDurations[idxDuration][0] << "," 
-                    << allDurations[idxDuration][1] << "," 
-                    << allDurations[idxDuration][2] << std::endl;
-                idxDuration += 1;
+        file << "NbGpu,MatrixSize,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+        int idxDuration = 0;
+        for(bool useMultiprio: std::vector<bool>{true, false}){
+            for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+                for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
+                    for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                        file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
+                            << (useMultiprio?"TRUE":"FALSE") << ","
+                            << allDurations[idxDuration][0] << "," 
+                            << allDurations[idxDuration][1] << "," 
+                            << allDurations[idxDuration][2] << std::endl;
+                        idxDuration += 1;
+                    }
+                }
             }
         }
     }

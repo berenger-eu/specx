@@ -34,31 +34,29 @@ void choleskyFactorizationMatrix(const int NbLoops, double matrix[], const int i
     }
 }
 
-void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
-                           const std::string& schedulerName){
+auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
+                           const int nbGpu, const bool useMultiPrioScheduler){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    SpCudaUtils::PrintInfo();
     std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(schedulerName == "default"){
-        std::cout << "Default scheduler" << std::endl;
+    if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
-    else if(schedulerName == "multiprio"){
-        std::cout << "Multi prio scheduler" << std::endl;
+    else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    else{
-        std::cout << "Unknown scheduler " << schedulerName << std::endl;
-        return;
-    }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(useMultiPrioScheduler == false){
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else{
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(), std::move(scheduler));
 #endif
-    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
-    tg.computeOn(ce);
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     struct CudaHandles{
@@ -94,7 +92,17 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
      });
 #endif
 
+    std::vector<double> minMaxAvg(3);
+    minMaxAvg[0] = std::numeric_limits<double>::max();
+    minMaxAvg[1] = std::numeric_limits<double>::min();
+    minMaxAvg[2] = 0;
+
      for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+        tg.computeOn(ce);
+
+        SpTimer timer;
+
         // Compute the blocks
         for(int k = 0 ; k < nbBlocks ; ++k){
             // TODO put for syrk and gemm ? const double rbeta = (j==0) ? beta : 1.0;
@@ -199,17 +207,23 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 }
             }
         }
-     }
+        tg.waitAllTasks();
+        timer.stop();
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    for(int i = 0 ; i < nbBlocks ; ++i){
-        for(int j = 0 ; j < nbBlocks ; ++j){
-            tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
+        for(int i = 0 ; i < nbBlocks ; ++i){
+            for(int j = 0 ; j < nbBlocks ; ++j){
+                tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
+            }
         }
-    }
 #endif
 
-    tg.waitAllTasks();
+        tg.waitAllTasks();
+
+        minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
+        minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
+        minMaxAvg[2] += timer.getElapsed();
+    }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
@@ -223,7 +237,9 @@ void choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #endif
 
     ce.stopIfNotAlreadyStopped();
-    tg.generateDot("/tmp/graph.dot");
+
+    minMaxAvg[2] /= NbLoops;
+    return minMaxAvg;
 }
 
 int main(int argc, char** argv){
@@ -231,17 +247,23 @@ int main(int argc, char** argv){
 
     args.addParameterNoArg({"help"}, "help");
 
-    int NbLoops;
-    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 1);
+    int NbLoops = 10;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, NbLoops);
 
-    int MatrixSize;
-    args.addParameter<int>({"ms"}, "MatrixSize", MatrixSize, 16);
+    int MinMatrixSize = 16;
+    args.addParameter<int>({"minms"}, "Min MatrixSize", MinMatrixSize, MinMatrixSize);
 
-    int BlockSize;
-    args.addParameter<int>({"bs"}, "BlockSize", BlockSize, 2);
+    int MaxMatrixSize = 16;
+    args.addParameter<int>({"maxms"}, "Max MatrixSize", MaxMatrixSize, MaxMatrixSize);
 
-    std::string schedulerName;
-    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
+    int MinBlockSize = 4;
+    args.addParameter<int>({"minbs"}, "Min BlockSize", MinBlockSize, MinBlockSize);
+
+    int MaxBlockSize = 4;
+    args.addParameter<int>({"maxbs"}, "Max BlockSize", MaxBlockSize, MaxBlockSize);
+
+    std::string outputDir = "./";
+    args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
 
     args.parse();
 
@@ -251,37 +273,89 @@ int main(int argc, char** argv){
       return -1;
     }
 
-    const bool printValues = (MatrixSize <= 16);
-    /////////////////////////////////////////////////////////
-    auto matrix = SpBlas::generateMatrixLikeStarpu(MatrixSize);// SpBlas::generatePositiveDefinitMatrix(MatrixSize);
-    if(printValues){
-        std::cout << "Matrix:\n";
-        SpBlas::printMatrix(matrix.get(), MatrixSize);
+
+#ifdef SPECX_COMPILE_WITH_CUDA  
+    SpCudaUtils::PrintInfo(); 
+    const int nbGpus = SpCudaUtils::GetNbDevices();
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
+    const int nbGpus = SpHipUtils::GetNbDevices();
+#else    
+    const int nbGpus = 0;
+#endif 
+
+    std::vector<std::vector<double>> allDurations;
+
+    SpMpiBackgroundWorker::GetWorker().init();
+    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
+    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
+
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
+                for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    const bool printValues = (MatrixSize <= 16);
+                    /////////////////////////////////////////////////////////
+                    auto matrix = SpBlas::generateMatrixLikeStarpu(MatrixSize);// SpBlas::generatePositiveDefinitMatrix(MatrixSize);
+                    if(printValues){
+                        std::cout << "Matrix:\n";
+                        SpBlas::printMatrix(matrix.get(), MatrixSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    auto blocks = SpBlas::matrixToBlock(matrix.get(), MatrixSize, BlockSize);
+                    if(printValues){
+                        std::cout << "Blocks:\n";
+                        SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
+                    std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
+                    /////////////////////////////////////////////////////////
+                    const auto minMaxAvg = choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, 
+                                                                idxGpu, useMultiprio);
+                    allDurations.push_back(minMaxAvg);
+                    std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
+                    if(printValues){
+                        std::cout << "Blocks after facto:\n";
+                        SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    choleskyFactorizationMatrix(NbLoops, matrix.get(), MatrixSize);
+                    if(printValues){
+                        std::cout << "Matrix after facto:\n";
+                        SpBlas::printMatrix(matrix.get(), MatrixSize);
+                    }
+                    /////////////////////////////////////////////////////////
+                    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
+                    std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
+                }
+            }
+        }
     }
-    /////////////////////////////////////////////////////////
-    auto blocks = SpBlas::matrixToBlock(matrix.get(), MatrixSize, BlockSize);
-    if(printValues){
-        std::cout << "Blocks:\n";
-        SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
+
+    std::ofstream file(outputDir + "/gemm.csv");
+    if(!file.is_open()){
+        std::cerr << "Cannot open file " << outputDir + "/gemm.csv" << std::endl;
+        return 1;
     }
-    /////////////////////////////////////////////////////////
-    const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
-    std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
-    /////////////////////////////////////////////////////////
-    choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, schedulerName);
-    if(printValues){
-        std::cout << "Blocks after facto:\n";
-        SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
+
+    file << "NbGpu,MatrixSize,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    int idxDuration = 0;
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
+                for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
+                        << (useMultiprio?"TRUE":"FALSE") << ","
+                        << allDurations[idxDuration][0] << "," 
+                        << allDurations[idxDuration][1] << "," 
+                        << allDurations[idxDuration][2] << std::endl;
+                    idxDuration += 1;
+                }
+            }
+        }
     }
-    /////////////////////////////////////////////////////////
-    choleskyFactorizationMatrix(NbLoops, matrix.get(), MatrixSize);
-    if(printValues){
-        std::cout << "Matrix after facto:\n";
-        SpBlas::printMatrix(matrix.get(), MatrixSize);
-    }
-    /////////////////////////////////////////////////////////
-    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
-    std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
+
 
     return 0;
 }
