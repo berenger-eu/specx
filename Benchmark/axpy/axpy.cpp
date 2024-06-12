@@ -73,7 +73,7 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 #endif
 
 
-double BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int cudanbthreads){   
+auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int cudanbthreads){   
     std::vector<Vector<float>> x(nbblocks, Vector<float>(blocksize, 1));
     std::vector<Vector<float>> y(nbblocks, Vector<float>(blocksize, 1));
     std::vector<Vector<float>> z(nbblocks, Vector<float>(blocksize, 0));
@@ -86,13 +86,19 @@ double BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, con
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
-    SpTaskGraph tg;
 
-    tg.computeOn(ce);
-
-    SpTimer timer;
+    std::vector<double> minMaxAvg(3);
+    minMaxAvg[0] = std::numeric_limits<double>::max();
+    minMaxAvg[1] = std::numeric_limits<double>::min();
+    minMaxAvg[2] = 0;
 
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        SpTaskGraph tg;
+
+        tg.computeOn(ce);
+
+        SpTimer timer;
+
         for(int idxBlock = 0 ; idxBlock < nbblocks ; ++idxBlock){
             tg.task(SpCommutativeWrite(z[idxBlock]),SpRead(x[idxBlock]),SpRead(y[idxBlock]),
                 SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
@@ -122,21 +128,28 @@ double BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, con
 #endif
             );
         }
-    }
+
+        tg.waitAllTasks();
+        timer.stop();
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
-    for(int idxBlock = 0 ; idxBlock < nbblocks ; ++idxBlock){
-        tg.task(SpWrite(z[idxBlock]),
-        SpCpu([](Vector<float>&) {
-        })
-        );
-    }
+        for(int idxBlock = 0 ; idxBlock < nbblocks ; ++idxBlock){
+            tg.task(SpWrite(z[idxBlock]),
+            SpCpu([](Vector<float>&) {
+            })
+            );
+        }
 #endif
+        tg.waitAllTasks();
 
-    tg.waitAllTasks();
+        minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
+        minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
+        minMaxAvg[2] += timer.getElapsed();
+    }
 
-    timer.stop();
-    return timer.getElapsed();
+    minMaxAvg[2] /= NbLoops;
+
+    return minMaxAvg;
 }
 
 
@@ -174,9 +187,15 @@ int main(int argc, char** argv){
       return;
     }
 
+#ifdef SPECX_COMPILE_WITH_CUDA   
     const int nbGpus = SpCudaUtils::GetNbDevices();
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    const int nbGpus = SpHipUtils::GetNbDevices();
+#else    
+    const int nbGpus = 0;
+#endif    
 
-    std::vector<double> allDurations;
+    std::vector<std::vector<double>> allDurations;
 
     for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
         if(idxGpu > 0){
@@ -192,10 +211,10 @@ int main(int argc, char** argv){
         for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
             for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
                 std::cout << "  - NbBlocks = " << idxBlock << " BlockSize = " << idxSize << std::endl;
-                const double duration = BenchmarkTest(NbLoops, idxGpu, idxBlock, idxSize, cudanbthreads);
-                std::cout << "     - Duration = " << duration << std::endl;
+                const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxBlock, idxSize, cudanbthreads);
+                std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                 std::cout << "     - End" << std::endl;
-                allDurations.push_back(duration);
+                allDurations.push_back(minMaxAvg);
             }
         }
     }
@@ -207,12 +226,16 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,NbBlocks,BlockSize,Duration" << std::endl;
+    file << "NbGpu,NbBlocks,BlockSize,MinDuration,MaxDuration,AvgDuration" << std::endl;
     int idxDuration = 0;
     for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
         for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
             for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
-                file << idxGpu << "," << idxBlock << "," << idxSize << "," << allDurations[idxDuration++] << std::endl;
+                file << idxGpu << "," << idxBlock << "," << idxSize << "," 
+                    << allDurations[idxDuration][0] << "," 
+                    << allDurations[idxDuration][1] << "," 
+                    << allDurations[idxDuration][2] << std::endl;
+                idxDuration += 1;
             }
         }
     }
