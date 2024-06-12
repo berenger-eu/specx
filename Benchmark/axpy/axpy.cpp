@@ -157,8 +157,8 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
             })
             );
         }
-#endif
         tg.waitAllTasks();
+#endif
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());

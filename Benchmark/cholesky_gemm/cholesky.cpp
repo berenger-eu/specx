@@ -216,9 +216,8 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
             }
         }
-#endif
-
         tg.waitAllTasks();
+#endif
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
@@ -285,10 +284,6 @@ int main(int argc, char** argv){
 #endif 
 
     std::vector<std::vector<double>> allDurations;
-
-    SpMpiBackgroundWorker::GetWorker().init();
-    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
-    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
 
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
