@@ -109,6 +109,12 @@ public:
         std::cout << "[SPECX]   Device name: " << prop.name << std::endl;
     }
 
+    static std::string GetDeviceName(const int cudaId){
+        cudaDeviceProp prop;
+        CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
+        return prop.name;
+    }
+
     static void PrintInfo(){
         const int nbGpus = GetNbDevices();
         std::cout << "[SPECX] There are " << nbGpus << " gpus" << std::endl;

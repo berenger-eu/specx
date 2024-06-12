@@ -105,6 +105,12 @@ public:
         std::cout << "[SPECX]   Device name: " << prop.name << std::endl;
     }
 
+    static std::string GetDeviceName(const int hipId){
+        hipDeviceProp_t prop;
+        HIP_ASSERT(hipGetDeviceProperties(&prop, hipId));
+        return prop.name;
+    }
+
     static void PrintInfo(){
         const int nbGpus = GetNbDevices();
         std::cout << "[SPECX] There are " << nbGpus << " gpus" << std::endl;

@@ -23,6 +23,8 @@ template <class NumType>
 struct Vector{
     std::vector<NumType> data;
 
+    Vector() = default;
+    Vector(const std::size_t size, const NumType value) : data(size, value){}
 
     /////////////////////////////////////////////////////////////
 
@@ -71,41 +73,16 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 #endif
 
 
-void BenchmarkTest(int argc, char** argv){
-    CLsimple args("Axpy", argc, argv);
-
-    args.addParameterNoArg({"help"}, "help");
-
-    int NbLoops = 100;
-    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
-
-    int nbblocks = 100;
-    args.addParameter<int>({"nbb" ,"nbblocks"}, "NbBlocks", nbblocks, 1024);
-
-    int blocksize = 512;
-    args.addParameter<int>({"bs" ,"blocksize"}, "Block size", blocksize, 1024);
-
-    int cudanbthreads;
-    args.addParameter<int>({"cuth"}, "cuthreads", cudanbthreads, 256);
-
-    args.parse();
-
-    if(!args.isValid() || args.hasKey("help")){
-      // Print the help
-      args.printHelp(std::cout);
-      return;
-    }
-
-    const int cudanbblocks = (nbblocks + cudanbthreads-1)/cudanbthreads;
-
-    std::vector<Vector<float>> x(nbblocks, Vector<float>(size, 1));
-    std::vector<Vector<float>> y(nbblocks, Vector<float>(size, 1));
-    std::vector<Vector<float>> z(nbblocks, Vector<float>(size, 0));
+double BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int cudanbthreads){   
+    std::vector<Vector<float>> x(nbblocks, Vector<float>(blocksize, 1));
+    std::vector<Vector<float>> y(nbblocks, Vector<float>(blocksize, 1));
+    std::vector<Vector<float>> z(nbblocks, Vector<float>(blocksize, 0));
     const float a = 2;
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    SpCudaUtils::PrintInfo();
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu));
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(), nbGpu));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -115,22 +92,31 @@ void BenchmarkTest(int argc, char** argv){
 
     SpTimer timer;
 
-    for(int i = 0 ; i < NbLoops ; ++i){
-        for(int z = 0 ; z < nbblocks ; ++z){
-            tg.task(SpCommutativeWrite(z),SpRead(x),SpRead(y),
-#ifndef SPECX_COMPILE_WITH_CUDA
+    for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        for(int idxBlock = 0 ; idxBlock < nbblocks ; ++idxBlock){
+            tg.task(SpCommutativeWrite(z[idxBlock]),SpRead(x[idxBlock]),SpRead(y[idxBlock]),
                 SpCpu([ta=a](Vector<float>& tz, const Vector<float>& tx, const Vector<float>& ty) {
                     for(int idx = 0 ; idx < int(tz.data.size()) ; ++idx){
                         tz.data[idx] = ta*tx.data[idx]*ty.data[idx];
                     }
                 })
-#else
-                SpCuda([a, nbthreads](SpDeviceDataView<Vector<float>> paramZ,
+#ifdef SPECX_COMPILE_WITH_CUDA
+                , SpCuda([a, cudanbthreads](SpDeviceDataView<Vector<float>> paramZ,
                         const SpDeviceDataView<const Vector<float>> paramX,
                         const SpDeviceDataView<const Vector<float>> paramY) {
                     const int size = paramZ.data().getSize();
-                    const int nbBlocks = (size + nbthreads-1)/nbthreads;
-                    cu_axpy<float><<<nbBlocks, nbthreads,0,SpCudaUtils::GetCurrentStream()>>>
+                    const int cudanbblocks = (size + cudanbthreads-1)/cudanbthreads;
+                    cu_axpy<float><<<cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream()>>>
+                        (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
+                })
+#endif
+#ifdef SPECX_COMPILE_WITH_Hip
+                , SpHip([a, cudanbthreads](SpDeviceDataView<Vector<float>> paramZ,
+                        const SpDeviceDataView<const Vector<float>> paramX,
+                        const SpDeviceDataView<const Vector<float>> paramY) {
+                    const int size = paramZ.data().getSize();
+                    const int cudanbblocks = (size + cudanbthreads-1)/cudanbthreads;
+                    cu_axpy<float><<<cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream()>>>
                         (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
                 })
 #endif
@@ -138,25 +124,98 @@ void BenchmarkTest(int argc, char** argv){
         }
     }
 
-#ifdef SPECX_COMPILE_WITH_CUDA
-    tg.task(SpWrite(z),
-    SpCpu([](Vector<float>&) {
-    })
-    );
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+    for(int idxBlock = 0 ; idxBlock < nbblocks ; ++idxBlock){
+        tg.task(SpWrite(z[idxBlock]),
+        SpCpu([](Vector<float>&) {
+        })
+        );
+    }
 #endif
 
     tg.waitAllTasks();
 
-
-    std::cout << "Duration = " << timer.getElapsed() << std::endl;
-
-    std::cout << "Generate trace ./axpy-simu.svg" << std::endl;
-    tg.generateTrace("./axpy-simu.svg", false);
+    timer.stop();
+    return timer.getElapsed();
 }
 
 
 int main(int argc, char** argv){
-    BenchmarkTest(argc, argv);
+    CLsimple args("Axpy", argc, argv);
+
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops = 100;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, NbLoops);
+
+    int minnbblocks = 10;
+    args.addParameter<int>({"minnbb" ,"minnbblocks"}, "Min NbBlocks", minnbblocks, minnbblocks);
+
+    int maxnbblocks = 100;
+    args.addParameter<int>({"maxnbb" ,"maxnbblocks"}, "Max NbBlocks", maxnbblocks, maxnbblocks);
+
+    int minblocksize = 512;
+    args.addParameter<int>({"minbs" ,"minblocksize"}, "Min Block size", minblocksize, minblocksize);
+
+    int maxblocksize = 512;
+    args.addParameter<int>({"maxbs" ,"maxblocksize"}, "Max Block size", maxblocksize, maxblocksize);
+
+    int cudanbthreads = 256;
+    args.addParameter<int>({"cuth"}, "cuthreads", cudanbthreads, cudanbthreads);
+
+    std::string outputDir = "./";
+    args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+
+    const int nbGpus = SpCudaUtils::GetNbDevices();
+
+    std::vector<double> allDurations;
+
+    for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        if(idxGpu > 0){
+#ifdef SPECX_COMPILE_WITH_CUDA            
+            std::cout << ">> GPU " << idxGpu << " : " << SpCudaUtils::GetDeviceName(idxGpu-1) << std::endl;
+#elif defined(SPECX_COMPILE_WITH_HIP)
+            std::cout << ">> GPU " << idxGpu << " : " << SpHipUtils::GetDeviceName(idxGpu-1) << std::endl;
+#endif                        
+        }
+        else{
+            std::cout << ">> CPU " << SpUtils::DefaultNumThreads() << std::endl;
+        }
+        for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
+            for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
+                std::cout << "  - NbBlocks = " << idxBlock << " BlockSize = " << idxSize << std::endl;
+                const double duration = BenchmarkTest(NbLoops, idxGpu, idxBlock, idxSize, cudanbthreads);
+                std::cout << "     - Duration = " << duration << std::endl;
+                std::cout << "     - End" << std::endl;
+                allDurations.push_back(duration);
+            }
+        }
+    }
+
+    // Print out csv
+    std::ofstream file(outputDir + "/axpy.csv");
+    if(!file.is_open()){
+        std::cerr << "Cannot open file " << outputDir + "/axpy.csv" << std::endl;
+        return 1;
+    }
+
+    file << "NbGpu,NbBlocks,BlockSize,Duration" << std::endl;
+    int idxDuration = 0;
+    for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
+            for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
+                file << idxGpu << "," << idxBlock << "," << idxSize << "," << allDurations[idxDuration++] << std::endl;
+            }
+        }
+    }
 
     return 0;
 }
