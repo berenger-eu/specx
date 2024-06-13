@@ -51,14 +51,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
-    std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(useMultiPrioScheduler == false){
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
-    }
-    else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
-    }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA

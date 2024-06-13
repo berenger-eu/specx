@@ -233,6 +233,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
         tg.waitAllTasks();
         timer.stop();
 
+#ifdef SPECX_COMPILE_WITH_CUDA
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
                 if(j % Psize == Prank){
@@ -240,8 +241,8 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 }
             }
         }
-
         tg.waitAllTasks();
+#endif
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());

@@ -284,8 +284,9 @@ __global__ void p2p_inner_gpu(void* data, std::size_t size){
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+    const std::size_t nbIterations = ((nbParticles+nbThreads-1)/nbThreads)*nbThreads;
 
-    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticles+gridDim.x-1 ; idxTarget += nbThreads){
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticles);
 
         double tx;
@@ -378,8 +379,9 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
     constexpr std::size_t SHARED_MEMORY_SIZE = 128;
     const std::size_t nbThreads = blockDim.x*gridDim.x;
     const std::size_t uniqueId = threadIdx.x + blockIdx.x*blockDim.x;
+    const std::size_t nbIterations = ((nbParticlesTgt+nbThreads-1)/nbThreads)*nbThreads;
 
-    for(std::size_t idxTarget = uniqueId ; idxTarget < nbParticlesTgt+gridDim.x-1 ; idxTarget += nbThreads){
+    for(std::size_t idxTarget = uniqueId ; idxTarget < nbIterations ; idxTarget += nbThreads){
         const bool threadCompute = (idxTarget<nbParticlesTgt);
 
         double tx;
@@ -593,6 +595,10 @@ struct TuneResult{
 
 auto TuneBlockSize(){
 #ifdef SPECX_COMPILE_WITH_CUDA
+    if(SpCudaUtils::GetNbDevices() == 0){
+        return TuneResult();
+    }
+
     cudaDeviceProp prop;
     cudaGetDeviceProperties( &prop, 0);
 
@@ -670,41 +676,8 @@ auto TuneBlockSize(){
 #endif
 }
 
-void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
-    CLsimple args("Particles", argc, argv);
-
-    args.addParameterNoArg({"help"}, "help");
-
-    int NbLoops = 100;
-    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
-
-    int MinPartsPerGroup;
-    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
-
-    int MaxPartsPerGroup;
-    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
-
-    int NbGroups;
-    args.addParameter<int>({"nbgroups"}, "NbGroups", NbGroups, 10);
-
-    std::string schedulerName;
-    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
-
-    args.parse();
-
-    if(!args.isValid() || args.hasKey("help")){
-      // Print the help
-      args.printHelp(std::cout);
-      return;
-    }
-
-    SpMpiBackgroundWorker::GetWorker().init();
-
-    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
-    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
-
-    static_assert(SpGetSerializationType<ParticlesGroup>() == SpSerializationType::SP_SERIALIZER_TYPE,
-            "We use serializer");
+auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
+                const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler, const TuneResult& inKernelConfig){
 
     std::vector<ParticlesGroup> particleGroups(NbGroups);
     ParticlesGroup leftParticleGroup;
@@ -717,30 +690,29 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    SpCudaUtils::PrintInfo();
     std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(schedulerName == "default"){
-        std::cout << "Default scheduler" << std::endl;
+    if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
-    else if(schedulerName == "multiprio"){
-        std::cout << "Multi prio scheduler" << std::endl;
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
-    }
     else{
-        std::cout << "Unknown scheduler " << schedulerName << std::endl;
-        return;
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
-    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
-    tg.computeOn(ce);
 
-    SpTimer timer;
+    std::vector<double> minMaxAvg(3);
+    minMaxAvg[0] = std::numeric_limits<double>::max();
+    minMaxAvg[1] = std::numeric_limits<double>::min();
+    minMaxAvg[2] = 0;
 
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
+        tg.computeOn(ce);
+
+        SpTimer timer;
+
         tg.mpiSend(particleGroups[0], (Prank+Psize-1)%Psize, 0);
         tg.mpiSend(particleGroups[NbGroups-1], (Prank+1)%Psize, 1);
 
@@ -808,28 +780,111 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                 })
             #endif
         );
+
+        tg.waitAllTasks();
+        timer.stop();
+
+#ifdef SPECX_COMPILE_WITH_CUDA
+        for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
+            tg.task(SpWrite(particleGroups[idxPart]),
+                    SpCpu([](ParticlesGroup& particlesW) {
+                    })
+            );
+        }
+        tg.waitAllTasks();
+#endif
+        minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
+        minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
+        minMaxAvg[2] += timer.getElapsed();
     }
 
-    for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
-        tg.task(SpWrite(particleGroups[idxPart]),
-                SpCpu([](ParticlesGroup& particlesW) {
-                })
-        );
+    minMaxAvg[2] /= NbLoops;
+    return minMaxAvg;
+}
+
+
+void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
+    CLsimple args("Particles", argc, argv);
+
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops = 100;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
+
+    int MinPartsPerGroup;
+    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
+
+    int MaxPartsPerGroup;
+    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
+
+    int MinNbGroups;
+    args.addParameter<int>({"minnbgroups"}, "MinNbGroups", MinNbGroups, 10);
+
+    int MaxNbGroups;
+    args.addParameter<int>({"maxnbgroups"}, "MaxNbGroups", MaxNbGroups, 10);
+
+    std::string outputDir = "./";
+    args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+#ifdef SPECX_COMPILE_WITH_CUDA  
+    SpCudaUtils::PrintInfo(); 
+    const int nbGpus = SpCudaUtils::GetNbDevices();
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
+    const int nbGpus = SpHipUtils::GetNbDevices();
+#else    
+    const int nbGpus = 0;
+#endif 
+    
+    SpMpiBackgroundWorker::GetWorker().init();
+
+    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
+    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
+
+    static_assert(SpGetSerializationType<ParticlesGroup>() == SpSerializationType::SP_SERIALIZER_TYPE,
+            "We use serializer");
+
+    std::vector<std::vector<double>> allDurations;
+
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+                const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
+                                    MaxNbGroups, idxBlock, idxGpu, useMultiprio, inKernelConfig);
+                allDurations.push_back(minMaxAvg);
+            }
+        }
     }
 
-    tg.waitAllTasks();
+    if(Prank == 0){}
+        std::ofstream file(outputDir + "/particle-simu-mpi.csv");
+        if(!file.is_open()){
+            std::cerr << "Cannot open file " << outputDir + "/particle-simu-mpi.csv" << std::endl;
+            return;
+        }
 
-    timer.stop();
-
-    std::cout << "NbLoops = " << NbLoops << std::endl;
-    std::cout << "MinPartsPerGroup = " << MinPartsPerGroup << std::endl;
-    std::cout << "MaxPartsPerGroup = " << MaxPartsPerGroup << std::endl;
-    std::cout << "NbGroups = " << NbGroups << std::endl;
-    std::cout << "Duration = " << timer.getElapsed() << std::endl;
-
-    const auto traceName = "./particles-simu" + std::to_string(SpMpiUtils::GetMpiRank()) + ".svg";
-    std::cout << "Generate trace " << traceName << std::endl;
-    tg.generateTrace(traceName, false);
+        file << "NbGpu,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+        int idxDuration = 0;
+        for(bool useMultiprio: std::vector<bool>{true, false}){
+            for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+                for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+                    file << idxGpu << "," << idxBlock << "," 
+                        << (useMultiprio?"TRUE":"FALSE") << ","
+                        << allDurations[idxDuration][0] << "," 
+                        << allDurations[idxDuration][1] << "," 
+                        << allDurations[idxDuration][2] << std::endl;
+                    idxDuration += 1;
+                }
+            }
+        }
+    }
 }
 
 

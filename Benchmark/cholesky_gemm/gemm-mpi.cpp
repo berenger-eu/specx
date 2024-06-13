@@ -252,9 +252,8 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                 tg.syncDataOnCpu(blocksC[i*processBlockDim+j]);
             }
         }
-#endif
-
         tg.waitAllTasks();
+#endif
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
