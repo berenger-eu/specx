@@ -679,6 +679,9 @@ auto TuneBlockSize(){
 auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
                 const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler, const TuneResult& inKernelConfig){
 
+    [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
+    [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
+
     std::vector<ParticlesGroup> particleGroups(NbGroups);
     ParticlesGroup leftParticleGroup;
     ParticlesGroup rightParticleGroup;
@@ -863,7 +866,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         }
     }
 
-    if(Prank == 0){}
+    if(Prank == 0){
         std::ofstream file(outputDir + "/particle-simu-mpi.csv");
         if(!file.is_open()){
             std::cerr << "Cannot open file " << outputDir + "/particle-simu-mpi.csv" << std::endl;
