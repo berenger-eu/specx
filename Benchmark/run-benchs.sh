@@ -23,14 +23,14 @@ function main(){
     NB_LOOPS=10
 
     # AXPY
-    ./Benchmark/axpy/axpy --lp=$NB_LOOPS --minnbb=10 --maxnbb=50 --minbs=128 --maxbs=512 --cuth=256 --od="$results_dir"
+    ./Benchmark/axpy/axpy --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --cuth=256 --od="$results_dir"
 
     # Cholesky/gemm
-    cholesky_gemm/cholesky
-    cholesky_gemm/gemm
+    cholesky_gemm/cholesky --lp=$NB_LOOPS --minnbb=4096 --maxnbb=16384 --minbs=128 --maxbs=512 --od="$results_dir"
+    cholesky_gemm/gemm --lp=$NB_LOOPS --minnbb=4096 --maxnbb=16384 --minbs=128 --maxbs=512 --od="$results_dir"
 
     # Particles
-    particles/particles-simu
+    particles/particles-simu --lp=$NB_LOOPS --minp=5000 --maxp=100000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir"
 }
 
 

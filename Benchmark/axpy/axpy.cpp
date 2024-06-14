@@ -179,10 +179,10 @@ int main(int argc, char** argv){
     int NbLoops = 100;
     args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, NbLoops);
 
-    int minnbblocks = 10;
+    int minnbblocks = 16;
     args.addParameter<int>({"minnbb" ,"minnbblocks"}, "Min NbBlocks", minnbblocks, minnbblocks);
 
-    int maxnbblocks = 100;
+    int maxnbblocks = 256;
     args.addParameter<int>({"maxnbb" ,"maxnbblocks"}, "Max NbBlocks", maxnbblocks, maxnbblocks);
 
     int minblocksize = 512;
@@ -220,10 +220,10 @@ int main(int argc, char** argv){
 
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
+            for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
-                    std::cout << "  - NbBlocks = " << idxBlock << " BlockSize = " << idxSize << std::endl;
-                    const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxBlock, idxSize, cudanbthreads, useMultiprio);
+                    std::cout << "  - NbBlocks = " << idxNbBlocks << " BlockSize = " << idxSize << std::endl;
+                    const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxNbBlocks, idxSize, cudanbthreads, useMultiprio);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - End" << std::endl;
                     allDurations.push_back(minMaxAvg);
@@ -243,9 +243,9 @@ int main(int argc, char** argv){
     int idxDuration = 0;
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int idxBlock = minnbblocks ; idxBlock <= maxnbblocks ; idxBlock += 10){
+            for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
-                    file << idxGpu << "," << idxBlock << "," << idxSize << "," 
+                    file << idxGpu << "," << idxNbBlocks << "," << idxSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
                         << allDurations[idxDuration][0] << "," 
                         << allDurations[idxDuration][1] << "," 

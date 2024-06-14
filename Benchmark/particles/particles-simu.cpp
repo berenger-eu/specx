@@ -750,7 +750,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
                 const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
                                     MaxNbGroups, idxBlock, idxGpu, useMultiprio, inKernelConfig);
                 allDurations.push_back(minMaxAvg);
@@ -769,7 +769,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     int idxDuration = 0;
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
                 file << idxGpu << "," << idxBlock << "," 
                     << (useMultiprio?"TRUE":"FALSE") << ","
                     << allDurations[idxDuration][0] << "," 
