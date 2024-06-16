@@ -220,6 +220,7 @@ int main(int argc, char** argv){
 
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            std::cout << " - Gpu = " << idxGpu << " Multiprio = " << (useMultiprio?"TRUE":"FALSE") << std::endl;
             for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
                     std::cout << "  - NbBlocks = " << idxNbBlocks << " BlockSize = " << idxSize << std::endl;
