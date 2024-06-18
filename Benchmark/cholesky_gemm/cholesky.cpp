@@ -33,6 +33,17 @@ void choleskyFactorizationMatrix(const int NbLoops, double matrix[], const int i
         SpBlas::potrf( SpBlas::FillMode::LWPR, inMatrixDim, matrix, inMatrixDim );
     }
 }
+#ifdef SPECX_COMPILE_WITH_CUDA
+    struct CudaHandles{
+        cublasHandle_t blasHandle;
+        cusolverDnHandle_t solverHandle;
+        int solverBuffSize;
+        double* solverBuffer;
+        int* cuinfo;
+    };
+
+thread_local CudaHandles handle;
+#endif
 
 auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
                            const int nbGpu, const bool useMultiPrioScheduler){
@@ -52,35 +63,24 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    struct CudaHandles{
-        cublasHandle_t blasHandle;
-        cusolverDnHandle_t solverHandle;
-        int solverBuffSize;
-        double* solverBuffer;
-        int* cuinfo;
-    };
-     std::vector<CudaHandles> handles(ce.getNbCudaWorkers());
-     const int offsetWorker = ce.getNbCpuWorkers() + 1;
-     ce.execOnWorkers([&handles, offsetWorker, &ce, inBlockDim, &blocks](auto id, auto type){
+    ce.execOnWorkers([&ce, inBlockDim, &blocks](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
-             assert(offsetWorker <= id && id < offsetWorker + ce.getNbCudaWorkers());
              SpDebugPrint() << "Worker " << id << " will now initiate cublas...";
-             auto& hdl = handles[id-offsetWorker];
-             CUBLAS_ASSERT(cublasCreate(&hdl.blasHandle));
-             CUBLAS_ASSERT(cublasSetStream(hdl.blasHandle, SpCudaUtils::GetCurrentStream()));
-             CUSOLVER_ASSERT(cusolverDnCreate(&hdl.solverHandle));
-             CUSOLVER_ASSERT(cusolverDnSetStream(hdl.solverHandle, SpCudaUtils::GetCurrentStream()));
+             CUBLAS_ASSERT(cublasCreate(&handle.blasHandle));
+             CUBLAS_ASSERT(cublasSetStream(handle.blasHandle, SpCudaUtils::GetCurrentStream()));
+             CUSOLVER_ASSERT(cusolverDnCreate(&handle.solverHandle));
+             CUSOLVER_ASSERT(cusolverDnSetStream(handle.solverHandle, SpCudaUtils::GetCurrentStream()));
              CUSOLVER_ASSERT(cusolverDnDpotrf_bufferSize(
-                                 hdl.solverHandle,
+                                 handle.solverHandle,
                                  CUBLAS_FILL_MODE_LOWER,
                                  inBlockDim,
                                  blocks[0].values.get(),
                                  inBlockDim,
-                                 &hdl.solverBuffSize));
-             CUDA_ASSERT(cudaMalloc((void**)&hdl.solverBuffer , sizeof(double)*hdl.solverBuffSize));
-             CUDA_ASSERT(cudaMalloc((void**)&hdl.cuinfo , sizeof(int)));
+                                 &handle.solverBuffSize));
+             CUDA_ASSERT(cudaMalloc((void**)&handle.solverBuffer , sizeof(double)*handle.solverBuffSize));
+             CUDA_ASSERT(cudaMalloc((void**)&handle.cuinfo , sizeof(int)));
          }
      });
 #endif
@@ -105,21 +105,19 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                     SpBlas::potrf( SpBlas::FillMode::LWPR, inBlockDim, block.values.get(), inBlockDim );
                 })
     #ifdef SPECX_COMPILE_WITH_CUDA
-             , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> param) {
-                const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                assert(idxCudaWorker < int(handles.size()));
+             , SpCuda([inBlockDim](SpDeviceDataView<SpBlas::Block> param) {
                 CUSOLVER_ASSERT(cusolverDnDpotrf(
-                    handles[idxCudaWorker].solverHandle,
+                    handle.solverHandle,
                     CUBLAS_FILL_MODE_LOWER,
                     inBlockDim,
                     (double*)param.getRawPtr(),
                     inBlockDim,
-                    handles[idxCudaWorker].solverBuffer,
-                    handles[idxCudaWorker].solverBuffSize,
-                    handles[idxCudaWorker].cuinfo));
+                    handle.solverBuffer,
+                    handle.solverBuffSize,
+                    handle.cuinfo));
     #ifndef NDEBUG
                 int info;
-                CUDA_ASSERT(cudaMemcpy(&info, handles[idxCudaWorker].cuinfo, sizeof(int), cudaMemcpyDeviceToHost));
+                CUDA_ASSERT(cudaMemcpy(&info, handle.cuinfo, sizeof(int), cudaMemcpyDeviceToHost));
                 assert(info >= 0);
     #endif
             })
@@ -136,12 +134,10 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                     blockB.values.get(), inBlockDim );
                 })
         #ifdef SPECX_COMPILE_WITH_CUDA
-              , SpCuda([inBlockDim, offsetWorker, &handles](const SpDeviceDataView<const SpBlas::Block> paramA,
+              , SpCuda([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                   SpDeviceDataView<SpBlas::Block> paramB) {
-                    const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                    assert(idxCudaWorker < int(handles.size()));
                     const double one = 1;
-                    CUBLAS_ASSERT( cublasDtrsm( handles[idxCudaWorker].blasHandle, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                    CUBLAS_ASSERT( cublasDtrsm( handle.blasHandle, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
                                                 CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
@@ -160,14 +156,12 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                     1.0, blockC.values.get(), inBlockDim );
                 })
         #ifdef SPECX_COMPILE_WITH_CUDA
-              , SpCuda([inBlockDim, offsetWorker, &handles](const SpDeviceDataView<const SpBlas::Block> paramA,
+              , SpCuda([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                   SpDeviceDataView<SpBlas::Block> paramC) {
                     // paramA.getRawPtr(), paramA.getRawSize()
-                    const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                    assert(idxCudaWorker < int(handles.size()));
                     const double one = 1;
                     const double minusone = -1;
-                    CUBLAS_ASSERT( cublasDsyrk( handles[idxCudaWorker].blasHandle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+                    CUBLAS_ASSERT( cublasDsyrk( handle.blasHandle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
                 })
@@ -184,13 +178,11 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                         1.0, blockC.values.get(), inBlockDim );
                     })
             #ifdef SPECX_COMPILE_WITH_CUDA
-                  , SpCuda([inBlockDim, offsetWorker, &handles](const SpDeviceDataView<const SpBlas::Block> paramA,
+                  , SpCuda([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                       const SpDeviceDataView<const SpBlas::Block> paramB, SpDeviceDataView<SpBlas::Block> paramC) {
-                        const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                        assert(idxCudaWorker < int(handles.size()));
                         const double one = 1;
                         const double minusone = -1;
-                        CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker].blasHandle, CUBLAS_OP_N, CUBLAS_OP_T,
+                        CUBLAS_ASSERT( cublasDgemm( handle.blasHandle, CUBLAS_OP_N, CUBLAS_OP_T,
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -218,12 +210,11 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+    ce.execOnWorkers([](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
-            auto& hdl = handles[id-offsetWorker];
-            CUBLAS_ASSERT(cublasDestroy(hdl.blasHandle));
-            CUSOLVER_ASSERT(cusolverDnDestroy(hdl.solverHandle));
-            CUDA_ASSERT(cudaFree(hdl.solverBuffer));
+            CUBLAS_ASSERT(cublasDestroy(handle.blasHandle));
+            CUSOLVER_ASSERT(cusolverDnDestroy(handle.solverHandle));
+            CUDA_ASSERT(cudaFree(handle.solverBuffer));
         }
      });
 #endif

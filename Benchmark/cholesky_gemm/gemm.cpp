@@ -36,6 +36,10 @@ void gemm(const int NbLoops, double matrixC[], const double matrixA[], const dou
     }
 }
 
+#ifdef SPECX_COMPILE_WITH_CUDA
+thread_local cublasHandle_t handle;
+#endif
+
 auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
                            const int inMatrixDim, const int inBlockDim,
                            const int nbGpu, const bool useMultiPrioScheduler){
@@ -55,17 +59,13 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-     std::vector<cublasHandle_t> handles(ce.getNbCudaWorkers());
-     const int offsetWorker = ce.getNbCpuWorkers() + 1;
-     ce.execOnWorkers([&handles, offsetWorker, &ce](auto id, auto type){
+     ce.execOnWorkers([&ce](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
-             assert(offsetWorker <= id && id < offsetWorker + ce.getNbCudaWorkers());
              SpDebugPrint() << "Worker " << id << " will now initiate cublas...";
-             auto& hdl = handles[id-offsetWorker];
-            CUBLAS_ASSERT(cublasCreate(&hdl));
-            CUBLAS_ASSERT(cublasSetStream(hdl, SpCudaUtils::GetCurrentStream()));
+            CUBLAS_ASSERT(cublasCreate(&handle));
+            CUBLAS_ASSERT(cublasSetStream(handle, SpCudaUtils::GetCurrentStream()));
          }
      });
 #endif
@@ -94,13 +94,11 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                         1.0, blockC.values.get(), inBlockDim );
                         })
                 #ifdef SPECX_COMPILE_WITH_CUDA
-                      , SpCuda([inBlockDim, offsetWorker, &handles](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                      , SpCuda([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
                                           const SpDeviceDataView<const SpBlas::Block> paramB) {
                             // paramA.getRawPtr(), paramA.getRawSize()
-                            const int idxCudaWorker = SpUtils::GetThreadId() - offsetWorker;
-                            assert(idxCudaWorker < int(handles.size()));
                             const double alphaBeta = 1.0;
-                            CUBLAS_ASSERT( cublasDgemm( handles[idxCudaWorker], CUBLAS_OP_N, CUBLAS_OP_N,
+                            CUBLAS_ASSERT( cublasDgemm( handle, CUBLAS_OP_N, CUBLAS_OP_N,
                                     inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                     (const double*)paramB.getRawPtr(), inBlockDim,
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -130,10 +128,9 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    ce.execOnWorkers([&handles, offsetWorker](auto id, auto type){
+    ce.execOnWorkers([](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
-            auto& hdl = handles[id-offsetWorker];
-            CUBLAS_ASSERT(cublasDestroy(hdl));
+            CUBLAS_ASSERT(cublasDestroy(handle));
         }
      });
 #endif
