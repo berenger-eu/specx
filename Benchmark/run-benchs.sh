@@ -26,11 +26,11 @@ function main(){
     ./Benchmark/axpy/axpy --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --cuth=256 --od="$results_dir"
 
     # Cholesky/gemm
-    cholesky_gemm/cholesky --lp=$NB_LOOPS --minnbb=4096 --maxnbb=16384 --minbs=128 --maxbs=512 --od="$results_dir"
-    cholesky_gemm/gemm --lp=$NB_LOOPS --minnbb=4096 --maxnbb=16384 --minbs=128 --maxbs=512 --od="$results_dir"
+    ./Benchmark/cholesky_gemm/cholesky --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir"
+    ./Benchmark/cholesky_gemm/gemm --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir"
 
     # Particles
-    particles/particles-simu --lp=$NB_LOOPS --minp=5000 --maxp=100000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir"
+    ./Benchmark/particles/particles-simu --lp=$NB_LOOPS --minp=5000 --maxp=100000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir"
 }
 
 
