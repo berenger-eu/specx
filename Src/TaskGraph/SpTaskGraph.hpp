@@ -1912,10 +1912,22 @@ public:
     template <class ParamsType>
     void syncDataOnCpu(ParamsType& inParam){
         auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
-        if(bool(iterHandleFound) == false){
+        if(bool(iterHandleFound) == true){
             const int cudaSrc = iterHandleFound.value().get()->syncCpuDataIfNeeded(SpCudaManager::Managers);
             if(cudaSrc != -1){
                 SpCudaManager::Managers[cudaSrc].syncExtraStream();
+            }
+        }
+    }
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+    template <class ParamsType>
+    void syncDataOnCpu(ParamsType& inParam){
+        auto iterHandleFound = allDataHandles.find(const_cast<std::remove_const_t<ParamsType>*>(&inParam));
+        if(bool(iterHandleFound) == true){
+            const int hipSrc = iterHandleFound.value().get()->syncCpuDataIfNeeded(SpHipManager::Managers);
+            if(hipSrc != -1){
+                SpHipManager::Managers[hipSrc].syncExtraStream();
             }
         }
     }
