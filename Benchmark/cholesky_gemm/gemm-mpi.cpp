@@ -300,6 +300,9 @@ int main(int argc, char** argv){
       return -1;
     }
 
+    assert(MinMatrixSize <= MaxMatrixSize);
+    assert(MinBlockSize <= MaxBlockSize);
+
 #ifdef SPECX_COMPILE_WITH_CUDA  
     SpCudaUtils::PrintInfo(); 
     const int nbGpus = SpCudaUtils::GetNbDevices();
@@ -362,7 +365,7 @@ int main(int argc, char** argv){
                     const auto minMaxAvg = gemm(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), processIdxInGrid,
                         processBlockDim, processGridDim, MatrixSize, BlockSize, idxGpu, useMultiprio);
                     allDurations.push_back(minMaxAvg);
-                    std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
+                    std::cout << Prank << "]     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     if(printValues){
                         std::cout << "Blocks after gemm C:\n";
                         SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);

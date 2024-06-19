@@ -836,6 +836,10 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
       args.printHelp(std::cout);
       return;
     }
+
+    assert(MinPartsPerGroup <= MaxPartsPerGroup);
+    assert(MinNbGroups <= MaxNbGroups);
+
 #ifdef SPECX_COMPILE_WITH_CUDA  
     SpCudaUtils::PrintInfo(); 
     const int nbGpus = SpCudaUtils::GetNbDevices();
@@ -859,9 +863,16 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+                if(Prank == 0){
+                    std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << 
+                            " Multiprio = " << useMultiprio << std::endl;
+                }
                 const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
-                                    MaxNbGroups, idxBlock, idxGpu, useMultiprio, inKernelConfig);
+                                    MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, inKernelConfig);
                 allDurations.push_back(minMaxAvg);
+                if(Prank == 0){
+                    std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;
+                }
             }
         }
     }

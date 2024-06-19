@@ -174,6 +174,9 @@ int main(int argc, char** argv){
       return -1;
     }
 
+    assert(MinMatrixSize <= MaxMatrixSize);
+    assert(MinBlockSize <= MaxBlockSize);
+
 #ifdef SPECX_COMPILE_WITH_CUDA   
     SpCudaUtils::PrintInfo();
     const int nbGpus = SpCudaUtils::GetNbDevices();

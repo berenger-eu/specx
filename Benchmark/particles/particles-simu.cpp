@@ -618,9 +618,10 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         std::random_device rd;
         std::uniform_int_distribution<int> dist(MinPartsPerGroup, MaxPartsPerGroup);
         for(auto& group : particleGroups){
-            group = ParticlesGroup(dist(rd));
+            const int nbParts = dist(rd);
+            group = ParticlesGroup(nbParts);
         }
-    }
+    }  
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     std::unique_ptr<SpAbstractScheduler> scheduler;
@@ -735,6 +736,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
       return;
     }
 
+    assert(MinPartsPerGroup <= MaxPartsPerGroup);
+    assert(MinNbGroups <= MaxNbGroups);
 
 #ifdef SPECX_COMPILE_WITH_CUDA  
     SpCudaUtils::PrintInfo(); 
@@ -751,13 +754,15 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << 
+                            " Multiprio = " << useMultiprio << std::endl;                
                 const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
-                                    MaxNbGroups, idxBlock, idxGpu, useMultiprio, inKernelConfig);
+                                    MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, inKernelConfig);
                 allDurations.push_back(minMaxAvg);
+                std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;   
             }
         }
     }
-
 
     std::ofstream file(outputDir + "/particle-simu.csv");
     if(!file.is_open()){

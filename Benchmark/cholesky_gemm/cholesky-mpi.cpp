@@ -292,6 +292,9 @@ int main(int argc, char** argv){
       return;
     }
 
+    assert(MinMatrixSize <= MaxMatrixSize);
+    assert(MinBlockSize <= MaxBlockSize);
+
     SpMpiBackgroundWorker::GetWorker().init();
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
@@ -341,7 +344,7 @@ int main(int argc, char** argv){
                     const auto minMaxAvg = choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize,
                                                                 idxGpu, useMultiprio);
                     allDurations.push_back(minMaxAvg);
-                    std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
+                    std::cout << Prank << "]    - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     if(printValues && Prank == 0){
                         std::cout << "Blocks after facto:\n";
                         SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
