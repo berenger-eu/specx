@@ -116,7 +116,9 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #ifdef SPECX_COMPILE_WITH_CUDA
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
-                tg.syncDataOnCpu(blocksC[i*nbBlocks+j]);
+                tg.task(SpRead(blocksC[i*nbBlocks+j]),
+                        [](const SpBlas::Block&){
+                        });
             }
         }
         tg.waitAllTasks();

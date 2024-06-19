@@ -242,7 +242,9 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #ifdef SPECX_COMPILE_WITH_CUDA
         for(int i = 0 ; i < processBlockDim ; ++i){
             for(int j = 0 ; j < processBlockDim ; ++j){
-                tg.syncDataOnCpu(blocksC[i*processBlockDim+j]);
+                tg.task(SpRead(blocksC[i*processBlockDim+j]),
+                        [](const SpBlas::Block&){
+                        });
             }
         }
         tg.waitAllTasks();

@@ -33,7 +33,8 @@ void SpComputeEngine::wait(SpWorker& worker, SpAbstractTaskGraph* atg) {
     ceCondVar.wait(ceLock, [&]() { return worker.hasBeenStopped()
                 || areThereAnyReadyTasksForWorkerType(worker.getType())
                 || (atg && atg->isFinished())
-                || areThereAnyWorkersToMigrate();});
+                || areThereAnyWorkersToMigrate()
+                || worker.hasSpecificActionToDo();});
     updateWorkerCounters<false, true>(worker.getType(), -1);
     nbWaitingWorkers -= 1;
 }

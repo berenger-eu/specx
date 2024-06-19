@@ -198,7 +198,9 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #ifdef SPECX_COMPILE_WITH_CUDA
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
-                tg.syncDataOnCpu(blocks[i*nbBlocks+j]);
+                tg.task(SpRead(blocks[i*nbBlocks+j]),
+                        [](const SpBlas::Block&){
+                        });
             }
         }
         tg.waitAllTasks();
@@ -273,7 +275,11 @@ int main(int argc, char** argv){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    std::cout << "NbGpu = " << idxGpu << " MatrixSize = " << MatrixSize
+                              << " BlockSize = " << BlockSize << " Multiprio = " << useMultiprio << std::endl;
+
                     const bool printValues = (MatrixSize <= 16);
+                    const bool checkValues = (MatrixSize <= 16);
                     /////////////////////////////////////////////////////////
                     auto matrix = SpBlas::generateMatrixLikeStarpu(MatrixSize);// SpBlas::generatePositiveDefinitMatrix(MatrixSize);
                     if(printValues){
@@ -287,8 +293,10 @@ int main(int argc, char** argv){
                         SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
                     }
                     /////////////////////////////////////////////////////////
-                    const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
-                    std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
+                    if(checkValues){
+                        const double errorAfterCopy = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
+                        std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
+                    }
                     /////////////////////////////////////////////////////////
                     const auto minMaxAvg = choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, 
                                                                 idxGpu, useMultiprio);
@@ -298,15 +306,17 @@ int main(int argc, char** argv){
                         std::cout << "Blocks after facto:\n";
                         SpBlas::printBlocks(blocks.get(), MatrixSize, BlockSize);
                     }
-                    /////////////////////////////////////////////////////////
-                    choleskyFactorizationMatrix(NbLoops, matrix.get(), MatrixSize);
-                    if(printValues){
-                        std::cout << "Matrix after facto:\n";
-                        SpBlas::printMatrix(matrix.get(), MatrixSize);
+                    if(checkValues){
+                        /////////////////////////////////////////////////////////
+                        choleskyFactorizationMatrix(NbLoops, matrix.get(), MatrixSize);
+                        if(printValues){
+                            std::cout << "Matrix after facto:\n";
+                            SpBlas::printMatrix(matrix.get(), MatrixSize);
+                        }
+                        /////////////////////////////////////////////////////////
+                        const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
+                        std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
                     }
-                    /////////////////////////////////////////////////////////
-                    const double errorAfterFacto = SpBlas::diffMatrixBlocks(matrix.get(), blocks.get(), MatrixSize, BlockSize);
-                    std::cout << "Accuracy after facto : " << errorAfterFacto << std::endl;
                 }
             }
         }
