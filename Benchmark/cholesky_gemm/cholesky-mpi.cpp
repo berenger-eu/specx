@@ -313,8 +313,10 @@ int main(int argc, char** argv){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                    std::cout << "NbGpu = " << idxGpu << " MatrixSize = " << MatrixSize
+                    if(Prank == 0){
+                        std::cout << "NbGpu = " << idxGpu << " MatrixSize = " << MatrixSize
                               << " BlockSize = " << BlockSize << " Multiprio = " << useMultiprio << std::endl;
+                    }
                     
                     const bool printValues = (MatrixSize <= 16);
                     const bool checkValues = (MatrixSize <= 16);
