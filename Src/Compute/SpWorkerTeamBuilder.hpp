@@ -69,6 +69,11 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nb
 
     return res;
 }
+
+template <class ... Args>
+static auto TeamOfCpuGpuWorkers(Args&& ... args) {
+    return TeamOfCpuCudaWorkers(std::forward<Args>(args)...);
+}
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
 static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
@@ -120,6 +125,11 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbC
     }
 
     return res;
+}
+
+template <class ... Args>
+static auto TeamOfCpuGpuWorkers(Args&& ... args) {
+    return TeamOfCpuHipWorkers(std::forward<Args>(args)...);
 }
 #endif
 static auto DefaultTeamOfWorkers() {

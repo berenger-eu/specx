@@ -39,13 +39,16 @@ void gemm(const int NbLoops, double matrixC[], const double matrixA[], const dou
 #ifdef SPECX_COMPILE_WITH_CUDA
 thread_local cublasHandle_t handle;
 #endif
+#ifdef SPECX_COMPILE_WITH_HIP
+thread_local hipblasHandle_t handle;
+#endif
 
 auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
                            const int inMatrixDim, const int inBlockDim,
                            const int nbGpu, const bool useMultiPrioScheduler){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA)
     std::unique_ptr<SpAbstractScheduler> scheduler;
     if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
@@ -53,7 +56,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -68,6 +71,16 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
             CUBLAS_ASSERT(cublasSetStream(handle, SpCudaUtils::GetCurrentStream()));
          }
      });
+#elif defined(SPECX_COMPILE_WITH_HIP)
+     ce.execOnWorkers([&ce](auto id, auto type){
+         assert(id == SpUtils::GetThreadId());
+         assert(type == SpUtils::GetThreadType());
+         if(type == SpWorkerTypes::Type::HIP_WORKER){
+             SpDebugPrint() << "Worker " << id << " will now initiate hipblas...";
+            HIP_ASSERT(hipblasCreate(&handle));
+            HIP_ASSERT(hipblasSetStream(handle, SpHipUtils::GetCurrentStream()));
+         }
+     });     
 #endif
 
     std::vector<double> minMaxAvg(3);
@@ -104,6 +117,17 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
                         })
                 #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                        , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                            const SpDeviceDataView<const SpBlas::Block> paramB) {
+                                // paramA.getRawPtr(), paramA.getRawSize()
+                                const double alphaBeta = 1.0;
+                                HIP_ASSERT( hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                        inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                        (const double*)paramB.getRawPtr(), inBlockDim,
+                                        &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            })
+                #endif
                     ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
                 }
             }
@@ -113,7 +137,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         tg.waitAllTasks();
         timer.stop();
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
                 tg.task(SpRead(blocksC[i*nbBlocks+j]),
@@ -135,6 +159,12 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
             CUBLAS_ASSERT(cublasDestroy(handle));
         }
      });
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    ce.execOnWorkers([](auto id, auto type){
+        if(type == SpWorkerTypes::Type::HIP_WORKER){
+            HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+        }
+     });     
 #endif
 
     ce.stopIfNotAlreadyStopped();

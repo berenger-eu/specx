@@ -64,7 +64,7 @@ struct Vector{
 };
 
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
 template <class NumType>
 __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 {
@@ -91,16 +91,7 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
-#elif defined(SPECX_COMPILE_WITH_HIP)
-    std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(useMultiPrioScheduler == false){
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
-    }
-    else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
-    }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -140,8 +131,8 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
                         const SpDeviceDataView<const Vector<float>> paramY) {
                     const int size = paramZ.data().getSize();
                     const int cudanbblocks = (size + cudanbthreads-1)/cudanbthreads;
-                    cu_axpy<float><<<cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream()>>>
-                        (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
+                    hipLaunchKernelGGL( cu_axpy<float>, cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream(),
+                        size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
                 })
 #endif
             );

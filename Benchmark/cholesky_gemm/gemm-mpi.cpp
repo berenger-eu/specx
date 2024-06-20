@@ -44,6 +44,10 @@ struct Coord{
 thread_local cublasHandle_t handle;
 #endif
 
+#ifdef SPECX_COMPILE_WITH_HIP
+thread_local hipblasHandle_t handle;
+#endif
+
 auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
           const Coord& processIdxInGrid, const int processBlockDim,
           const Coord& processGridDim, const int inMatrixDim, const int inBlockDim,
@@ -54,7 +58,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     std::unique_ptr<SpBlas::Block[]> buffersA(new SpBlas::Block[processBlockDim*processBlockDim]);
     std::unique_ptr<SpBlas::Block[]> buffersB(new SpBlas::Block[processBlockDim*processBlockDim]);
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
     std::unique_ptr<SpAbstractScheduler> scheduler;
     if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
@@ -62,16 +66,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
-#elif defined(SPECX_COMPILE_WITH_HIP)
-    std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(useMultiPrioScheduler == false){
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
-    }
-    else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
-    }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));    
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -83,6 +78,15 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
             CUBLAS_ASSERT(cublasCreate(&handle));
             CUBLAS_ASSERT(cublasSetStream(handle, SpCudaUtils::GetCurrentStream()));
+         }
+     });
+#elif defined(SPECX_COMPILE_WITH_HIP)
+     ce.execOnWorkers([&ce](auto id, auto type){
+         assert(id == SpUtils::GetThreadId());
+         assert(type == SpUtils::GetThreadType());
+         if(type == SpWorkerTypes::Type::HIP_WORKER){
+            HIP_ASSERT(hipblasCreate(&handle));
+            HIP_ASSERT(hipblasSetStream(handle, SpHipUtils::GetCurrentStream()));
          }
      });
 #endif
@@ -152,6 +156,17 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
                         })
                 #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                      , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                          const SpDeviceDataView<const SpBlas::Block> paramB) {
+                            // paramA.getRawPtr(), paramA.getRawSize()
+                            const double alphaBeta = 1.0;
+                            HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                    inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                    (const double*)paramB.getRawPtr(), inBlockDim,
+                                    &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                        })
+                #endif
                     ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
                 }
             }
@@ -184,6 +199,17 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     // paramA.getRawPtr(), paramA.getRawSize()
                                     const double alphaBeta = 1.0;
                                     CUBLAS_ASSERT( cublasDgemm( handle, CUBLAS_OP_N, CUBLAS_OP_N,
+                                            inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                            (const double*)paramB.getRawPtr(), inBlockDim,
+                                            &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                })
+                        #endif
+                        #ifdef SPECX_COMPILE_WITH_HIP
+                              , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                                  const SpDeviceDataView<const SpBlas::Block> paramB) {
+                                    // paramA.getRawPtr(), paramA.getRawSize()
+                                    const double alphaBeta = 1.0;
+                                    HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -228,6 +254,17 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
                                 })
                         #endif
+                        #ifdef SPECX_COMPILE_WITH_HIP
+                              , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
+                                                  const SpDeviceDataView<const SpBlas::Block> paramB) {
+                                    // paramA.getRawPtr(), paramA.getRawSize()
+                                    const double alphaBeta = 1.0;
+                                    HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                            inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                            (const double*)paramB.getRawPtr(), inBlockDim,
+                                            &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                })
+                        #endif
                             ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
                         }
                     }
@@ -239,7 +276,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         tg.waitAllTasks();
         timer.stop();
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
         for(int i = 0 ; i < processBlockDim ; ++i){
             for(int j = 0 ; j < processBlockDim ; ++j){
                 tg.task(SpRead(blocksC[i*processBlockDim+j]),
@@ -259,6 +296,12 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     ce.execOnWorkers([](auto id, auto type){
         if(type == SpWorkerTypes::Type::CUDA_WORKER){
             CUBLAS_ASSERT(cublasDestroy(handle));
+        }
+     });
+#elif SPECX_COMPILE_WITH_HIP
+    ce.execOnWorkers([](auto id, auto type){
+        if(type == SpWorkerTypes::Type::HIP_WORKER){
+            HIP_ASSERT(hipDestroy(handle));
         }
      });
 #endif
