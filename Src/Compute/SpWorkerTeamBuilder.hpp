@@ -78,7 +78,7 @@ static auto TeamOfCpuGpuWorkers(Args&& ... args) {
 #ifdef SPECX_COMPILE_WITH_HIP
 static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
                                              int nbHipWorkers = SpHipUtils::GetNbDevices()) {
-    if(SpHipUtils::GetNbDevices() < nbCudaWorkers){
+    if(SpHipUtils::GetNbDevices() < nbHipWorkers){
         std::cout << "[SPECX] The number of devices asked ("
                   << nbHipWorkers << ") is above the real number of devices ("
                   << SpHipUtils::GetNbDevices() << ")" << std::endl;
@@ -102,7 +102,7 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWork
 static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
                                              const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
                                              int nbHipWorkers = SpHipUtils::GetNbDevices()) {
-    if(SpHipUtils::GetNbDevices() < nbCudaWorkers){
+    if(SpHipUtils::GetNbDevices() < nbHipWorkers){
         std::cout << "[SPECX] The number of devices asked ("
                   << nbHipWorkers << ") is above the real number of devices ("
                   << SpHipUtils::GetNbDevices() << ")" << std::endl;

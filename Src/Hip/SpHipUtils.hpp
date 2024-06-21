@@ -8,6 +8,10 @@
 
 #include "Config/SpConfig.hpp"
 
+#ifndef SPECX_COMPILE_WITH_HIP
+#error SPECX_COMPILE_WITH_HIP must be defined
+#endif
+
 #include "hip/hip_runtime.h"
 #include "hip/hip_runtime_api.h"
 

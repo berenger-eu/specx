@@ -82,15 +82,15 @@ private:
             case SpWorkerTypes::Type::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
-                #ifdef SPECX_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
             case SpWorkerTypes::Type::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-case SpWorkerTypes::Type::HIP_WORKER:
-task->execute(SpCallableType::HIP);
-break;
+            case SpWorkerTypes::Type::HIP_WORKER:
+                task->execute(SpCallableType::HIP);
+                break;
 #endif
             default:
                 assert(false && "Worker is of unknown type.");
@@ -133,6 +133,7 @@ break;
     }
     
     void waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
+    void wakeUpCe();
     
     friend class SpComputeEngine;
 
@@ -184,10 +185,7 @@ public:
 
         hasFuncToExecPtr.store(&funcToExec, std::memory_order_release);
 
-        auto currentCe = ce.load(std::memory_order_relaxed);
-        if(currentCe){
-            currentCe->wakeUpWaitingWorkers();
-        }
+        wakeUpCe();
         // Ce could be set but the worker still on the idleWait
         workerConditionVariable.notify_one();
         

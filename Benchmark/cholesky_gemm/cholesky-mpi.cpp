@@ -107,7 +107,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 HIPBLAS_ASSERT(hipblasSetStream(handle.blasHandle, SpHipUtils::GetCurrentStream()));
                 HIPSOLVER_ASSERT(hipsolverCreate(&handle.solverHandle));
                 HIPSOLVER_ASSERT(hipsolverSetStream(handle.solverHandle, SpHipUtils::GetCurrentStream()));
-                HIPSOLVER_ASSERT(hipsolverDnSpotrf_bufferSize(
+                HIPSOLVER_ASSERT(hipsolverDpotrf_bufferSize(
                                     handle.solverHandle,
                                     HIPBLAS_FILL_MODE_LOWER,
                                     inBlockDim,
@@ -159,7 +159,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
     #endif
     #ifdef SPECX_COMPILE_WITH_HIP
                     , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> param) {
-                        HIPSOLVER_ASSERT(hipsolverDnSpotrf(
+                        HIPSOLVER_ASSERT(hipsolverDpotrf(
                             handle.solverHandle,
                             HIPBLAS_FILL_MODE_LOWER,
                             inBlockDim,

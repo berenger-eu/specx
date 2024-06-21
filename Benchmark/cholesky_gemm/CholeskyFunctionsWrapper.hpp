@@ -6,6 +6,12 @@
 #include <cusolverDn.h>
 #endif
 
+#ifdef SPECX_COMPILE_WITH_HIP
+#include <hip/hip_runtime.h>
+#include <hipblas/hipblas.h>
+#include <hipsolver/hipsolver.h>
+#endif
+
 extern "C" {
 void daxpy_(const int *n, const double *a, const double *x, const int *incx, double *y, const int *incy);
 double dlange_(char *norm, int *m, int *n, const double *a, int *lda);
@@ -426,6 +432,60 @@ inline const char* cusolverGetStatusString(cusolverStatus_t status)
     cusolverStatus_t ___resCuda = (X);\
     if ( CUSOLVER_STATUS_SUCCESS != ___resCuda ){\
     printf("Error: fails, %s (%s line %d)\n", SpBlas::cusolverGetStatusString(___resCuda), __FILE__, __LINE__ );\
+    exit(1);\
+    }\
+    }
+
+#endif
+
+#ifdef SPECX_COMPILE_WITH_HIP
+
+inline const char* hipblasGetErrorString(hipblasStatus_t status)
+{
+    switch(status)
+    {
+        case HIPBLAS_STATUS_SUCCESS: return "HIPBLAS_STATUS_SUCCESS";
+        case HIPBLAS_STATUS_NOT_INITIALIZED: return "HIPBLAS_STATUS_NOT_INITIALIZED";
+        case HIPBLAS_STATUS_ALLOC_FAILED: return "HIPBLAS_STATUS_ALLOC_FAILED";
+        case HIPBLAS_STATUS_INVALID_VALUE: return "HIPBLAS_STATUS_INVALID_VALUE";
+        case HIPBLAS_STATUS_ARCH_MISMATCH: return "HIPBLAS_STATUS_ARCH_MISMATCH";
+        case HIPBLAS_STATUS_MAPPING_ERROR: return "HIPBLAS_STATUS_MAPPING_ERROR";
+        case HIPBLAS_STATUS_EXECUTION_FAILED: return "HIPBLAS_STATUS_EXECUTION_FAILED";
+        case HIPBLAS_STATUS_INTERNAL_ERROR: return "HIPBLAS_STATUS_INTERNAL_ERROR";
+    }
+    return "unknown error";
+}
+
+inline const char* hipsolverGetStatusString(hipsolverStatus_t status)
+{
+    switch(status)
+    {
+    case HIPSOLVER_STATUS_SUCCESS : return "HIPSOLVER_STATUS_SUCCESS The operation completed successfully.";
+    case HIPSOLVER_STATUS_NOT_INITIALIZED: return "HIPSOLVER_STATUS_NOT_INITIALIZED The HIPSOLVER library was not initialized. This is usually caused by the lack of a prior call, an error in the HIP Runtime API called by the HIPSOLVER routine, or an error in the hardware setup. To correct: call HIPSOLVERCreate() prior to the function call; and check that the hardware, an appropriate version of the driver, and the HIPSOLVER library are correctly installed.";
+    case HIPSOLVER_STATUS_ALLOC_FAILED : return "HIPSOLVER_STATUS_ALLOC_FAILED Resource allocation failed inside the HIPSOLVER library. This is usually caused by a hipMalloc() failure. To correct: prior to the function call, deallocate previously allocated memory as much as possible.";
+    case HIPSOLVER_STATUS_INVALID_VALUE: return "HIPSOLVER_STATUS_INVALID_VALUE An unsupported value or parameter was passed to the function (a negative vector size, for example). To correct: ensure that all the parameters being passed have valid values.";
+    case HIPSOLVER_STATUS_ARCH_MISMATCH: return "HIPSOLVER_STATUS_ARCH_MISMATCH The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision. To correct: compile and run the application on a device with compute capability 2.0 or above.";
+    case HIPSOLVER_STATUS_EXECUTION_FAILED: return "HIPSOLVER_STATUS_EXECUTION_FAILED The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons. To correct: check that the hardware, an appropriate version of the driver, and the HIPSOLVER library are correctly installed.";
+    case HIPSOLVER_STATUS_INTERNAL_ERROR: return "HIPSOLVER_STATUS_INTERNAL_ERROR An internal HIPSOLVER operation failed. This error is usually caused by a hipMemcpyAsync() failure. To correct: check that the hardware, an appropriate version of the driver, and the HIPSOLVER library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.";
+    case HIPSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED: return "HIPSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function. To correct: check that the fields in descrA were set correctly.";
+    }
+    return "unknown error";
+}
+
+#define HIPBLAS_ASSERT(X)\
+{\
+    hipblasStatus_t ___resHip = (X);\
+    if ( HIPBLAS_STATUS_SUCCESS != ___resHip ){\
+    printf("Error: fails, %s (%s line %d)\n", SpBlas::hipblasGetErrorString(___resHip), __FILE__, __LINE__ );\
+    exit(1);\
+    }\
+    }
+
+#define HIPSOLVER_ASSERT(X)\
+{\
+    hipsolverStatus_t ___resHip = (X);\
+    if ( HIPSOLVER_STATUS_SUCCESS != ___resHip ){\
+    printf("Error: fails, %s (%s line %d)\n", SpBlas::hipsolverGetStatusString(___resHip), __FILE__, __LINE__ );\
     exit(1);\
     }\
     }

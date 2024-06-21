@@ -43,6 +43,13 @@ void SpWorker::waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg) {
     inCe->wait(*this, atg);
 }
 
+void SpWorker::wakeUpCe(){
+    auto currentCe = ce.load(std::memory_order_relaxed);
+    if(currentCe){
+        currentCe->wakeUpWaitingWorkers();
+    }
+}
+
 void SpWorker::setWorkerForThread(SpWorker *w) {
     workerForThread = w;
 }
@@ -94,7 +101,7 @@ void SpWorker::doLoop(SpAbstractTaskGraph* inAtg) {
                         execute(task);
                         atg->postTaskExecution(task, *this);
                     }
-                    #ifdef SPECX_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
                     else if(workerType == SpWorkerTypes::Type::CUDA_WORKER) {
 						atg->preTaskExecution(task, *this);
 						execute(task);

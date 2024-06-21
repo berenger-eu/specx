@@ -193,7 +193,7 @@ int main(int argc, char** argv){
     if(!args.isValid() || args.hasKey("help")){
       // Print the help
       args.printHelp(std::cout);
-      return;
+      return 1;
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA   

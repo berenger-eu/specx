@@ -47,8 +47,7 @@ public:
         const int id;
         std::unordered_map<void*, HandleDescr> handles;
         std::unordered_map<const void*, DataObj> allBlocks;
-        std::size_t memSpaceUsed;
-
+ 
         std::list<void*> lru;
 
         hipStream_t extraStream;
@@ -124,22 +123,14 @@ public:
             DataObj data;
             data.size = inByteSize;
             assert(data.size <= SpHipUtils::GetFreeMemOnDevice());
-#ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
-                HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, SpHipUtils::GetCurrentStream()*/));
+                HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, SpHipUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    HIP_ASSERT(hipMalloc/*Async*/(&data.ptr, inByteSize/*, extraStream*/));
+                    HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, extraStream));
                 });
             }
-#else
-            if(alignment <= alignof(std::max_align_t)) {
-                data.ptr = std::malloc(data.size);
-            } else {
-                data.ptr = std::aligned_alloc(data.size, alignment);
-            }
-#endif
             allBlocks[data.ptr] = data;
             if(handles.find(key) == handles.end()){
                 lru.push_front(key);
@@ -157,18 +148,14 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
-#ifndef SPECX_EMUL_HIP
                 if(SpHipUtils::CurrentWorkerIsHip()){
-                    HIP_ASSERT(hipFree/*Async*/(data.ptr/*, SpHipUtils::GetCurrentStream()*/));
+                    HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
-                        HIP_ASSERT(hipFree/*Async*/(data.ptr/*, extraStream*/));
+                        HIP_ASSERT(hipFreeAsync(data.ptr, extraStream));
                     });
                 }
-#else
-                std::free(data.ptr);
-#endif
             }
 
             handles.erase(key);
@@ -178,7 +165,6 @@ public:
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                    && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, SpHipUtils::GetCurrentStream()));
             }
@@ -187,15 +173,11 @@ public:
                     HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, extraStream));
                 });
             }
-#else
-            memset(inPtrDev, val, inByteSize);
-#endif
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             //assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
                                           SpHipUtils::GetCurrentStream()));
@@ -206,15 +188,11 @@ public:
                                               extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrDev, inPtrHost, inByteSize);
-#endif
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             //assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
                                           SpHipUtils::GetCurrentStream()));
@@ -225,9 +203,6 @@ public:
                                               extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrHost, inPtrDev, inByteSize);
-#endif
         }
 
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
@@ -238,7 +213,6 @@ public:
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-#ifndef SPECX_EMUL_HIP
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                               SpHipUtils::GetCurrentStream()));
@@ -249,9 +223,6 @@ public:
                                                   extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
-#endif
         }
 
         bool isConnectedTo(const int otherId){

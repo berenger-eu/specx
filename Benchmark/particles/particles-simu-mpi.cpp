@@ -609,6 +609,9 @@ struct TuneResult{
 };
 
 auto TuneBlockSize(){
+#if !defined(SPECX_COMPILE_WITH_CUDA) && !defined(SPECX_COMPILE_WITH_HIP)
+    return TuneResult();
+#else
 #ifdef SPECX_COMPILE_WITH_CUDA
     if(SpCudaUtils::GetNbDevices() == 0){
         return TuneResult();
@@ -627,9 +630,6 @@ auto TuneBlockSize(){
     hipGetDeviceProperties( &prop, 0);
 
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(0,1,1));
-#else
-    SpComputeEngine ce;
-    return TuneResult();
 #endif
 
     SpTaskGraph tg;
@@ -744,6 +744,7 @@ auto TuneBlockSize(){
 
     return TuneResult{nbThreadsPerBlockInner, nbBlocksInner,
                       nbThreadsPerBlockOuter, nbBlocksOuter};
+#endif                      
 }
 
 auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,

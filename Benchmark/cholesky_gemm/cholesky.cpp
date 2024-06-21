@@ -101,11 +101,11 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::HIP_WORKER){
              SpDebugPrint() << "Worker " << id << " will now initiate hipblas...";
-             HIP_ASSERT(hipblasCreate(&handle.blasHandle));
-             HIP_ASSERT(hipblasSetStream(handle.blasHandle, SpHipUtils::GetCurrentStream()));
-             HIP_ASSERT(hipsolverCreate(&handle.solverHandle));
-             HIP_ASSERT(hipsolverSetStream(handle.solverHandle, SpHipUtils::GetCurrentStream()));
-             HIP_ASSERT(hipsolverDnSpotrf_bufferSize(
+             HIPBLAS_ASSERT(hipblasCreate(&handle.blasHandle));
+             HIPBLAS_ASSERT(hipblasSetStream(handle.blasHandle, SpHipUtils::GetCurrentStream()));
+             HIPSOLVER_ASSERT(hipsolverCreate(&handle.solverHandle));
+             HIPSOLVER_ASSERT(hipsolverSetStream(handle.solverHandle, SpHipUtils::GetCurrentStream()));
+             HIPSOLVER_ASSERT(hipsolverDpotrf_bufferSize(
                                  handle.solverHandle,
                                  HIPBLAS_FILL_MODE_LOWER,
                                  inBlockDim,
@@ -157,7 +157,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
     #endif
     #ifdef SPECX_COMPILE_WITH_HIP
             , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> param) {
-                HIP_ASSERT(hipsolverDnSpotrf(
+                HIPSOLVER_ASSERT(hipsolverDpotrf(
                     handle.solverHandle,
                     HIPBLAS_FILL_MODE_LOWER,
                     inBlockDim,
@@ -198,7 +198,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 , SpHip([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                     SpDeviceDataView<SpBlas::Block> paramB) {
                     const double one = 1;
-                    HIP_ASSERT(hipblasDtrsm( handle.blasHandle, HIPBLAS_SIDE_RIGHT, HIPBLAS_FILL_MODE_UPPER,
+                    HIPBLAS_ASSERT(hipblasDtrsm( handle.blasHandle, HIPBLAS_SIDE_RIGHT, HIPBLAS_FILL_MODE_UPPER,
                             HIPBLAS_OP_T, HIPBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
@@ -232,7 +232,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                     SpDeviceDataView<SpBlas::Block> paramC) {
                     const double one = 1;
                     const double minusone = -1;
-                    HIP_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_UPPER, HIPBLAS_OP_N,
+                    HIPBLAS_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_UPPER, HIPBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
                 })
@@ -264,7 +264,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                         const SpDeviceDataView<const SpBlas::Block> paramB, SpDeviceDataView<SpBlas::Block> paramC) {
                         const double one = 1;
                         const double minusone = -1;
-                        HIP_ASSERT(hipblasDgemm( handle.blasHandle, HIPBLAS_OP_N, HIPBLAS_OP_T,
+                        HIPBLAS_ASSERT(hipblasDgemm( handle.blasHandle, HIPBLAS_OP_N, HIPBLAS_OP_T,
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -304,8 +304,8 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #elif defined(SPECX_COMPILE_WITH_HIP)
     ce.execOnWorkers([](auto id, auto type){
         if(type == SpWorkerTypes::Type::HIP_WORKER){
-            HIP_ASSERT(hipblasDestroy(handle.blasHandle));
-            HIP_ASSERT(hipsolverDestroy(handle.solverHandle));
+            HIPBLAS_ASSERT(hipblasDestroy(handle.blasHandle));
+            HIPSOLVER_ASSERT(hipsolverDestroy(handle.solverHandle));
             HIP_ASSERT(hipFree(handle.solverBuffer));
         }
      });

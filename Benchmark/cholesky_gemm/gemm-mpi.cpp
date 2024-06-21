@@ -85,8 +85,8 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::HIP_WORKER){
-            HIP_ASSERT(hipblasCreate(&handle));
-            HIP_ASSERT(hipblasSetStream(handle, SpHipUtils::GetCurrentStream()));
+            HIPBLAS_ASSERT(hipblasCreate(&handle));
+            HIPBLAS_ASSERT(hipblasSetStream(handle, SpHipUtils::GetCurrentStream()));
          }
      });
 #endif
@@ -161,7 +161,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                           const SpDeviceDataView<const SpBlas::Block> paramB) {
                             // paramA.getRawPtr(), paramA.getRawSize()
                             const double alphaBeta = 1.0;
-                            HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                            HIPBLAS_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
                                     inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                     (const double*)paramB.getRawPtr(), inBlockDim,
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -209,7 +209,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                                   const SpDeviceDataView<const SpBlas::Block> paramB) {
                                     // paramA.getRawPtr(), paramA.getRawSize()
                                     const double alphaBeta = 1.0;
-                                    HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                    HIPBLAS_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -259,7 +259,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                                   const SpDeviceDataView<const SpBlas::Block> paramB) {
                                     // paramA.getRawPtr(), paramA.getRawSize()
                                     const double alphaBeta = 1.0;
-                                    HIP_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                    HIPBLAS_ASSERT(hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
@@ -301,7 +301,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
 #elif SPECX_COMPILE_WITH_HIP
     ce.execOnWorkers([](auto id, auto type){
         if(type == SpWorkerTypes::Type::HIP_WORKER){
-            HIP_ASSERT(hipDestroy(handle));
+            HIPBLAS_ASSERT(hipDestroy(handle));
         }
      });
 #endif
