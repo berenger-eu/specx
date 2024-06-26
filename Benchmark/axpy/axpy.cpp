@@ -183,7 +183,7 @@ int main(int argc, char** argv){
     args.addParameter<int>({"maxbs" ,"maxblocksize"}, "Max Block size", maxblocksize, maxblocksize);
 
     int gpunbthreads = 256;
-    args.addParameter<int>({"cuth"}, "cuthreads", gpunbthreads, gpunbthreads);
+    args.addParameter<int>({"gputh"}, "gputhreads", gpunbthreads, gpunbthreads);
 
     std::string outputDir = "./";
     args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
