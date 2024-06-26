@@ -23,7 +23,7 @@ function main(){
     NB_LOOPS=10
 
     # AXPY
-    ./Benchmark/axpy/axpy --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --cuth=256 --od="$results_dir"
+    ./Benchmark/axpy/axpy --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --gputh=256 --od="$results_dir"
 
     # Cholesky/gemm
     ./Benchmark/cholesky_gemm/cholesky --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir"

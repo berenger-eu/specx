@@ -76,7 +76,7 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 #endif
 
 
-auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int cudanbthreads,
+auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int gpunbthreads,
                     const bool useMultiPrioScheduler){   
     std::vector<Vector<float>> x(nbblocks, Vector<float>(blocksize, 1));
     std::vector<Vector<float>> y(nbblocks, Vector<float>(blocksize, 1));
@@ -116,22 +116,22 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
                     }
                 })
 #ifdef SPECX_COMPILE_WITH_CUDA
-                , SpCuda([a, cudanbthreads](SpDeviceDataView<Vector<float>> paramZ,
+                , SpCuda([a, gpunbthreads](SpDeviceDataView<Vector<float>> paramZ,
                         const SpDeviceDataView<const Vector<float>> paramX,
                         const SpDeviceDataView<const Vector<float>> paramY) {
                     const int size = paramZ.data().getSize();
-                    const int cudanbblocks = (size + cudanbthreads-1)/cudanbthreads;
-                    cu_axpy<float><<<cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream()>>>
+                    const int gpunbblocks = (size + gpunbthreads-1)/gpunbthreads;
+                    cu_axpy<float><<<gpunbblocks, gpunbthreads,0,SpCudaUtils::GetCurrentStream()>>>
                         (size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
                 })
 #endif
-#ifdef SPECX_COMPILE_WITH_Hip
-                , SpHip([a, cudanbthreads](SpDeviceDataView<Vector<float>> paramZ,
+#ifdef SPECX_COMPILE_WITH_HIP
+                , SpHip([a, gpunbthreads](SpDeviceDataView<Vector<float>> paramZ,
                         const SpDeviceDataView<const Vector<float>> paramX,
                         const SpDeviceDataView<const Vector<float>> paramY) {
                     const int size = paramZ.data().getSize();
-                    const int cudanbblocks = (size + cudanbthreads-1)/cudanbthreads;
-                    hipLaunchKernelGGL( cu_axpy<float>, cudanbblocks, cudanbthreads,0,SpCudaUtils::GetCurrentStream(),
+                    const int gpunbblocks = (size + gpunbthreads-1)/gpunbthreads;
+                    hipLaunchKernelGGL( cu_axpy<float>, gpunbblocks, gpunbthreads,0,SpHipUtils::GetCurrentStream(),
                         size, a, (float*)paramX.getRawPtr(), (float*)paramY.getRawPtr(), (float*)paramZ.getRawPtr());
                 })
 #endif
@@ -182,8 +182,8 @@ int main(int argc, char** argv){
     int maxblocksize = 512;
     args.addParameter<int>({"maxbs" ,"maxblocksize"}, "Max Block size", maxblocksize, maxblocksize);
 
-    int cudanbthreads = 256;
-    args.addParameter<int>({"cuth"}, "cuthreads", cudanbthreads, cudanbthreads);
+    int gpunbthreads = 256;
+    args.addParameter<int>({"cuth"}, "cuthreads", gpunbthreads, gpunbthreads);
 
     std::string outputDir = "./";
     args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
@@ -215,7 +215,7 @@ int main(int argc, char** argv){
             for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
                     std::cout << "  - NbBlocks = " << idxNbBlocks << " BlockSize = " << idxSize << std::endl;
-                    const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxNbBlocks, idxSize, cudanbthreads, useMultiprio);
+                    const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxNbBlocks, idxSize, gpunbthreads, useMultiprio);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - End" << std::endl;
                     allDurations.push_back(minMaxAvg);
