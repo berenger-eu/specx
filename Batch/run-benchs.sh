@@ -2,19 +2,26 @@
 
 #################################
 
-function build(){
-    # LOOP for 60, 70, 75, 80
-    for SM in "60" "70" "75" "80" ; do
-        cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SM -DCMAKE_BUILD_TYPE=RELEASE
-    done
-}
-
 function main(){
     RUN_DIR="/home/bramas/spetabaru-project/specx/build-$SMPREFIX/"
+
+    # Check if RUN_DIR exists
+    if [ ! -d "$RUN_DIR" ]; then
+        mkdir "$RUN_DIR"
+    fi
+    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SM -DCMAKE_BUILD_TYPE=RELEASE
+    make -j
+
     # To ensure we are in the right directory we test
     # that CMakeCache.txt file and Examples directory exist.
     if [ ! -f "$RUN_DIR/CMakeCache.txt" ] || [ ! -d "$RUN_DIR/Examples" ]; then
         echo "Please PREFIX variable should point to the SM version to make a valid RUN_DIR, $RUN_DIR"
+        return 1
+    fi
+
+    # Check if gemm cholesky axpy and particles-simu exist
+    if [ ! -f "$RUN_DIR/Benchmark/axpy/axpy" ] || [ ! -f "$RUN_DIR/Benchmark/cholesky_gemm/cholesky" ] || [ ! -f "$RUN_DIR/Benchmark/cholesky_gemm/gemm" ] || [ ! -f "$RUN_DIR/Benchmark/particles/particles-simu" ]; then
+        echo "Please make sure that the benchmarks are built in $RUN_DIR"
         return 1
     fi
     
