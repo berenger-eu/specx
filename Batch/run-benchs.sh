@@ -3,7 +3,10 @@
 #################################
 
 function build(){
-    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=60 -DCMAKE_BUILD_TYPE=RELEASE
+    # LOOP for 60, 70, 75, 80
+    for SM in "60" "70" "75" "80" ; do
+        cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SM -DCMAKE_BUILD_TYPE=RELEASE
+    done
 }
 
 function main(){
