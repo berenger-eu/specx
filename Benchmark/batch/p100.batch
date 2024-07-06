@@ -6,12 +6,5 @@
 #SBATCH --mail-type=all
 #SBATCH -C p100
 
-source /projets/schnaps/optix-8-sdk/.modules
-
-cd /projets/schnaps/optix-8-sdk/build/
-make -j 4
-./bin/optixMultiSphere -f res.png -rb
-
-cd /projets/schnaps/optix-8-sdk/Cuda-version/build/
-make -j 4
-./cudaLJ
+export SMPREFIX=60
+source /home/bramas/spetabaru-project/specx/Benchmark/batch/run-benchs.sh
