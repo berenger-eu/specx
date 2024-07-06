@@ -1,7 +1,11 @@
 #!/bin/bash
 
 #################################
- 
+
+function build(){
+    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=60 -DCMAKE_BUILD_TYPE=RELEASE
+}
+
 function main(){
     RUN_DIR="/home/bramas/spetabaru-project/specx/build-$SMPREFIX/"
     # To ensure we are in the right directory we test
