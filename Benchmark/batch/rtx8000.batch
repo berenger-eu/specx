@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH --time=24:00:00
+#SBATCH --exclusive
+#SBATCH --mail-user=berenger.bramas@inria.fr
+#SBATCH --mail-type=all
+#SBATCH -C rtx8000
+
+source /projets/schnaps/optix-8-sdk/.modules
+
+cd /projets/schnaps/optix-8-sdk/buildrtx/
+make -j 4
+./bin/optixMultiSphere -f res.png -rb
+
+cd /projets/schnaps/optix-8-sdk/Cuda-version/buildrtx/
+make -j 4
+./cudaLJ

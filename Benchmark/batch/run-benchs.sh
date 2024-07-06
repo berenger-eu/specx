@@ -1,16 +1,16 @@
 #!/bin/bash
 
-
-
 #################################
  
 function main(){
     # To ensure we are in the right directory we test
     # that CMakeCache.txt file and Examples directory exist.
-    if [ ! -f CMakeCache.txt ] || [ ! -d Examples ]; then
-        echo "Please run this script from the build directory."
+    if [ ! -f $PREFIX/CMakeCache.txt ] || [ ! -d $PREFIX/Examples ]; then
+        echo "Please PREFIX variable should point to the build dir"
         return 1
     fi
+    
+    cd /home/bramas/spetabaru-project/results/
 
     # Create a directory to store the results
     # with the format results_[date]_[time]
@@ -30,8 +30,12 @@ function main(){
     ./Benchmark/cholesky_gemm/gemm --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir"
 
     # Particles
-    ./Benchmark/particles/particles-simu --lp=$NB_LOOPS --minp=5000 --maxp=100000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir"
+    ./Benchmark/particles/particles-simu --lp=$NB_LOOPS --minp=500 --maxp=10000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir"
 }
 
+module load compiler/cuda/12.3 compiler/gcc/10.2.0 build/cmake/3.21.3 linalg/mkl/2020_update4
 
+module li
+
+main ;
 
