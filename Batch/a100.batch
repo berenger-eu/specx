@@ -7,4 +7,4 @@
 #SBATCH -C "a100&zen3"
 
 export SMPREFIX=80
-source /home/bramas/spetabaru-project/specx/Batch/run-benchs.sh
+source /projets/schnaps/spetabaru-project/specx/Batch/run-benchs.sh

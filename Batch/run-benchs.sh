@@ -3,19 +3,22 @@
 #################################
 
 function main(){
-    RUN_DIR="/home/bramas/spetabaru-project/specx/build-$SMPREFIX/"
+    RUN_DIR="/projets/schnaps/spetabaru-project/specx/build-$SMPREFIX/"
 
     # Check if RUN_DIR exists
     if [ ! -d "$RUN_DIR" ]; then
+        echo "make build dir"
         mkdir "$RUN_DIR"
     fi
-    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SM -DCMAKE_BUILD_TYPE=RELEASE
+    
+    cd "$RUN_DIR"
+    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RELEASE
     make -j
 
     # To ensure we are in the right directory we test
     # that CMakeCache.txt file and Examples directory exist.
     if [ ! -f "$RUN_DIR/CMakeCache.txt" ] || [ ! -d "$RUN_DIR/Examples" ]; then
-        echo "Please PREFIX variable should point to the SM version to make a valid RUN_DIR, $RUN_DIR"
+        echo "Please PREFIX variable should point to the SMPREFIX version to make a valid RUN_DIR, $RUN_DIR"
         return 1
     fi
 
