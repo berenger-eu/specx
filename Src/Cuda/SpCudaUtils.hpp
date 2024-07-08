@@ -61,7 +61,7 @@ public:
         size_t free_byte ;
         size_t total_byte ;
         CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
-        return free_byte;
+        return free_byte*0.8;
     }
 
     static void UseDevice(const int deviceId){
