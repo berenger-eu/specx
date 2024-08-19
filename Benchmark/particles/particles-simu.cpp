@@ -200,7 +200,7 @@ public:
     }
 };
 
-#ifdef SPECX_COMPILE_WITH_CUDA
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
 template <class T>
 __device__ T CuMin(const T& v1, const T& v2){
     return v1 < v2 ? v1 : v2;
@@ -433,6 +433,9 @@ void AccuracyTest(){
 #ifdef SPECX_COMPILE_WITH_CUDA
     SpCudaUtils::PrintInfo();
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(1,1,2));
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(1,1,2));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
 #endif
@@ -454,43 +457,48 @@ void AccuracyTest(){
 
     particles.compute(particlesB);
 
-    tg.task(SpWrite(cu_particles)
-        #ifndef SPECX_COMPILE_WITH_CUDA
-            ,
+    tg.task(SpWrite(cu_particles),
             SpCpu([](ParticlesGroup& particlesW) {
                 particlesW.computeSelf();
             })
-        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
+        #ifdef SPECX_COMPILE_WITH_HIP
+            , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
+                [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                hipLaunchKernelGGL(p2p_inner_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(), 
+                        paramA.getRawPtr(), paramA.getRawSize());
+            })
+        #endif
     );
 
-    tg.task(SpWrite(cu_particlesB)
-        #ifndef SPECX_COMPILE_WITH_CUDA
-            ,
+    tg.task(SpWrite(cu_particlesB),
             SpCpu([](ParticlesGroup& particlesW) {
                 particlesW.computeSelf();
             })
-        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
             })
         #endif
+        #ifdef SPECX_COMPILE_WITH_HIP
+            , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
+                [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                hipLaunchKernelGGL(p2p_inner_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(),
+                        paramA.getRawPtr(), paramA.getRawSize());
+            })
+        #endif
     );
 
-    tg.task(SpWrite(cu_particles),SpWrite(cu_particlesB)
-        #ifndef SPECX_COMPILE_WITH_CUDA
-            ,
+    tg.task(SpWrite(cu_particles),SpWrite(cu_particlesB),
             SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
                 particlesW.compute(particlesR);
             })
-        #endif
         #ifdef SPECX_COMPILE_WITH_CUDA
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                 [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
@@ -499,6 +507,18 @@ void AccuracyTest(){
                                                                          paramA.getRawPtr(), paramA.getRawSize());
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
+            })
+        #endif
+        #ifdef SPECX_COMPILE_WITH_HIP
+            , SpHip([](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                hipLaunchKernelGGL(p2p_neigh_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(),
+                                        paramB.getRawPtr(), paramB.getRawSize(),
+                                         paramA.getRawPtr(), paramA.getRawSize());
+                hipLaunchKernelGGL(p2p_neigh_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(),
+                                        paramA.getRawPtr(), paramA.getRawSize(),
+                                         paramB.getRawPtr(), paramB.getRawSize());
             })
         #endif
     );
@@ -526,6 +546,9 @@ struct TuneResult{
 };
 
 auto TuneBlockSize(){
+#if !defined(SPECX_COMPILE_WITH_CUDA) && !defined(SPECX_COMPILE_WITH_HIP)
+    return TuneResult();
+#else
 #ifdef SPECX_COMPILE_WITH_CUDA
     if(SpCudaUtils::GetNbDevices() == 0){
         return TuneResult();
@@ -535,6 +558,17 @@ auto TuneBlockSize(){
     cudaGetDeviceProperties( &prop, 0);
 
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(0,1,1));
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    if(SpHipUtils::GetNbDevices() == 0){
+        return TuneResult();
+    }
+
+    hipDeviceProp_t prop;
+    hipGetDeviceProperties( &prop, 0);
+
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(0,1,1));
+#endif
+
     SpTaskGraph tg;
     tg.computeOn(ce);
 
@@ -554,6 +588,7 @@ auto TuneBlockSize(){
         for(long int idxBlock = 16 ; idxBlock <= prop.maxGridSize[0] && idxBlock*idxThread <= NbParticles ; idxBlock *= 2){
 
             tg.task(SpWrite(particlesA),
+#ifdef SPECX_COMPILE_WITH_CUDA            
                 SpCuda([idxThread, idxBlock, &bestTimeInner, &nbThreadsPerBlockInner, &nbBlocksInner](SpDeviceDataView<ParticlesGroup> paramA) {
                     SpTimer timer;
                     CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
@@ -568,9 +603,28 @@ auto TuneBlockSize(){
                         nbBlocksInner = idxBlock;
                     }
                 })
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+                SpHip([idxThread, idxBlock, &bestTimeInner, &nbThreadsPerBlockInner, &nbBlocksInner](SpDeviceDataView<ParticlesGroup> paramA) {
+                    SpTimer timer;
+                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                    [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                    hipLaunchKernelGGL(p2p_inner_gpu, idxBlock, idxThread, 0, SpHipUtils::GetCurrentStream(),
+                                       paramA.getRawPtr(), paramA.getRawSize());
+                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                    timer.stop();
+
+                    if(timer.getElapsed() < bestTimeInner){
+                        bestTimeInner = timer.getElapsed();
+                        nbThreadsPerBlockInner = idxThread;
+                        nbBlocksInner = idxBlock;
+                    }
+                })
+#endif
             );
 
             tg.task(SpWrite(particlesA),SpWrite(particlesB),
+#ifdef SPECX_COMPILE_WITH_CUDA            
                 SpCuda([idxThread, idxBlock, &bestTimeOuter, &nbThreadsPerBlockOuter, &nbBlocksOuter ]
                        (SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
                     SpTimer timer;
@@ -590,6 +644,30 @@ auto TuneBlockSize(){
                         nbBlocksOuter = idxBlock;
                     }
                 })
+#endif
+#ifdef SPECX_COMPILE_WITH_HIP
+                SpHip([idxThread, idxBlock, &bestTimeOuter, &nbThreadsPerBlockOuter, &nbBlocksOuter ]
+                       (SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                    SpTimer timer;
+                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                    [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                    [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                    hipLaunchKernelGGL(p2p_neigh_gpu, idxBlock, idxThread, 0, SpHipUtils::GetCurrentStream(),
+                                        paramB.getRawPtr(), paramB.getRawSize(),
+                                        paramA.getRawPtr(), paramA.getRawSize());
+                    hipLaunchKernelGGL(p2p_neigh_gpu, idxBlock, idxThread, 0, SpHipUtils::GetCurrentStream(),
+                                        paramA.getRawPtr(), paramA.getRawSize(),
+                                        paramB.getRawPtr(), paramB.getRawSize());
+                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                    timer.stop();
+
+                    if(timer.getElapsed() < bestTimeOuter){
+                        bestTimeOuter = timer.getElapsed();
+                        nbThreadsPerBlockOuter = idxThread;
+                        nbBlocksOuter = idxBlock;
+                    }
+                })
+#endif
             );
         }
     }
@@ -603,39 +681,12 @@ auto TuneBlockSize(){
 
     return TuneResult{nbThreadsPerBlockInner, nbBlocksInner,
                       nbThreadsPerBlockOuter, nbBlocksOuter};
-#else
-    return TuneResult();
-#endif
+#endif                      
 }
 
 
-void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
-    CLsimple args("Particles", argc, argv);
-
-    args.addParameterNoArg({"help"}, "help");
-
-    int NbLoops = 100;
-    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
-
-    int MinPartsPerGroup;
-    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
-
-    int MaxPartsPerGroup;
-    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
-
-    int NbGroups;
-    args.addParameter<int>({"nbgroups"}, "NbGroups", NbGroups, 10);
-
-    std::string schedulerName;
-    args.addParameter<std::string>({"sched"}, "Scheduler (default or multiprio)", schedulerName, "default");
-
-    args.parse();
-
-    if(!args.isValid() || args.hasKey("help")){
-      // Print the help
-      args.printHelp(std::cout);
-      return;
-    }
+auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
+                const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler, const TuneResult& inKernelConfig){
 
     std::vector<ParticlesGroup> particleGroups(NbGroups);
 
@@ -643,36 +694,35 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         std::random_device rd;
         std::uniform_int_distribution<int> dist(MinPartsPerGroup, MaxPartsPerGroup);
         for(auto& group : particleGroups){
-            group = ParticlesGroup(dist(rd));
+            const int nbParts = dist(rd);
+            group = ParticlesGroup(nbParts);
         }
-    }
+    }  
 
-#ifdef SPECX_COMPILE_WITH_CUDA
-    SpCudaUtils::PrintInfo();
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
     std::unique_ptr<SpAbstractScheduler> scheduler;
-    if(schedulerName == "default"){
-        std::cout << "Default scheduler" << std::endl;
+    if(useMultiPrioScheduler == false){
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
-    else if(schedulerName == "multiprio"){
-        std::cout << "Multi prio scheduler" << std::endl;
+    else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
     }
-    else{
-        std::cout << "Unknown scheduler " << schedulerName << std::endl;
-        return;
-    }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuCudaWorkers(), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
-    SpTaskGraph tg;
 
-    tg.computeOn(ce);
-
-    SpTimer timer;
+    std::vector<double> minMaxAvg(3);
+    minMaxAvg[0] = std::numeric_limits<double>::max();
+    minMaxAvg[1] = std::numeric_limits<double>::min();
+    minMaxAvg[2] = 0;
 
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
+        SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC>  tg;
+        tg.computeOn(ce);
+
+        SpTimer timer;
+
         for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
             auto& group1 = particleGroups[idxGroup1];
             tg.task(SpCommutativeWrite(group1),
@@ -684,6 +734,13 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                         p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
                                        (paramA.getRawPtr(), paramA.getRawSize());
+                    })
+                #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                    , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
+                        [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                        hipLaunchKernelGGL(p2p_inner_gpu, inKernelConfig.nbBlocksInner, inKernelConfig.nbThreadsInner, 0, SpHipUtils::GetCurrentStream(),
+                                           paramA.getRawPtr(), paramA.getRawSize());
                     })
                 #endif
             );
@@ -705,35 +762,121 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                                      (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
                     })
                 #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                    , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                        [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                        [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                        hipLaunchKernelGGL(p2p_neigh_gpu, inKernelConfig.nbBlocksOuter, inKernelConfig.nbThreadsOuter, 0, SpHipUtils::GetCurrentStream(),
+                                            paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                        hipLaunchKernelGGL(p2p_neigh_gpu, inKernelConfig.nbBlocksOuter, inKernelConfig.nbThreadsOuter, 0, SpHipUtils::GetCurrentStream(),
+                                            paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                    })
+                #endif
             );
+        }
+
+        tg.waitAllTasks();
+        timer.stop();
+
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = particleGroups[idxGroup1];
+            tg.task(SpWrite(group1),
+                    SpCpu([](ParticlesGroup& particlesW) {
+                    })
+            );
+        }
+        tg.waitAllTasks();
+#endif
+
+        minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
+        minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
+        minMaxAvg[2] += timer.getElapsed();
+    }
+
+    minMaxAvg[2] /= NbLoops;
+    return minMaxAvg;
+}
+
+void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
+    CLsimple args("Particles", argc, argv);
+
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops = 100;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
+
+    int MinPartsPerGroup;
+    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
+
+    int MaxPartsPerGroup;
+    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
+
+    int MinNbGroups;
+    args.addParameter<int>({"minnbgroups"}, "MinNbGroups", MinNbGroups, 10);
+
+    int MaxNbGroups;
+    args.addParameter<int>({"maxnbgroups"}, "MaxNbGroups", MaxNbGroups, 10);
+
+    std::string outputDir = "./";
+    args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+
+    assert(MinPartsPerGroup <= MaxPartsPerGroup);
+    assert(MinNbGroups <= MaxNbGroups);
+
+#ifdef SPECX_COMPILE_WITH_CUDA  
+    SpCudaUtils::PrintInfo(); 
+    const int nbGpus = SpCudaUtils::GetNbDevices();
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
+    const int nbGpus = SpHipUtils::GetNbDevices();
+#else    
+    const int nbGpus = 0;
+#endif 
+
+    std::vector<std::vector<double>> allDurations;
+
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << 
+                            " Multiprio = " << useMultiprio << std::endl;                
+                const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
+                                    MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, inKernelConfig);
+                allDurations.push_back(minMaxAvg);
+                std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;   
+            }
         }
     }
 
-    for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
-        auto& group1 = particleGroups[idxGroup1];
-        tg.task(SpWrite(group1),
-                SpCpu([](ParticlesGroup& particlesW) {
-                })
-        );
+    std::ofstream file(outputDir + "/particle-simu.csv");
+    if(!file.is_open()){
+        std::cerr << "Cannot open file " << outputDir + "/particle-simu.csv" << std::endl;
+        return;
     }
 
-    tg.waitAllTasks();
-
-    timer.stop();
-
-    std::cout << "NbLoops = " << NbLoops << std::endl;
-    std::cout << "MinPartsPerGroup = " << MinPartsPerGroup << std::endl;
-    std::cout << "MaxPartsPerGroup = " << MaxPartsPerGroup << std::endl;
-    std::cout << "NbGroups = " << NbGroups << std::endl;
-    std::cout << "Duration = " << timer.getElapsed() << std::endl;
-
-    std::cout << "Nb CPU workers = " << ce.getNbCpuWorkers() << std::endl;
-#ifdef SPECX_COMPILE_WITH_CUDA
-    std::cout << "Nb CUDA workers = " << ce.getNbCudaWorkers() << std::endl;    
-#endif
-
-    std::cout << "Generate trace ./particles-simu.svg" << std::endl;
-    tg.generateTrace("./particles-simu.svg", false);
+    file << "NbGpu,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    int idxDuration = 0;
+    for(bool useMultiprio: std::vector<bool>{true, false}){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                file << idxGpu << "," << idxBlock << "," 
+                    << (useMultiprio?"TRUE":"FALSE") << ","
+                    << allDurations[idxDuration][0] << "," 
+                    << allDurations[idxDuration][1] << "," 
+                    << allDurations[idxDuration][2] << std::endl;
+                idxDuration += 1;
+            }
+        }
+    }
 }
 
 

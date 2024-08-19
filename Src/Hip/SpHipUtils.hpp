@@ -8,6 +8,10 @@
 
 #include "Config/SpConfig.hpp"
 
+#ifndef SPECX_COMPILE_WITH_HIP
+#error SPECX_COMPILE_WITH_HIP must be defined
+#endif
+
 #include "hip/hip_runtime.h"
 #include "hip/hip_runtime_api.h"
 
@@ -57,7 +61,7 @@ public:
         size_t free_byte ;
         size_t total_byte ;
         HIP_ASSERT(hipMemGetInfo( &free_byte, &total_byte ));
-        return free_byte;
+        return free_byte*0.8;
     }
 
     static void UseDevice(const int deviceId){
@@ -103,6 +107,12 @@ public:
         HIP_ASSERT(hipGetDeviceProperties(&prop, hipId));
         std::cout << "[SPECX] - Device id: " << hipId << std::endl;
         std::cout << "[SPECX]   Device name: " << prop.name << std::endl;
+    }
+
+    static std::string GetDeviceName(const int hipId){
+        hipDeviceProp_t prop;
+        HIP_ASSERT(hipGetDeviceProperties(&prop, hipId));
+        return prop.name;
     }
 
     static void PrintInfo(){

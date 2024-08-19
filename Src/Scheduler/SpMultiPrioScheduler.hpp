@@ -47,6 +47,7 @@ class SpMultiPrioScheduler : public SpAbstractScheduler{
         const bool hasCpuCallable = task->hasCallableOfType(SpCallableType::CPU);
         const bool hasGpuCallable = task->hasCallableOfType(SpCallableType::CUDA)
                 || task->hasCallableOfType(SpCallableType::HIP);
+        assert(hasCpuCallable || hasGpuCallable);
 
         if(hasCpuCallable) {
             nbTasks[int(SpWorkerTypes::Type::CPU_WORKER)] -= 1;
@@ -62,7 +63,11 @@ class SpMultiPrioScheduler : public SpAbstractScheduler{
     }
 
 public:
-    explicit SpMultiPrioScheduler() {}
+    explicit SpMultiPrioScheduler() {
+        for(int idx = 0 ; idx < int(SpWorkerTypes::Type::NB_WORKER_TYPES) ; ++idx){
+            nbTasks[idx] = 0;
+        }
+    }
 
     // No copy or move
     SpMultiPrioScheduler(const SpMultiPrioScheduler&) = delete;
@@ -88,6 +93,7 @@ public:
         const bool hasCpuCallable = newTask->hasCallableOfType(SpCallableType::CPU);
         const bool hasGpuCallable = newTask->hasCallableOfType(SpCallableType::CUDA)
                 || newTask->hasCallableOfType(SpCallableType::HIP);
+        assert(hasCpuCallable || hasGpuCallable);
         
         if(hasCpuCallable) {
             nbTasks[int(SpWorkerTypes::Type::CPU_WORKER)] += 1;
@@ -133,9 +139,6 @@ public:
     }
 
     SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt) final {
-        const int currentWorkerId = SpUtils::GetThreadId();
-        assert(currentWorkerId < MaxNbDevices);
-        assert(currentWorkerId >= 0);
         assert(SpUtils::GetThreadType() == wt);
         const int deviceId = SpUtils::GetDeviceId();
         assert(deviceId < MaxNbDevices);

@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH --time=24:00:00
+#SBATCH --exclusive
+#SBATCH --mail-user=berenger.bramas@inria.fr
+#SBATCH --mail-type=all
+#SBATCH -C "a100&zen3"
+
+export SMPREFIX=80
+source /projets/schnaps/spetabaru-project/specx/Batch/run-benchs.sh

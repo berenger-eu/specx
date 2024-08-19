@@ -187,9 +187,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     h->lock();
 
                     if(ct == SpCallableType::CPU){
-                        const int cudaSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
-                        if(cudaSrc != -1){
-                            SpHipManager::Managers[cudaSrc].syncExtraStream();
+                        const int hipSrc = h->syncCpuDataIfNeeded(SpHipManager::Managers);
+                        if(hipSrc != -1){
+                            SpHipManager::Managers[hipSrc].syncExtraStream();
                         }
                         if(accessMode != SpDataAccessMode::READ){
                             h->setCpuOnlyValid(SpHipManager::Managers);
@@ -206,7 +206,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                         }
                         SpHipManager::Managers[hipId].incrDeviceDataUseCount(h);
                         std::get<index>(hipCallableArgs).reset(dataObj.ptr, dataObj.size);
-                        if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
+                        if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(hipCallableArgs))>::value){
                             std::get<index>(hipCallableArgs).setDataDescriptor(h->getRawPtr());
                         }
                         else{

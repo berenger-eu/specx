@@ -55,6 +55,11 @@ if(BLAS_FOUND AND LAPACK_FOUND)
 			    set_source_files_properties(${exec} PROPERTIES LANGUAGE CUDA)
 			    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};cublas;cusolver")
 		    endif()
+
+		    if(SPECX_COMPILE_WITH_HIP)
+			    # set_source_files_properties(${exec} PROPERTIES LANGUAGE HIP)
+			    set(SPECX_LIBRARIES "${SPECX_LIBRARIES};hipblas;hipsolver")
+		    endif()
 		    
 		    add_executable(${execname} ${exec})
 		    

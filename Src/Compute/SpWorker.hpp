@@ -69,6 +69,10 @@ private:
         return stopFlag.load(std::memory_order_relaxed);
     }
     
+    bool hasSpecificActionToDo() const {
+        return hasFuncToExecPtr.load(std::memory_order_relaxed);
+    }
+    
     SpComputeEngine* getComputeEngine() const {
         return ce.load(std::memory_order_relaxed);
     }
@@ -78,15 +82,15 @@ private:
             case SpWorkerTypes::Type::CPU_WORKER:
                 task->execute(SpCallableType::CPU);
                 break;
-                #ifdef SPECX_COMPILE_WITH_CUDA
+#ifdef SPECX_COMPILE_WITH_CUDA
             case SpWorkerTypes::Type::CUDA_WORKER:
                 task->execute(SpCallableType::CUDA);
                 break;
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-case SpWorkerTypes::Type::HIP_WORKER:
-task->execute(SpCallableType::HIP);
-break;
+            case SpWorkerTypes::Type::HIP_WORKER:
+                task->execute(SpCallableType::HIP);
+                break;
 #endif
             default:
                 assert(false && "Worker is of unknown type.");
@@ -122,12 +126,14 @@ break;
     
     void idleWait() {
         std::unique_lock<std::mutex> workerLock(workerMutex);
-        workerConditionVariable.wait(workerLock, [&]() { return stopFlag.load(std::memory_order_relaxed)
+        workerConditionVariable.wait(workerLock, [&]() {
+            return stopFlag.load(std::memory_order_relaxed)
                     || ce.load(std::memory_order_relaxed)
                     || hasFuncToExecPtr.load(std::memory_order_relaxed); });
     }
     
     void waitOnCe(SpComputeEngine* inCe, SpAbstractTaskGraph* atg);
+    void wakeUpCe();
     
     friend class SpComputeEngine;
 
@@ -177,11 +183,15 @@ public:
             func(id, type);
         };
 
-        hasFuncToExecPtr = &funcToExec;
-        workerConditionVariable.notify_all();
-        SpDebugPrint() << "setExecFunc call on " << threadId << " now will wait...";
-        while(hasFuncToExecPtr);
-        SpDebugPrint() << "setExecFunc call on " << threadId << " done.";
+        hasFuncToExecPtr.store(&funcToExec, std::memory_order_release);
+
+        wakeUpCe();
+        // Ce could be set but the worker still on the idleWait
+        workerConditionVariable.notify_one();
+        
+        while(hasFuncToExecPtr.load(std::memory_order_relaxed)){
+            usleep(100);
+        }
     }
 
     friend SpWorkerTeamBuilder;

@@ -96,27 +96,6 @@ public:
     int getNbCpuWorkers() const {
         return static_cast<int>(ce.getNbCpuWorkers());
     }
-
-#ifdef SPECX_COMPILE_WITH_CUDA
-    int getNbCudaWorkers() const {
-        return static_cast<int>(ce.getNbCudaWorkers());
-    }
-
-    template <class ParamsType>
-    void syncDataOnCpu(ParamsType& inParam){
-        tg.syncDataOnCpu(inParam);
-    }
-#endif
-#ifdef SPECX_COMPILE_WITH_HIP
-    int getNbHipWorkers() const {
-        return static_cast<int>(ce.getNbHipWorkers());
-    }
-
-    template <class ParamsType>
-    void syncDataOnCpu(ParamsType& inParam){
-        tg.syncDataOnCpu(inParam);
-    }
-#endif
            
     template <class ClassFunc>
     void execOnWorkers(ClassFunc&& func) {

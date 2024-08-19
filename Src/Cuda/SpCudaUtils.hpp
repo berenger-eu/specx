@@ -61,7 +61,7 @@ public:
         size_t free_byte ;
         size_t total_byte ;
         CUDA_ASSERT(cudaMemGetInfo( &free_byte, &total_byte ));
-        return free_byte;
+        return free_byte*0.8;
     }
 
     static void UseDevice(const int deviceId){
@@ -107,6 +107,12 @@ public:
         CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
         std::cout << "[SPECX] - Device id: " << cudaId << std::endl;
         std::cout << "[SPECX]   Device name: " << prop.name << std::endl;
+    }
+
+    static std::string GetDeviceName(const int cudaId){
+        cudaDeviceProp prop;
+        CUDA_ASSERT(cudaGetDeviceProperties(&prop, cudaId));
+        return prop.name;
     }
 
     static void PrintInfo(){

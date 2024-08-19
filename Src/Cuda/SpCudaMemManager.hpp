@@ -49,7 +49,6 @@ public:
         const int id;
         std::unordered_map<void*, HandleDescr> handles;
         std::unordered_map<const void*, DataObj> allBlocks;
-        std::size_t memSpaceUsed;
 
         std::list<void*> lru;
 
@@ -126,7 +125,7 @@ public:
             DataObj data;
             data.size = inByteSize;
             assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
-#ifndef SPECX_EMUL_CUDA
+
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
             }
@@ -135,13 +134,7 @@ public:
                     CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, extraStream));
                 });
             }
-#else
-            if(alignment <= alignof(std::max_align_t)) {
-                data.ptr = std::malloc(data.size);
-            } else {
-                data.ptr = std::aligned_alloc(data.size, alignment);
-            }
-#endif
+
             allBlocks[data.ptr] = data;
             if(handles.find(key) == handles.end()){
                 lru.push_front(key);
@@ -159,7 +152,7 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
-#ifndef SPECX_EMUL_CUDA
+
                 if(SpCudaUtils::CurrentWorkerIsCuda()){
                     CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
                 }
@@ -168,9 +161,6 @@ public:
                         CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
                     });
                 }
-#else
-                std::free(data.ptr);
-#endif
             }
 
             handles.erase(key);
@@ -180,7 +170,6 @@ public:
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, SpCudaUtils::GetCurrentStream()));
             }
@@ -189,16 +178,12 @@ public:
                     CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, extraStream));
                 });
             }
-#else
-            memset(inPtrDev, val, inByteSize);
-#endif
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             // The following assert cannot be use as it will fire if we work on a sub-block
             // maybe we could iterate to find the block(?)
             //assert(allBlocks.find(inPtrDev) != allBlocks.end() && inByteSize <= allBlocks[inPtrDev].size);
-#ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
                                         SpCudaUtils::GetCurrentStream()));
@@ -209,16 +194,12 @@ public:
                                             extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrDev, inPtrHost, inByteSize);
-#endif
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             // The following assert it not valid as inPtrDev might be a subblock
             // assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-#ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                         SpCudaUtils::GetCurrentStream()));
@@ -229,9 +210,6 @@ public:
                                             extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrHost, inPtrDev, inByteSize);
-#endif
         }
 
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
@@ -242,7 +220,6 @@ public:
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-#ifndef SPECX_EMUL_CUDA
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                             SpCudaUtils::GetCurrentStream()));
@@ -253,9 +230,6 @@ public:
                                                 extraStream));
                 });
             }
-#else
-            std::memcpy(inPtrDevDest, inPtrDevSrc, inByteSize);
-#endif
         }
 
         bool isConnectedTo(const int otherId){
