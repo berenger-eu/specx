@@ -485,6 +485,7 @@ It should be used to help retreive the data from the raw pointer when calling a 
 The CMake variable `SPECX_COMPILE_WITH_HIP` must be set to ON, for example with the command `cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
 The C++ compiler must also be set with for example `CXX=hipcc`, so a working command line should be `CXX=hipcc cmake .. -DSPECX_COMPILE_WITH_HIP=ON`.
 On can set `GPU_TARGETS` to select the HIP sm to compile for.
+This has been tested with HIP version: 6.1.
 
 Here is an example of a task on HIP GPU:
 ```cpp
