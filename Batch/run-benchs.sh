@@ -51,7 +51,7 @@ function main(){
     "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=10000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output.txt"
 }
 
-module load compiler/cuda/12.3 compiler/gcc/10.2.0 build/cmake/3.21.3 linalg/mkl/2020_update4
+module load tools/git/2.36.0 compiler/cuda/12.3 compiler/gcc/10.2.0 build/cmake/3.21.3 linalg/mkl/2020_update4
 
 module li
 
