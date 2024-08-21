@@ -54,15 +54,23 @@ public:
 
         cudaStream_t extraStream;
         std::unique_ptr<SpConsumerThread> deferCopier;
+        size_t remainingMemory;
 
     public:
         explicit SpCudaMemManager(const int inId)
-            : id(inId), deferCopier(new SpConsumerThread){
+            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            deferCopier->submitJobAndWait([this]{
+            std::promise<void> donePromise;
+            std::future<void> doneFuture = donePromise.get_future();
+
+            deferCopier->submitJobAndWait([this, &donePromise]{
                 SpCudaUtils::UseDevice(id);
                 CUDA_ASSERT(cudaStreamCreate(&extraStream));
+                remainingMemory = size_t(double(SpCudaUtils::GetFreeMemOnDevice())*0.8);
+                donePromise.set_value();  // Notify that the job is done
             });
+
+            doneFuture.get();
         }
 
         ~SpCudaMemManager(){
@@ -99,7 +107,9 @@ public:
         }
 
         bool hasEnoughSpace(std::size_t inByteSize) override{
-            return inByteSize <= SpCudaUtils::GetFreeMemOnDevice();
+            // SpCudaUtils::GetFreeMemOnDevice() cannot be used
+            // because it is not up to date
+            return inByteSize <= remainingMemory;
         }
 
         std::list<void*> candidatesToBeRemoved(const std::size_t inByteSize) override{
@@ -124,7 +134,8 @@ public:
             assert(hasEnoughSpace(inByteSize));
             DataObj data;
             data.size = inByteSize;
-            assert(data.size <= SpCudaUtils::GetFreeMemOnDevice());
+            assert(data.size <= remainingMemory);
+            remainingMemory -= inByteSize;
 
             if(SpCudaUtils::CurrentWorkerIsCuda()){
                 CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
@@ -155,13 +166,22 @@ public:
 
                 if(SpCudaUtils::CurrentWorkerIsCuda()){
                     CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 }
                 else{
+                    std::promise<void> donePromise;
+                    std::future<void> doneFuture = donePromise.get_future();
+
                     deferCopier->submitJobAndWait([&,this]{
                         CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
+                        CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                        donePromise.set_value();  // Notify that the job is done
                     });
+
+                    doneFuture.get();
                 }
             }
+            remainingMemory += released;
 
             handles.erase(key);
             return released;

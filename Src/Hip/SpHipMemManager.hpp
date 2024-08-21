@@ -47,20 +47,28 @@ public:
         const int id;
         std::unordered_map<void*, HandleDescr> handles;
         std::unordered_map<const void*, DataObj> allBlocks;
- 
+
         std::list<void*> lru;
 
         hipStream_t extraStream;
         std::unique_ptr<SpConsumerThread> deferCopier;
+        size_t remainingMemory;
 
     public:
         explicit SpHipMemManager(const int inId)
-            : id(inId), deferCopier(new SpConsumerThread){
+            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            deferCopier->submitJobAndWait([this]{
+            std::promise<void> donePromise;
+            std::future<void> doneFuture = donePromise.get_future();
+
+            deferCopier->submitJobAndWait([this, &donePromise]{
                 SpHipUtils::UseDevice(id);
                 HIP_ASSERT(hipStreamCreate(&extraStream));
+                remainingMemory = size_t(double(SpHipUtils::GetFreeMemOnDevice())*0.8);
+                donePromise.set_value();  // Notify that the job is done
             });
+
+            doneFuture.get();
         }
 
         ~SpHipMemManager(){
@@ -97,7 +105,9 @@ public:
         }
 
         bool hasEnoughSpace(std::size_t inByteSize) override{
-            return inByteSize <= SpHipUtils::GetFreeMemOnDevice();
+            // SpHipUtils::GetFreeMemOnDevice() cannot be used
+            // because it is not up to date
+            return inByteSize <= remainingMemory;
         }
 
         std::list<void*> candidatesToBeRemoved(const std::size_t inByteSize) override{
@@ -122,7 +132,9 @@ public:
             assert(hasEnoughSpace(inByteSize));
             DataObj data;
             data.size = inByteSize;
-            assert(data.size <= SpHipUtils::GetFreeMemOnDevice());
+            assert(data.size <= remainingMemory);
+            remainingMemory -= inByteSize;
+
             if(SpHipUtils::CurrentWorkerIsHip()){
                 HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, SpHipUtils::GetCurrentStream()));
             }
@@ -131,6 +143,7 @@ public:
                     HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, extraStream));
                 });
             }
+
             allBlocks[data.ptr] = data;
             if(handles.find(key) == handles.end()){
                 lru.push_front(key);
@@ -152,11 +165,19 @@ public:
                     HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
                 }
                 else{
+                    std::promise<void> donePromise;
+                    std::future<void> doneFuture = donePromise.get_future();
+
                     deferCopier->submitJobAndWait([&,this]{
                         HIP_ASSERT(hipFreeAsync(data.ptr, extraStream));
+                        HIP_ASSERT(hipStreamSynchronize(extraStream));
+                        donePromise.set_value();  // Notify that the job is done
                     });
+
+                    doneFuture.get();
                 }
             }
+            remainingMemory += released;
 
             handles.erase(key);
             return released;
