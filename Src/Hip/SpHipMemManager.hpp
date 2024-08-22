@@ -68,6 +68,13 @@ public:
         ~SpHipMemManager(){
             if(deferCopier){
                 deferCopier->submitJobAndWait([this]{
+                    for(auto& handle : handles){
+                        assert(handle.second.useCount == 0);
+                        for(auto& block : handle.second.groupOfBlocks){
+                            HIP_ASSERT(hipFreeAsync(block.ptr, extraStream));
+                            remainingMemory += block.size;
+                        }
+                    }
                     HIP_ASSERT(hipStreamDestroy(extraStream));
                 });
             }

@@ -70,6 +70,13 @@ public:
         ~SpCudaMemManager(){
             if(deferCopier){
                 deferCopier->submitJobAndWait([this]{
+                    for(auto& handle : handles){
+                        assert(handle.second.useCount == 0);
+                        for(auto& block : handle.second.groupOfBlocks){
+                            CUDA_ASSERT(cudaFreeAsync(block.ptr, extraStream));
+                            remainingMemory += block.size;
+                        }
+                    }
                     CUDA_ASSERT(cudaStreamDestroy(extraStream));
                 });
             }
