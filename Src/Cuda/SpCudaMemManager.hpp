@@ -60,7 +60,7 @@ public:
         explicit SpCudaMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            deferCopier->submitJobAndWait([this, &donePromise]{
+            deferCopier->submitJobAndWait([this]{
                 SpCudaUtils::UseDevice(id);
                 CUDA_ASSERT(cudaStreamCreate(&extraStream));
                 remainingMemory = size_t(double(SpCudaUtils::GetFreeMemOnDevice())*0.8);

@@ -58,7 +58,7 @@ public:
         explicit SpHipMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            deferCopier->submitJobAndWait([this, &donePromise]{
+            deferCopier->submitJobAndWait([this]{
                 SpHipUtils::UseDevice(id);
                 HIP_ASSERT(hipStreamCreate(&extraStream));
                 remainingMemory = size_t(double(SpHipUtils::GetFreeMemOnDevice())*0.8);
