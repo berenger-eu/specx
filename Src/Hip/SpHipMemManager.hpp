@@ -58,17 +58,11 @@ public:
         explicit SpHipMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            std::promise<void> donePromise;
-            std::future<void> doneFuture = donePromise.get_future();
-
             deferCopier->submitJobAndWait([this, &donePromise]{
                 SpHipUtils::UseDevice(id);
                 HIP_ASSERT(hipStreamCreate(&extraStream));
                 remainingMemory = size_t(double(SpHipUtils::GetFreeMemOnDevice())*0.8);
-                donePromise.set_value();  // Notify that the job is done
             });
-
-            doneFuture.get();
         }
 
         ~SpHipMemManager(){
@@ -165,16 +159,10 @@ public:
                     HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
                 }
                 else{
-                    std::promise<void> donePromise;
-                    std::future<void> doneFuture = donePromise.get_future();
-
                     deferCopier->submitJobAndWait([&,this]{
                         HIP_ASSERT(hipFreeAsync(data.ptr, extraStream));
                         HIP_ASSERT(hipStreamSynchronize(extraStream));
-                        donePromise.set_value();  // Notify that the job is done
                     });
-
-                    doneFuture.get();
                 }
             }
             remainingMemory += released;

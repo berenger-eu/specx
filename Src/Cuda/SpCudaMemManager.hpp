@@ -60,17 +60,11 @@ public:
         explicit SpCudaMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
 
-            std::promise<void> donePromise;
-            std::future<void> doneFuture = donePromise.get_future();
-
             deferCopier->submitJobAndWait([this, &donePromise]{
                 SpCudaUtils::UseDevice(id);
                 CUDA_ASSERT(cudaStreamCreate(&extraStream));
                 remainingMemory = size_t(double(SpCudaUtils::GetFreeMemOnDevice())*0.8);
-                donePromise.set_value();  // Notify that the job is done
             });
-
-            doneFuture.get();
         }
 
         ~SpCudaMemManager(){
@@ -169,16 +163,10 @@ public:
                     CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 }
                 else{
-                    std::promise<void> donePromise;
-                    std::future<void> doneFuture = donePromise.get_future();
-
                     deferCopier->submitJobAndWait([&,this]{
                         CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
                         CUDA_ASSERT(cudaStreamSynchronize(extraStream));
-                        donePromise.set_value();  // Notify that the job is done
                     });
-
-                    doneFuture.get();
                 }
             }
             remainingMemory += released;
