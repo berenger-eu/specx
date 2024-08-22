@@ -220,9 +220,9 @@ int main(int argc, char** argv){
     std::vector<std::vector<double>> allDurations;
 
     for(bool useMultiprio: std::vector<bool>{true, false}){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
-                for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+        for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
+            for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
                     std::cout << "NbGpu = " << idxGpu << " MatrixSize = " << MatrixSize 
                         << " BlockSize = " << BlockSize << " Multiprio = " << useMultiprio << std::endl;
 
@@ -258,13 +258,12 @@ int main(int argc, char** argv){
                         SpBlas::printBlocks(blocksC.get(), MatrixSize, BlockSize);
                     }
                     /////////////////////////////////////////////////////////
-                    gemm(NbLoops, matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
-                    if(printValues){
-                        std::cout << "Matrix after gemm C:\n";
-                        SpBlas::printMatrix(matrixC.get(), MatrixSize);
-                    }
-                    /////////////////////////////////////////////////////////
                     if(checkAccuracy){
+                        gemm(NbLoops, matrixC.get(), matrixA.get(), matrixB.get(), MatrixSize);
+                        if(printValues){
+                            std::cout << "Matrix after gemm C:\n";
+                            SpBlas::printMatrix(matrixC.get(), MatrixSize);
+                        }
                         const double errorBeforeFacto = SpBlas::diffMatrixBlocks(matrixC.get(), blocksC.get(), MatrixSize, BlockSize);
                         std::cout << "Accuracy before facto : " << errorBeforeFacto << std::endl;
                     }
