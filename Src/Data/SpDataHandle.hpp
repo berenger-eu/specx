@@ -21,6 +21,12 @@
 #include "Cuda/SpCudaMemManager.hpp"
 #endif // SPECX_COMPILE_WITH_CUDA
 
+#ifdef SPECX_COMPILE_WITH_HIP
+#include "Data/SpDeviceData.hpp"
+#include "Data/SpDataDuplicator.hpp"
+#include "Hip/SpHipMemManager.hpp"
+#endif // SPECX_COMPILE_WITH_HIP
+
 //! This is a register data to apply the
 //! dependences on it.
 class SpDataHandle {
@@ -75,6 +81,9 @@ public:
             const std::string datatypeName(typeid(DataType).name());
             SpDebugPrint() << "[SpDataHandle] Create handle for data " << inPtrToData << " of type " << datatypeName;
         }
+        #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+        assert(deviceDataOp != nullptr && "deviceDataOp is not initialized");
+        #endif
     }
     
     //! Cannot be copied or moved
@@ -84,6 +93,17 @@ public:
     SpDataHandle& operator=(SpDataHandle&&) = delete;
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+    virtual ~SpDataHandle(){
+        #if defined(SPECX_COMPILE_WITH_CUDA)
+        syncCpuDataIfNeeded(SpCudaManager::Managers);
+        setCpuOnlyValid(SpCudaManager::Managers);
+        #endif
+        #if defined(SPECX_COMPILE_WITH_HIP)
+        syncCpuDataIfNeeded(SpHipManager::Managers);
+        setCpuOnlyValid(SpHipManager::Managers);
+        #endif
+    }
+
     template <class Allocators>
     void setCpuOnlyValid(Allocators& memManagers) {
         assert(cpuDataOk == true);
@@ -97,6 +117,7 @@ public:
 
     template <class Allocators>
     void setGpuOnlyValid(Allocators& memManagers, const int gpuId) {
+        assert(gpuId < memManagers.size() && gpuId < int(copies.size()));
         assert(copies[gpuId].ptr);
         cpuDataOk = false;
         for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
@@ -124,6 +145,7 @@ public:
 
     template <class Allocators>
     void removeFromGpu(Allocators& memManagers, const int gpuId){
+        assert(gpuId < memManagers.size() && gpuId < int(copies.size()));
         assert(copies[gpuId].ptr);
         syncCpuDataIfNeeded(memManagers);
         deviceDataOp->freeGroup(memManagers[gpuId], this, ptrToData);
@@ -132,6 +154,7 @@ public:
 
     template <class Allocators>
     SpDeviceData& getDeviceData(Allocators& memManagers, const int gpuId) {
+        assert(gpuId < memManagers.size() && gpuId < int(copies.size()));
 #if defined(SPECX_COMPILE_WITH_CUDA)
         assert(gpuId < SpConfig::SpMaxNbCudas);
 #elif defined(SPECX_COMPILE_WITH_HIP)

@@ -119,6 +119,7 @@ public:
                 void* handleToRemove = (*iter);
                 if(handles[handleToRemove].useCount == 0){
                     for(auto block : handles[handleToRemove].groupOfBlocks){
+                        assert(block.ptr);
                         toBeReleased += block.size;
                     }
                     candidates.push_back(handleToRemove);
@@ -162,8 +163,10 @@ public:
             std::size_t released = 0;
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
+
                 if(SpHipUtils::CurrentWorkerIsHip()){
                     HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
+                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
@@ -171,6 +174,8 @@ public:
                         HIP_ASSERT(hipStreamSynchronize(extraStream));
                     });
                 }
+                assert(allBlocks.find(data.ptr) != allBlocks.end());
+                allBlocks.erase(data.ptr);
             }
             remainingMemory += released;
 

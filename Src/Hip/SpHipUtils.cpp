@@ -11,8 +11,7 @@ hipStream_t& SpHipUtils::GetCurrentStream(){
 }
 
 bool SpHipUtils::CurrentWorkerIsHip(){
-    assert(SpWorker::getWorkerForThread());
-    return SpWorker::getWorkerForThread()->getType() == SpWorkerTypes::Type::HIP_WORKER;
+    return SpWorker::getWorkerForThread() && SpWorker::getWorkerForThread()->getType() == SpWorkerTypes::Type::HIP_WORKER;
 }
 
 int SpHipUtils::CurrentHipId(){

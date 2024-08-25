@@ -121,6 +121,7 @@ public:
                 void* handleToRemove = (*iter);
                 if(handles[handleToRemove].useCount == 0){
                     for(auto block : handles[handleToRemove].groupOfBlocks){
+                        assert(block.ptr);
                         toBeReleased += block.size;
                     }
                     candidates.push_back(handleToRemove);
@@ -167,7 +168,7 @@ public:
 
                 if(SpCudaUtils::CurrentWorkerIsCuda()){
                     CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
-                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
@@ -175,6 +176,8 @@ public:
                         CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                     });
                 }
+                assert(allBlocks.find(data.ptr) != allBlocks.end());
+                allBlocks.erase(data.ptr);
             }
             remainingMemory += released;
 
