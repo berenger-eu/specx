@@ -69,6 +69,9 @@ public:
 
         ~SpCudaMemManager(){
             if(deferCopier){
+                assert(handles.size() == 0);
+                assert(allBlocks.size() == 0);
+                // In in release and data remain, just delete them
                 deferCopier->submitJobAndWait([this]{
                     for(auto& handle : handles){
                         assert(handle.second.useCount == 0);
