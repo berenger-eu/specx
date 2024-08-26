@@ -12,7 +12,7 @@ function main(){
     fi
     
     cd "$RUN_DIR"
-    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RELEASE
+    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo # RELEASE
     make -j
 
     # To ensure we are in the right directory we test
