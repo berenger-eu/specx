@@ -142,7 +142,7 @@ public:
             assert(data.size <= remainingMemory);
             remainingMemory -= inByteSize;
 
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
             }
             else{
@@ -169,14 +169,12 @@ public:
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
 
-                if(SpCudaUtils::CurrentWorkerIsCuda()){
+                if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                     CUDA_ASSERT(cudaFreeAsync(data.ptr, SpCudaUtils::GetCurrentStream()));
-                    CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
                         CUDA_ASSERT(cudaFreeAsync(data.ptr, extraStream));
-                        CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                     });
                 }
                 assert(allBlocks.find(data.ptr) != allBlocks.end());
@@ -185,13 +183,23 @@ public:
             remainingMemory += released;
 
             handles.erase(key);
+
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
+            
             return released;
         }
 
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                     && allBlocks[inPtrDev].size <= inByteSize);
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, SpCudaUtils::GetCurrentStream()));
             }
             else{
@@ -205,7 +213,7 @@ public:
             // The following assert cannot be use as it will fire if we work on a sub-block
             // maybe we could iterate to find the block(?)
             //assert(allBlocks.find(inPtrDev) != allBlocks.end() && inByteSize <= allBlocks[inPtrDev].size);
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
                                         SpCudaUtils::GetCurrentStream()));
             }
@@ -221,7 +229,7 @@ public:
             // The following assert it not valid as inPtrDev might be a subblock
             // assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                         SpCudaUtils::GetCurrentStream()));
             }
@@ -229,6 +237,7 @@ public:
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                             extraStream));
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
         }
@@ -241,7 +250,7 @@ public:
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-            if(SpCudaUtils::CurrentWorkerIsCuda()){
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                             SpCudaUtils::GetCurrentStream()));
             }
@@ -249,6 +258,7 @@ public:
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                                 extraStream));
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
         }
