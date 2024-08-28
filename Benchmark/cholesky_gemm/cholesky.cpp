@@ -56,7 +56,8 @@ thread_local CudaHandles handle;
 thread_local HipHandles handle;
 #endif
 
-auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int inMatrixDim, const int inBlockDim,
+
+auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const int inMatrixDim, const int inBlockDim,
                            const int nbGpu, const bool useMultiPrioScheduler){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
@@ -74,7 +75,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
-    ce.execOnWorkers([&ce, inBlockDim, &blocks](auto id, auto type){
+    ce.execOnWorkers([&ce, inBlockDim, &blocksInput](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::CUDA_WORKER){
@@ -87,7 +88,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                  handle.solverHandle,
                                  CUBLAS_FILL_MODE_LOWER,
                                  inBlockDim,
-                                 blocks[0].values.get(),
+                                 blocksInput[0].values.get(),
                                  inBlockDim,
                                  &handle.solverBuffSize));
              CUDA_ASSERT(cudaMalloc((void**)&handle.solverBuffer , sizeof(double)*handle.solverBuffSize));
@@ -96,7 +97,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
      });
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-    ce.execOnWorkers([&ce, inBlockDim, &blocks](auto id, auto type){
+    ce.execOnWorkers([&ce, inBlockDim, &blocksInput](auto id, auto type){
          assert(id == SpUtils::GetThreadId());
          assert(type == SpUtils::GetThreadType());
          if(type == SpWorkerTypes::Type::HIP_WORKER){
@@ -109,7 +110,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                  handle.solverHandle,
                                  HIPBLAS_FILL_MODE_LOWER,
                                  inBlockDim,
-                                 blocks[0].values.get(),
+                                 blocksInput[0].values.get(),
                                  inBlockDim,
                                  &handle.solverBuffSize));
              HIP_ASSERT(hipMalloc((void**)&handle.solverBuffer , sizeof(double)*handle.solverBuffSize));
@@ -126,6 +127,8 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
      for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         tg.computeOn(ce);
+
+        auto blocks = duplicateBlocks(nbBlocks*nbBlocks, blocksInput);
 
         SpTimer timer;
 
@@ -188,7 +191,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
               , SpCuda([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                   SpDeviceDataView<SpBlas::Block> paramB) {
                     const double one = 1;
-                    CUBLAS_ASSERT( cublasDtrsm( handle.blasHandle, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                    CUBLAS_ASSERT( cublasDtrsm( handle.blasHandle, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_LOWER,
                                                 CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
@@ -198,7 +201,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                 , SpHip([inBlockDim](const SpDeviceDataView<const SpBlas::Block> paramA,
                                     SpDeviceDataView<SpBlas::Block> paramB) {
                     const double one = 1;
-                    HIPBLAS_ASSERT(hipblasDtrsm( handle.blasHandle, HIPBLAS_SIDE_RIGHT, HIPBLAS_FILL_MODE_UPPER,
+                    HIPBLAS_ASSERT(hipblasDtrsm( handle.blasHandle, HIPBLAS_SIDE_RIGHT, HIPBLAS_FILL_MODE_LOWER,
                             HIPBLAS_OP_T, HIPBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
@@ -222,7 +225,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                     // paramA.getRawPtr(), paramA.getRawSize()
                     const double one = 1;
                     const double minusone = -1;
-                    CUBLAS_ASSERT( cublasDsyrk( handle.blasHandle, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
+                    CUBLAS_ASSERT( cublasDsyrk( handle.blasHandle, CUBLAS_FILL_MODE_LOWER, CUBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
                 })
@@ -232,7 +235,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
                                     SpDeviceDataView<SpBlas::Block> paramC) {
                     const double one = 1;
                     const double minusone = -1;
-                    HIPBLAS_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_UPPER, HIPBLAS_OP_N,
+                    HIPBLAS_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_LOWER, HIPBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
                 })
@@ -241,7 +244,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
 
                 for(int m = k+1 ; m < nbBlocks ; ++m){
                     // GEMM( R A(m, k), R A(n, k), RW A(m, n))
-                    tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[m*nbBlocks+n]),
+                    tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
                     SpCpu([inBlockDim](const SpBlas::Block& blockA, const SpBlas::Block& blockB, SpBlas::Block& blockC){
                         SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::TRANSPOSE,
                                         inBlockDim, inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
@@ -291,6 +294,13 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocks[], const int 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
         minMaxAvg[2] += timer.getElapsed();
+
+        if(idxLoop == NbLoops-1){
+            // Copy block back
+            for(int idxBlock = 0 ; idxBlock < nbBlocks ; ++idxBlock){
+                std::copy(blocks[idxBlock].values.get(), blocks[idxBlock].values.get()+blocks[idxBlock].nbRows*blocks[idxBlock].nbCols, blocksInput[idxBlock].values.get());
+            }
+        }
     }
 
 #ifdef SPECX_COMPILE_WITH_CUDA

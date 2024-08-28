@@ -332,6 +332,21 @@ std::unique_ptr<Block[]> matrixToBlock(double matrix[], const int inMatrixDim, c
     return blocks;
 }
 
+auto duplicateBlocks(const int nbBlocks, SpBlas::Block blocks[]){
+    std::vector<SpBlas::Block> newBlocks(nbBlocks);
+
+    for(int idxBlock = 0 ; idxBlock < nbBlocks ; ++idxBlock){
+        newBlocks[idxBlock].rowOffset = blocks[idxBlock].rowOffset;
+        newBlocks[idxBlock].colOffset = blocks[idxBlock].colOffset;
+        newBlocks[idxBlock].nbRows = blocks[idxBlock].nbRows;
+        newBlocks[idxBlock].nbCols = blocks[idxBlock].nbCols;
+        newBlocks[idxBlock].values = std::make_unique<double[]>(blocks[idxBlock].nbRows*blocks[idxBlock].nbCols);
+        std::copy(blocks[idxBlock].values.get(), blocks[idxBlock].values.get()+blocks[idxBlock].nbRows*blocks[idxBlock].nbCols, newBlocks[idxBlock].values.get());
+    } 
+    
+    return newBlocks;
+}
+
 double diffMatrixBlocks(double matrix[], Block blocks[], const int inMatrixDim, const int inBlockDim,
                         const int Prank = 0, const int Psize = 1, const double alpha = 1.0){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
