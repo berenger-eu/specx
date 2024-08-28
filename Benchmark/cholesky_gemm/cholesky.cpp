@@ -242,7 +242,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
         #endif
                         ).setTaskName(std::string("SYRK -- (R-")+std::to_string(n)+","+std::to_string(k)+") (W-"+std::to_string(n)+","+std::to_string(n)+")");
 
-                for(int m = k+1 ; m < nbBlocks ; ++m){
+                for(int m = n+1 ; m < nbBlocks ; ++m){
                     // GEMM( R A(m, k), R A(n, k), RW A(m, n))
                     tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
                     SpCpu([inBlockDim](const SpBlas::Block& blockA, const SpBlas::Block& blockB, SpBlas::Block& blockC){

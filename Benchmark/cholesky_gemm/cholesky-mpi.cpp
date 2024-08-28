@@ -266,7 +266,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     tg.mpiBroadcastRecv(blocks[n*nbBlocks+n], n % Psize);
                 }
 
-                for(int m = k+1 ; m < nbBlocks ; ++m){
+                for(int m = n+1 ; m < nbBlocks ; ++m){
                     // GEMM( R A(m, k), R A(n, k), RW A(m, n))
                     if(n % Psize == Prank){
                         tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[m*nbBlocks+n]),
