@@ -504,9 +504,6 @@ void AccuracyTest(){
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(1));
 #endif
-    SpTaskGraph tg;
-
-    tg.computeOn(ce);
 
     const std::size_t NbParticles = 100;
     ParticlesGroup particles(NbParticles);
@@ -521,6 +518,10 @@ void AccuracyTest(){
     particlesB.computeSelf();
 
     particles.compute(particlesB);
+
+    SpTaskGraph tg;
+
+    tg.computeOn(ce);
 
     tg.task(SpWrite(cu_particles),
             SpCpu([](ParticlesGroup& particlesW) {
@@ -632,9 +633,6 @@ auto TuneBlockSize(){
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuHipWorkers(0,1,1));
 #endif
 
-    SpTaskGraph tg;
-    tg.computeOn(ce);
-
     const std::size_t NbParticles = 10000;
     ParticlesGroup particlesA(NbParticles);
     ParticlesGroup particlesB(NbParticles);
@@ -646,6 +644,9 @@ auto TuneBlockSize(){
     double bestTimeOuter = std::numeric_limits<double>::max();
     int nbThreadsPerBlockOuter = -1;
     int nbBlocksOuter = -1;
+
+    SpTaskGraph tg;
+    tg.computeOn(ce);
 
     for(long int idxThread = 32 ; idxThread <= prop.maxThreadsPerBlock ; idxThread *= 2){
         for(long int idxBlock = 16 ; idxBlock <= prop.maxGridSize[0] && idxBlock*idxThread <= NbParticles ; idxBlock *= 2){
