@@ -13,7 +13,9 @@ function main(){
     
     cd "$RUN_DIR"
     cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo # RELEASE
-    make -j
+
+    ## Redirect std and error to file 
+    make -j > build.log 2>&1
 
     # To ensure we are in the right directory we test
     # that CMakeCache.txt file and Examples directory exist.
