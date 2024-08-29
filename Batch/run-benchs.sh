@@ -43,7 +43,7 @@ function main(){
     NB_LOOPS=10
 
     # AXPY
-    # TODO "$RUN_DIR/Benchmark/axpy/axpy" --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --gputh=256 --od="$results_dir" >> "$results_dir/output_axpy.txt"
+    "$RUN_DIR/Benchmark/axpy/axpy" --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --gputh=256 --od="$results_dir" >> "$results_dir/output_axpy.txt"
 
     # Cholesky/gemm
     "$RUN_DIR/Benchmark/cholesky_gemm/cholesky" --lp=$NB_LOOPS --minms=4096 --maxms=8192 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_cholesky.txt"
