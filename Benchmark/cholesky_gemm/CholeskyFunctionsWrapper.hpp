@@ -26,6 +26,7 @@ void dlaswp_(int *n, double* a, int *lda, int *k1, int *k2, int *ipiv, const int
 #include <iostream>
 #include <cmath>
 #include <unistd.h>
+#include <iomanip>
 
 namespace SpBlas
 {
@@ -376,7 +377,7 @@ void printMatrix(const double matrix[], const int inMatrixDim){
     for(int idxRow = 0 ; idxRow < inMatrixDim ; ++idxRow){
         std::cout << idxRow << "]\t";
         for(int idxCol = 0 ; idxCol < inMatrixDim ; ++idxCol ){
-            std::cout << matrix[idxRow*inMatrixDim+idxCol] << "\t";
+            std::cout << std::setprecision(3) << matrix[idxRow*inMatrixDim+idxCol] << "\t";
         }
         std::cout << "\n";
     }
@@ -393,7 +394,7 @@ void printBlocks(const Block blocks[], const int inMatrixDim, const int inBlockD
             const int colIdxInBlock = idxCol%inBlockDim;
 
             const double blockValue = blocks[blockRowIdx*nbBlocks+blockColIdx].values[rowIdxInBlock*blocks[blockRowIdx*nbBlocks+blockColIdx].nbRows+colIdxInBlock];
-            std::cout << blockValue << "\t";
+            std::cout << std::setprecision(3) << blockValue << "\t";
         }
         std::cout << "\n";
     }

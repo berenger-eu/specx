@@ -297,8 +297,10 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
 
         if(idxLoop == NbLoops-1){
             // Copy block back
-            for(int idxBlock = 0 ; idxBlock < nbBlocks ; ++idxBlock){
-                std::copy(blocks[idxBlock].values.get(), blocks[idxBlock].values.get()+blocks[idxBlock].nbRows*blocks[idxBlock].nbCols, blocksInput[idxBlock].values.get());
+            for(int idxBlock = 0 ; idxBlock < nbBlocks*nbBlocks ; ++idxBlock){
+                std::copy(blocks[idxBlock].values.get(), 
+                            blocks[idxBlock].values.get()+blocks[idxBlock].nbRows*blocks[idxBlock].nbCols, 
+                            blocksInput[idxBlock].values.get());
             }
         }
     }
