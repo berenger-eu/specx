@@ -147,7 +147,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
         for(int k = 0 ; k < nbBlocks ; ++k){
             // TODO put for syrk and gemm ? const double rbeta = (j==0) ? beta : 1.0;
             // POTRF( RW A(k,k) )
-            tg.task(SpPriority(0), SpWrite(blocks[k*nbBlocks+k]),
+            tg.task(SpPriority(potrfPriority), SpWrite(blocks[k*nbBlocks+k]),
                 SpCpu([inBlockDim](SpBlas::Block& block){
                     SpBlas::potrf( SpBlas::FillMode::LWPR, inBlockDim, block.values.get(), inBlockDim );
                 })
@@ -191,7 +191,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
 
             for(int m = k + 1 ; m < nbBlocks ; ++m){
                 // TRSM( R A(k,k), RW A(m, k) )
-                tg.task(SpPriority(1), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[k*nbBlocks+m]),
+                tg.task(SpPriority(trsmPriority), SpRead(blocks[k*nbBlocks+k]), SpWrite(blocks[k*nbBlocks+m]),
                 SpCpu([inBlockDim](const SpBlas::Block& blockA, SpBlas::Block& blockB){
                     SpBlas::trsm( SpBlas::Side::RIGHT, SpBlas::FillMode::LWPR,
                                     SpBlas::Transa::TRANSPOSE, SpBlas::DiagUnit::NON_UNIT_TRIANGULAR,
@@ -223,7 +223,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
 
             for(int n = k+1 ; n < nbBlocks ; ++n){
                 // SYRK( R A(n,k), RW A(n, n) )
-                tg.task(SpPriority(1), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+n]),
+                tg.task(SpPriority(syrkPriority), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+n]),
                 SpCpu([inBlockDim](const SpBlas::Block& blockA, SpBlas::Block& blockC){
                     SpBlas::syrk( SpBlas::FillMode::LWPR,
                                     SpBlas::Transa::NORMAL,
@@ -255,7 +255,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
 
                 for(int m = n+1 ; m < nbBlocks ; ++m){
                     // GEMM( R A(m, k), R A(n, k), RW A(m, n))
-                    tg.task(SpPriority(3), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
+                    tg.task(SpPriority(gemmPriority), SpRead(blocks[k*nbBlocks+m]), SpRead(blocks[k*nbBlocks+n]), SpWrite(blocks[n*nbBlocks+m]),
                     SpCpu([inBlockDim](const SpBlas::Block& blockA, const SpBlas::Block& blockB, SpBlas::Block& blockC){
                         SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::TRANSPOSE,
                                         inBlockDim, inBlockDim, inBlockDim, -1.0, blockA.values.get(), inBlockDim,
