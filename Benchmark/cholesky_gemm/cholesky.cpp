@@ -56,9 +56,9 @@ thread_local CudaHandles handle;
 thread_local HipHandles handle;
 #endif
 
-
+template <int MaxNbDevices, const bool FavorLocality>
 auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const int inMatrixDim, const int inBlockDim,
-                           const int nbGpu, const bool useMultiPrioScheduler){
+                           const int nbGpu, const bool useMultiPrioScheduler, const bool usePrioPairs){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
@@ -67,7 +67,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
@@ -118,6 +118,17 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
          }
      });
 #endif
+
+    int potrfPriority = 2;
+    int trsmPriority = 1;
+    int syrkPriority = 1;
+    int gemmPriority = 0;
+    if(usePrioPairs){
+        potrfPriority = SpMultiPrioScheduler<MaxNbDevices,FavorLocality>::GeneratePriorityWorkerPair(2, 0);
+        trsmPriority = SpMultiPrioScheduler<MaxNbDevices,FavorLocality>::GeneratePriorityWorkerPair(1, 0);
+        syrkPriority = SpMultiPrioScheduler<MaxNbDevices,FavorLocality>::GeneratePriorityWorkerPair(1, 0);
+        gemmPriority = SpMultiPrioScheduler<MaxNbDevices,FavorLocality>::GeneratePriorityWorkerPair(0, 2);
+    }
 
     std::vector<double> minMaxAvg(3);
     minMaxAvg[0] = std::numeric_limits<double>::max();
@@ -374,13 +385,24 @@ int main(int argc, char** argv){
 #endif 
 
     std::vector<std::vector<double>> allDurations;
+    const auto schedPairConf = std::vector<std::tuple<bool,bool,bool>>{std::make_tuple(false, false,false),
+                                                                 std::make_tuple(true, false, false),
+                                                                 std::make_tuple(true, true, false),
+                                                                 std::make_tuple(true, true, true),
+                                                                 std::make_tuple(true, false, true)};
 
-    for(bool useMultiprio: std::vector<bool>{true, false}){
+    for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
+                    const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
+                    const bool useLocality = std::get<2>(useMultiprioAndPairs);
+
                     std::cout << "NbGpu = " << idxGpu << " MatrixSize = " << MatrixSize
-                              << " BlockSize = " << BlockSize << " Multiprio = " << useMultiprio << std::endl;
+                              << " BlockSize = " << BlockSize << " Multiprio = " << useMultiprio 
+                              << " Use pairs = " << usePrioPairs
+                              << " Favor Loc = " << useLocality << std::endl;
 
                     const bool printValues = (MatrixSize <= 16);
                     const bool checkValues = (MatrixSize <= 16);
@@ -402,8 +424,11 @@ int main(int argc, char** argv){
                         std::cout << "Accuracy after copy : " << errorAfterCopy << std::endl;
                     }
                     /////////////////////////////////////////////////////////
-                    const auto minMaxAvg = choleskyFactorization(NbLoops, blocks.get(), MatrixSize, BlockSize, 
-                                                                idxGpu, useMultiprio);
+                    const auto minMaxAvg = (useLocality ? 
+                                                choleskyFactorization<8,true>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
+                                                                idxGpu, useMultiprio, usePrioPairs) :
+                                                choleskyFactorization<8,false>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
+                                                                idxGpu, useMultiprio, usePrioPairs));
                     allDurations.push_back(minMaxAvg);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     if(printValues){
@@ -432,14 +457,20 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,MatrixSize,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    file << "NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration" << std::endl;
     int idxDuration = 0;
-    for(bool useMultiprio: std::vector<bool>{true, false}){
+    for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                    const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
+                    const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
+                    const bool useLocality = std::get<2>(useMultiprioAndPairs);
+
                     file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
+                        << (usePrioPairs?"TRUE":"FALSE") << ","
+                        << (useLocality?"TRUE":"FALSE") << ","
                         << allDurations[idxDuration][0] << "," 
                         << allDurations[idxDuration][1] << "," 
                         << allDurations[idxDuration][2] << std::endl;
