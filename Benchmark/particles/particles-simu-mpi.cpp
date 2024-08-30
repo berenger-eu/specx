@@ -748,8 +748,22 @@ auto TuneBlockSize(){
 #endif                      
 }
 
+
+auto GetPriority(const bool usePrioPairs, const int maxInteractions, const int minInteractions, const int currentInteractions){
+    if(usePrioPairs){
+        const int ratio = 5 * double(currentInteractions-minInteractions)/double(maxInteractions-minInteractions);
+        const int invRatio = 5 - ratio;
+        return SpMultiPrioScheduler<1,false>::GeneratePriorityWorkerPair(invRatio, ratio);
+    }
+    return 0;
+}
+
+
+template <int MaxNbDevices, const bool FavorLocality>
 auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
-                const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler, const TuneResult& inKernelConfig){
+                const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler, 
+                const bool usePrioPairs, const TuneResult& inKernelConfig,
+                const int maxInteractions, const int minInteractions,){
 
     [[maybe_unused]] const int Psize = SpMpiUtils::GetMpiSize();
     [[maybe_unused]] const int Prank = SpMpiUtils::GetMpiRank();
@@ -770,7 +784,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(), std::move(scheduler));
 #else
@@ -795,7 +809,8 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         tg.mpiRecv(rightParticleGroup, (Prank+1)%Psize, 0);
 
         for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
-            tg.task(SpCommutativeWrite(particleGroups[idxPart]),
+            tg.task(GetPriority(usePrioPairs, maxInteractions, minInteractions, particleGroups[idxPart].getNbParticles()*particleGroups[idxPart].getNbParticles()),
+                        SpCommutativeWrite(particleGroups[idxPart]),
                         SpCpu([](ParticlesGroup& particlesW) {
                             particlesW.computeSelf();
                 })
@@ -817,7 +832,8 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
 
             if(idxPart+1 < NbGroups){
                 const int idxPartOther = idxPart+1;
-                tg.task(SpCommutativeWrite(particleGroups[idxPart]),SpCommutativeWrite(particleGroups[idxPartOther]),
+                tg.task(GetPriority(usePrioPairs, maxInteractions, minInteractions, particleGroups[idxPart].getNbParticles()*particleGroups[idxPartOther].getNbParticles()),
+                        SpCommutativeWrite(particleGroups[idxPart]),SpCommutativeWrite(particleGroups[idxPartOther]),
                         SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
                             particlesW.compute(particlesR);
                         })
@@ -845,7 +861,8 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
             }
         }
 
-        tg.task(SpCommutativeWrite(particleGroups[NbGroups-1]),SpRead(leftParticleGroup),
+        tg.task(GetPriority(usePrioPairs, maxInteractions, minInteractions, particleGroups[NbGroups-1].getNbParticles()*particleGroups[leftParticleGroup].getNbParticles()),
+                SpCommutativeWrite(particleGroups[NbGroups-1]),SpRead(leftParticleGroup),
                 SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
                     particlesW.computeOuter(particlesR);
                 })
@@ -867,7 +884,8 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
             #endif
         );
 
-        tg.task(SpCommutativeWrite(particleGroups[0]),SpRead(rightParticleGroup),
+        tg.task(GetPriority(usePrioPairs, maxInteractions, minInteractions, particleGroups[0].getNbParticles()*particleGroups[rightParticleGroup].getNbParticles()),
+                SpCommutativeWrite(particleGroups[0]),SpRead(rightParticleGroup),
                 SpCpu([](ParticlesGroup& particlesW, const ParticlesGroup& particlesR) {
                     particlesW.computeOuter(particlesR);
                 })
@@ -942,6 +960,9 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
       return;
     }
 
+    const int maxInteractions = MaxPartsPerGroup*MaxPartsPerGroup;
+    const int minInteractions = MinPartsPerGroup*MinPartsPerGroup;
+
     assert(MinPartsPerGroup <= MaxPartsPerGroup);
     assert(MinNbGroups <= MaxNbGroups);
 
@@ -964,16 +985,31 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
             "We use serializer");
 
     std::vector<std::vector<double>> allDurations;
+    const auto schedPairConf = std::vector<std::tuple<bool,bool,bool>>{std::make_tuple(false, false,false),
+                                                                 std::make_tuple(true, false, false),
+                                                                 std::make_tuple(true, true, false),
+                                                                 std::make_tuple(true, true, true),
+                                                                 std::make_tuple(true, false, true)};
 
-    for(bool useMultiprio: std::vector<bool>{true, false}){
+    for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
+                const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
+                const bool useLocality = std::get<2>(useMultiprioAndPairs);
                 if(Prank == 0){
                     std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << 
-                            " Multiprio = " << useMultiprio << std::endl;
+                            " Multiprio = " << useMultiprio
+                            << " Use pairs = " << usePrioPairs
+                              << " Favor Loc = " << useLocality << std::endl; 
                 }
-                const auto minMaxAvg = BenchCore(NbLoops, MinPartsPerGroup,
-                                    MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, inKernelConfig);
+                const auto minMaxAvg = (useLocality ? 
+                                        BenchCore<8,true>(NbLoops, MinPartsPerGroup,
+                                            MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, usePrioPairs, inKernelConfig,
+                                            maxInteractions, minInteractions) :
+                                        BenchCore<8,false>(NbLoops, MinPartsPerGroup,
+                                            MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, usePrioPairs, inKernelConfig,
+                                            maxInteractions, minInteractions));
                 allDurations.push_back(minMaxAvg);
                 if(Prank == 0){
                     std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;
@@ -989,11 +1025,11 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
             return;
         }
 
-        file << "NbGpu,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+        file << "NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration" << std::endl;
         int idxDuration = 0;
-        for(bool useMultiprio: std::vector<bool>{true, false}){
-            for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
-                for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock += 10){
+    for(auto useMultiprioAndPairs: schedPairConf){
+        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
                     file << idxGpu << "," << idxBlock << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
                         << allDurations[idxDuration][0] << "," 

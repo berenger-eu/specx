@@ -231,7 +231,7 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,NbBlocks,BlockSize,Multiprio,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    file << "NbGpu,NbBlocks,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration" << std::endl;
     int idxDuration = 0;
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
@@ -239,6 +239,8 @@ int main(int argc, char** argv){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
                     file << idxGpu << "," << idxNbBlocks << "," << idxSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
+                        << "FALSE" << ","
+                        << "FALSE" << ","
                         << allDurations[idxDuration][0] << "," 
                         << allDurations[idxDuration][1] << "," 
                         << allDurations[idxDuration][2] << std::endl;
