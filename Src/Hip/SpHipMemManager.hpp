@@ -53,10 +53,18 @@ public:
         hipStream_t extraStream;
         std::unique_ptr<SpConsumerThread> deferCopier;
         size_t remainingMemory;
+        size_t totalAllocatedMemory;
+        size_t currentAllocatedMemory;
+        size_t maxAllocatedMemory;
+        size_t deviceToHostTransfers;
+        size_t hostToDeviceTransfers;
+        size_t deviceToDeviceTransfers;
 
     public:
         explicit SpHipMemManager(const int inId)
-            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
+            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0),
+                totalAllocatedMemory(0), currentAllocatedMemory(0), maxAllocatedMemory(0),
+                deviceToHostTransfers(0), hostToDeviceTransfers(0), deviceToDeviceTransfers(0){
 
             deferCopier->submitJobAndWait([this]{
                 SpHipUtils::UseDevice(id);
@@ -81,6 +89,16 @@ public:
                     HIP_ASSERT(hipStreamDestroy(extraStream));
                 });
             }
+            printCounters();
+        }
+
+        void printCounters() const{
+            std::cout << "[SPECX] SpCudaMemManager " << id << ":" << std::endl;
+            std::cout << " - Total allocated memory: " << totalAllocatedMemory << std::endl;
+            std::cout << " - Max allocated memory: " << maxAllocatedMemory << std::endl;
+            std::cout << " - Device to host transfers: " << deviceToHostTransfers << std::endl;
+            std::cout << " - Host to device transfers: " << hostToDeviceTransfers << std::endl;
+            std::cout << " - Device to device transfers: " << deviceToDeviceTransfers << std::endl;
         }
 
         SpHipMemManager(const SpHipMemManager&) = delete;
@@ -139,8 +157,11 @@ public:
             data.size = inByteSize;
             assert(data.size <= remainingMemory);
             remainingMemory -= inByteSize;
+            totalAllocatedMemory += inByteSize;
+            currentAllocatedMemory += inByteSize;
+            maxAllocatedMemory = std::max(maxAllocatedMemory, currentAllocatedMemory);
 
-            if(SpHipUtils::CurrentWorkerIsHip()){
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                 HIP_ASSERT(hipMallocAsync(&data.ptr, inByteSize, SpHipUtils::GetCurrentStream()));
             }
             else{
@@ -167,9 +188,8 @@ public:
             for(auto& data : handles[key].groupOfBlocks){
                 released += data.size;
 
-                if(SpHipUtils::CurrentWorkerIsHip()){
+                if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                     HIP_ASSERT(hipFreeAsync(data.ptr, SpHipUtils::GetCurrentStream()));
-                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 }
                 else{
                     deferCopier->submitJobAndWait([&,this]{
@@ -181,15 +201,26 @@ public:
                 allBlocks.erase(data.ptr);
             }
             remainingMemory += released;
+            currentAllocatedMemory -= released;            
 
             handles.erase(key);
+
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
+                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    HIP_ASSERT(hipStreamSynchronize(extraStream));
+                });
+            }
+            
             return released;
         }
 
         void memset(void* inPtrDev, const int val, const std::size_t inByteSize) override{
             assert(allBlocks.find(inPtrDev) != allBlocks.end()
                    && allBlocks[inPtrDev].size <= inByteSize);
-            if(SpHipUtils::CurrentWorkerIsHip()){
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                 HIP_ASSERT(hipMemsetAsync(inPtrDev, val, inByteSize, SpHipUtils::GetCurrentStream()));
             }
             else{
@@ -202,7 +233,7 @@ public:
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
             //assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-            if(SpHipUtils::CurrentWorkerIsHip()){
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                 HIP_ASSERT(hipMemcpyAsync(inPtrDev, inPtrHost, inByteSize, hipMemcpyHostToDevice,
                                           SpHipUtils::GetCurrentStream()));
             }
@@ -212,12 +243,13 @@ public:
                                               extraStream));
                 });
             }
+            hostToDeviceTransfers += inByteSize;
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
             //assert(allBlocks.find(inPtrDev) != allBlocks.end()
             //        && allBlocks[inPtrDev].size <= inByteSize);
-            if(SpHipUtils::CurrentWorkerIsHip()){
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                 HIP_ASSERT(hipMemcpyAsync(inPtrHost, inPtrDev, inByteSize, hipMemcpyDeviceToHost,
                                           SpHipUtils::GetCurrentStream()));
             }
@@ -227,6 +259,7 @@ public:
                                               extraStream));
                 });
             }
+            deviceToHostTransfers += inByteSize;
         }
 
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
@@ -237,7 +270,7 @@ public:
             // assert(allBlocks.find(inPtrDevSrc) != allBlocks.end()
             //        && allBlocks[inPtrDevSrc].size <= inByteSize);
             assert(isConnectedTo(srcId));
-            if(SpHipUtils::CurrentWorkerIsHip()){
+            if(SpHipUtils::CurrentWorkerIsHip() && SpHipUtils::CurrentHipId() == id){
                 HIP_ASSERT(hipMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                               SpHipUtils::GetCurrentStream()));
             }
@@ -247,6 +280,7 @@ public:
                                                   extraStream));
                 });
             }
+            deviceToDeviceTransfers += inByteSize;
         }
 
         bool isConnectedTo(const int otherId){
@@ -257,6 +291,26 @@ public:
             deferCopier->submitJobAndWait([this]{
                 SpHipUtils::SynchronizeStream(extraStream);
             });
+        }
+
+        void resetCounters(){
+            currentAllocatedMemory = 0;
+            totalAllocatedMemory = 0;
+            maxAllocatedMemory = 0;
+            deviceToHostTransfers = 0;
+            hostToDeviceTransfers = 0;
+            deviceToDeviceTransfers = 0;
+        }
+
+        auto getCounters() const{
+            using CounterType = std::pair<std::string, size_t>;
+            return std::vector<CounterType>{
+                CounterType("Total allocated memory", totalAllocatedMemory),
+                CounterType("Max allocated memory", maxAllocatedMemory),
+                CounterType("Device to host transfers", deviceToHostTransfers),
+                CounterType("Host to device transfers", hostToDeviceTransfers),
+                CounterType("Device to device transfers", deviceToDeviceTransfers)
+            };
         }
     };
 
