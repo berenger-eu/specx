@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH --time=24:00:00
+#SBATCH --exclusive
+#SBATCH --mail-user=berenger.bramas@inria.fr
+#SBATCH --mail-type=all
+#SBATCH -C v100
+
+export SMPREFIX=gfx90a
+source /home/u2/bramas/specx/Batch/run-benchs-hip.sh
