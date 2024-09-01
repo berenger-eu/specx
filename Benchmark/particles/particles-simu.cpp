@@ -811,6 +811,40 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
     }
 
     minMaxAvg[2] /= NbLoops;
+
+    // Add memory transfers info
+    double totalAllocatedMemory = 0;
+    double maxAllocatedMemory = 0;
+    double deviceToHostTransfers = 0;
+    double hostToDeviceTransfers = 0;
+    double deviceToDeviceTransfers = 0;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
+        auto memInfo = SpCudaManager::Managers[idxGpu].getCounters();
+        totalAllocatedMemory += memInfo[0].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
+        deviceToHostTransfers += memInfo[3].second/1e9;
+        hostToDeviceTransfers += memInfo[4].second/1e9;
+        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        SpCudaManager::Managers[idxGpu].resetCounters();
+    }
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
+        auto memInfo = SpHipManager::Managers[idxGpu].getCounters();
+        totalAllocatedMemory += memInfo[0].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
+        deviceToHostTransfers += memInfo[3].second/1e9;
+        hostToDeviceTransfers += memInfo[4].second/1e9;
+        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        SpHipManager::Managers[idxGpu].resetCounters();
+    }
+#endif
+    minMaxAvg.push_back(totalAllocatedMemory/NbLoops);
+    minMaxAvg.push_back(maxAllocatedMemory);
+    minMaxAvg.push_back(deviceToHostTransfers/NbLoops);
+    minMaxAvg.push_back(hostToDeviceTransfers/NbLoops);
+    minMaxAvg.push_back(deviceToDeviceTransfers/NbLoops);
+
     return minMaxAvg;
 }
 
@@ -887,7 +921,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                                             MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, usePrioPairs, inKernelConfig,
 					    maxInteractions, minInteractions));
                 allDurations.push_back(minMaxAvg);
-                std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;   
+                std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;  
+                std::cout << " - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl; 
             }
         }
     }
@@ -898,7 +933,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         return;
     }
 
-    file << "NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    file << "NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
@@ -911,9 +946,14 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                     << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","
-                    << allDurations[idxDuration][0] << "," 
-                    << allDurations[idxDuration][1] << "," 
-                    << allDurations[idxDuration][2] << std::endl;
+                        << allDurations[idxDuration][0] << "," 
+                        << allDurations[idxDuration][1] << "," 
+                        << allDurations[idxDuration][2] << ","
+                        << allDurations[idxDuration][3] << ","
+                        << allDurations[idxDuration][4] << ","
+                        << allDurations[idxDuration][5] << ","
+                        << allDurations[idxDuration][6] << ","
+                        << allDurations[idxDuration][7] << std::endl;
                 idxDuration += 1;
             }
         }

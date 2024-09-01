@@ -89,7 +89,6 @@ public:
                     HIP_ASSERT(hipStreamDestroy(extraStream));
                 });
             }
-            printCounters();
         }
 
         void printCounters() const{

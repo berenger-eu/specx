@@ -91,7 +91,6 @@ public:
                     CUDA_ASSERT(cudaStreamDestroy(extraStream));
                 });
             }
-            printCounters();
         }
 
         void printCounters() const{

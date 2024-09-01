@@ -158,6 +158,39 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
 
     minMaxAvg[2] /= NbLoops;
 
+    // Add memory transfers info
+    double totalAllocatedMemory = 0;
+    double maxAllocatedMemory = 0;
+    double deviceToHostTransfers = 0;
+    double hostToDeviceTransfers = 0;
+    double deviceToDeviceTransfers = 0;
+#ifdef SPECX_COMPILE_WITH_CUDA
+    for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
+        auto memInfo = SpCudaManager::Managers[idxGpu].getCounters();
+        totalAllocatedMemory += memInfo[0].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
+        deviceToHostTransfers += memInfo[3].second/1e9;
+        hostToDeviceTransfers += memInfo[4].second/1e9;
+        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        SpCudaManager::Managers[idxGpu].resetCounters();
+    }
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
+        auto memInfo = SpHipManager::Managers[idxGpu].getCounters();
+        totalAllocatedMemory += memInfo[0].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
+        deviceToHostTransfers += memInfo[3].second/1e9;
+        hostToDeviceTransfers += memInfo[4].second/1e9;
+        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        SpHipManager::Managers[idxGpu].resetCounters();
+    }
+#endif
+    minMaxAvg.push_back(totalAllocatedMemory/NbLoops);
+    minMaxAvg.push_back(maxAllocatedMemory);
+    minMaxAvg.push_back(deviceToHostTransfers/NbLoops);
+    minMaxAvg.push_back(hostToDeviceTransfers/NbLoops);
+    minMaxAvg.push_back(deviceToDeviceTransfers/NbLoops);
+
     return minMaxAvg;
 }
 
@@ -217,6 +250,7 @@ int main(int argc, char** argv){
                     std::cout << "  - NbBlocks = " << idxNbBlocks << " BlockSize = " << idxSize << std::endl;
                     const auto minMaxAvg = BenchmarkTest(NbLoops, idxGpu, idxNbBlocks, idxSize, gpunbthreads, useMultiprio);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
+                    std::cout << "     - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl;
                     std::cout << "     - End" << std::endl;
                     allDurations.push_back(minMaxAvg);
                 }
@@ -231,7 +265,7 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,NbBlocks,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration" << std::endl;
+    file << "NbGpu,NbBlocks,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(bool useMultiprio: std::vector<bool>{true, false}){
         for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
@@ -243,7 +277,12 @@ int main(int argc, char** argv){
                         << "FALSE" << ","
                         << allDurations[idxDuration][0] << "," 
                         << allDurations[idxDuration][1] << "," 
-                        << allDurations[idxDuration][2] << std::endl;
+                        << allDurations[idxDuration][2] << ","
+                        << allDurations[idxDuration][3] << ","
+                        << allDurations[idxDuration][4] << ","
+                        << allDurations[idxDuration][5] << ","
+                        << allDurations[idxDuration][6] << ","
+                        << allDurations[idxDuration][7] << std::endl;
                     idxDuration += 1;
                 }
             }
