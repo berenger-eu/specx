@@ -55,10 +55,18 @@ public:
         cudaStream_t extraStream;
         std::unique_ptr<SpConsumerThread> deferCopier;
         size_t remainingMemory;
+        size_t totalAllocatedMemory;
+        size_t currentAllocatedMemory;
+        size_t maxAllocatedMemory;
+        size_t deviceToHostTransfers;
+        size_t hostToDeviceTransfers;
+        size_t deviceToDeviceTransfers;
 
     public:
         explicit SpCudaMemManager(const int inId)
-            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0){
+            : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0),
+                totalAllocatedMemory(0), currentAllocatedMemory(0), maxAllocatedMemory(0),
+                deviceToHostTransfers(0), hostToDeviceTransfers(0), deviceToDeviceTransfers(0){
 
             deferCopier->submitJobAndWait([this]{
                 SpCudaUtils::UseDevice(id);
@@ -83,6 +91,16 @@ public:
                     CUDA_ASSERT(cudaStreamDestroy(extraStream));
                 });
             }
+            printCounters();
+        }
+
+        void printCounters() const{
+            std::cout << "[SPECX] SpCudaMemManager " << id << ":" << std::endl;
+            std::cout << " - Total allocated memory: " << totalAllocatedMemory << std::endl;
+            std::cout << " - Max allocated memory: " << maxAllocatedMemory << std::endl;
+            std::cout << " - Device to host transfers: " << deviceToHostTransfers << std::endl;
+            std::cout << " - Host to device transfers: " << hostToDeviceTransfers << std::endl;
+            std::cout << " - Device to device transfers: " << deviceToDeviceTransfers << std::endl;
         }
 
         SpCudaMemManager(const SpCudaMemManager&) = delete;
@@ -141,6 +159,9 @@ public:
             data.size = inByteSize;
             assert(data.size <= remainingMemory);
             remainingMemory -= inByteSize;
+            totalAllocatedMemory += inByteSize;
+            currentAllocatedMemory += inByteSize;
+            maxAllocatedMemory = std::max(maxAllocatedMemory, currentAllocatedMemory);
 
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
@@ -181,6 +202,7 @@ public:
                 allBlocks.erase(data.ptr);
             }
             remainingMemory += released;
+            currentAllocatedMemory -= released;            
 
             handles.erase(key);
 
@@ -223,6 +245,7 @@ public:
                                             extraStream));
                 });
             }
+            hostToDeviceTransfers += inByteSize;
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
@@ -240,6 +263,7 @@ public:
                     CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
+            deviceToHostTransfers += inByteSize;
         }
 
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
@@ -261,6 +285,7 @@ public:
                     CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
+            deviceToDeviceTransfers += inByteSize;
         }
 
         bool isConnectedTo(const int otherId){
@@ -271,6 +296,26 @@ public:
             deferCopier->submitJobAndWait([this]{
                 SpCudaUtils::SynchronizeStream(extraStream);
             });
+        }
+
+        void resetCounters(){
+            currentAllocatedMemory = 0;
+            totalAllocatedMemory = 0;
+            maxAllocatedMemory = 0;
+            deviceToHostTransfers = 0;
+            hostToDeviceTransfers = 0;
+            deviceToDeviceTransfers = 0;
+        }
+
+        auto getCounters() const{
+            using CounterType = std::pair<std::string, size_t>;
+            return std::vector<CounterType>{
+                CounterType("Total allocated memory", totalAllocatedMemory),
+                CounterType("Max allocated memory", maxAllocatedMemory),
+                CounterType("Device to host transfers", deviceToHostTransfers),
+                CounterType("Host to device transfers", hostToDeviceTransfers),
+                CounterType("Device to device transfers", deviceToDeviceTransfers)
+            };
         }
     };
 
