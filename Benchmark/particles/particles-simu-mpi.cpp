@@ -829,7 +829,9 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     })
                 #endif
             );
+        }
 
+        for(int idxPart = 0 ; idxPart < NbGroups ; ++idxPart){
             if(idxPart+1 < NbGroups){
                 const int idxPartOther = idxPart+1;
                 tg.task(GetPriority(usePrioPairs, maxInteractions, minInteractions, particleGroups[idxPart].getNbParticles()*particleGroups[idxPartOther].getNbParticles()),
@@ -936,20 +938,20 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
     for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
         auto memInfo = SpCudaManager::Managers[idxGpu].getCounters();
         totalAllocatedMemory += memInfo[0].second/1e9;
-        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
-        deviceToHostTransfers += memInfo[3].second/1e9;
-        hostToDeviceTransfers += memInfo[4].second/1e9;
-        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[1].second/1e9);
+        deviceToHostTransfers += memInfo[2].second/1e9;
+        hostToDeviceTransfers += memInfo[3].second/1e9;
+        deviceToDeviceTransfers += memInfo[4].second/1e9;
         SpCudaManager::Managers[idxGpu].resetCounters();
     }
 #elif defined(SPECX_COMPILE_WITH_HIP)
     for(int idxGpu = 0 ; idxGpu < nbGpu ; ++idxGpu){
         auto memInfo = SpHipManager::Managers[idxGpu].getCounters();
         totalAllocatedMemory += memInfo[0].second/1e9;
-        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[2].second/1e9);
-        deviceToHostTransfers += memInfo[3].second/1e9;
-        hostToDeviceTransfers += memInfo[4].second/1e9;
-        deviceToDeviceTransfers += memInfo[5].second/1e9;
+        maxAllocatedMemory = std::max(maxAllocatedMemory, memInfo[1].second/1e9);
+        deviceToHostTransfers += memInfo[2].second/1e9;
+        hostToDeviceTransfers += memInfo[3].second/1e9;
+        deviceToDeviceTransfers += memInfo[4].second/1e9;
         SpHipManager::Managers[idxGpu].resetCounters();
     }
 #endif
