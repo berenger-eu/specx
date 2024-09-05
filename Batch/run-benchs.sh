@@ -2,6 +2,19 @@
 
 #################################
 
+# Function to check and remove core files in the current directory
+remove_core_files() {
+    # Check if any core files exist in the current directory
+    if ls core.* 1> /dev/null 2>&1; then
+        echo "Core files found. Removing..."
+        rm core.*
+        echo "Core files removed."
+    else
+        echo "No core files found."
+    fi
+}
+
+
 function main(){
     RUN_DIR="/projets/schnaps/spetabaru-project/specx/build-$SMPREFIX/"
 
@@ -44,18 +57,25 @@ function main(){
 
     # AXPY
     "$RUN_DIR/Benchmark/axpy/axpy" --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --gputh=256 --od="$results_dir" >> "$results_dir/output_axpy.txt"
+    remove_core_files
 
     # Cholesky/gemm
     "$RUN_DIR/Benchmark/cholesky_gemm/cholesky" --lp=$NB_LOOPS --minms=4096 --maxms=8192 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_cholesky.txt"
+    remove_core_files
+
     "$RUN_DIR/Benchmark/cholesky_gemm/gemm" --lp=$NB_LOOPS --minms=4096 --maxms=8192 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_gemm.txt"
+    remove_core_files
 
     # Particles
     "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=8000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles.txt"
+    remove_core_files
 }
 
 module load tools/git/2.36.0 compiler/cuda/12.3 compiler/gcc/10.2.0 build/cmake/3.21.3 linalg/mkl/2020_update4
 
 module li
+
+ulimit -c 0
 
 main ;
 
