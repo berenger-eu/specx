@@ -14,7 +14,7 @@
 
 struct SpHipWorkerData {
     int hipId = -1;
-    hipStream_t stream;
+    hipStream_t stream = nullptr;
 
     void init(int deviceId){
         hipId = deviceId;

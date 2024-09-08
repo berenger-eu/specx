@@ -5,6 +5,7 @@
 #include <cstring>
 #include <vector>
 #include <sstream>
+#include <cassert>
 
 #include "Config/SpConfig.hpp"
 
@@ -64,6 +65,12 @@ public:
         return free_byte;
     }
 
+    static int getUsingDevice() {
+        int currentDevice;
+        CUDA_ASSERT(cudaGetDevice(&currentDevice));
+        return currentDevice;
+    }
+
     static void UseDevice(const int deviceId){
         if(deviceId >= GetNbDevices()){
             std::cerr << "[SPECX] Ask to use gpu " << deviceId
@@ -77,6 +84,8 @@ public:
     }
 
     static void SynchronizeStream(cudaStream_t& stream){
+        assert(stream != nullptr);
+        assert(getUsingDevice() != -1);
         CUDA_ASSERT(cudaStreamSynchronize(stream));
     }
 

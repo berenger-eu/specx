@@ -14,7 +14,7 @@
 
 struct SpCudaWorkerData {
     int cudaId = -1;
-    cudaStream_t stream;
+    cudaStream_t stream = nullptr;
 
     void init(int deviceId){
         cudaId = deviceId;
