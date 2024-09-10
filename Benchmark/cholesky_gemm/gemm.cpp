@@ -116,17 +116,18 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                     (const double*)paramB.getRawPtr(), inBlockDim,
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                         })
                 #endif
                 #ifdef SPECX_COMPILE_WITH_HIP
                         , SpHip([inBlockDim](SpDeviceDataView<SpBlas::Block> paramC, const SpDeviceDataView<const SpBlas::Block> paramA,
                                             const SpDeviceDataView<const SpBlas::Block> paramB) {
                                 // paramA.getRawPtr(), paramA.getRawSize()
-                                const double alphaBeta = 1.0;
-                                HIPBLAS_ASSERT( hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
-                                        inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
-                                        (const double*)paramB.getRawPtr(), inBlockDim,
-                                        &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                //const double alphaBeta = 1.0;
+                                //HIPBLAS_ASSERT( hipblasDgemm( handle, HIPBLAS_OP_N, HIPBLAS_OP_N,
+                                //        inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
+                                //        (const double*)paramB.getRawPtr(), inBlockDim,
+                                //        &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
                             })
                 #endif
                     ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
@@ -260,7 +261,7 @@ int main(int argc, char** argv){
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
             for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+                for(int idxGpu = nbGpus ; idxGpu <= nbGpus ; ++idxGpu){
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool useLocality = std::get<1>(useMultiprioAndPairs);
 
