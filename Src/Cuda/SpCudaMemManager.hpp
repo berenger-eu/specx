@@ -170,6 +170,14 @@ public:
                     CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, extraStream));
                 });
             }
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){// TODO: remove this
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
 
             allBlocks[data.ptr] = data;
             if(handles.find(key) == handles.end()){
@@ -228,6 +236,15 @@ public:
                     CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, extraStream));
                 });
             }
+
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){// TODO: remove this
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
         }
 
         void copyHostToDevice(void* inPtrDev, const void* inPtrHost, const std::size_t inByteSize)  override {
@@ -245,6 +262,14 @@ public:
                 });
             }
             hostToDeviceTransfers += inByteSize;
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){// TODO: remove this
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
         }
 
         void copyDeviceToHost(void* inPtrHost, const void* inPtrDev, const std::size_t inByteSize)  override{
@@ -263,6 +288,14 @@ public:
                 });
             }
             deviceToHostTransfers += inByteSize;
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){// TODO: remove this
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
         }
 
         void copyDeviceToDevice(void* inPtrDevDest, const void* inPtrDevSrc, const int srcId,
@@ -285,6 +318,14 @@ public:
                 });
             }
             deviceToDeviceTransfers += inByteSize;
+            if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){// TODO: remove this
+                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+            }
+            else{
+                deferCopier->submitJobAndWait([&,this]{
+                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                });
+            }
         }
 
         bool isConnectedTo(const int otherId){
