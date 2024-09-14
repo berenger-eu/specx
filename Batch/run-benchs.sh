@@ -43,8 +43,6 @@ function main(){
         return 1
     fi
     
-    cd "/home/bramas/spetabaru-project/results/"
-
     # Create a directory to store the results
     # with the format results_[date]_[time]
     results_dir="results-$PREFIX-$(date +%Y%m%d_%H%M%S)"
