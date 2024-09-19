@@ -14,6 +14,13 @@ find_package(BLAS)
 find_package(LAPACK)
 
 if(BLAS_FOUND AND LAPACK_FOUND)
+	# If libs is related to MKL
+	if(${BLAS_LIBRARIES} MATCHES "mkl")
+	    # We replace "intel_thread" by "sequential"
+		string(REPLACE "intel_thread" "sequential" BLAS_LIBRARIES ${BLAS_LIBRARIES})
+		string(REPLACE "intel_thread" "sequential" LAPACK_LIBRARIES ${LAPACK_LIBRARIES})
+	endif()
+
 	if($ENV{VERBOSE})
 	    MESSAGE(STATUS "Benchmark CHOLESKY_GEMM -- BLAS_LIBRARIES   : ${BLAS_LIBRARIES}")
 	    MESSAGE(STATUS "Benchmark CHOLESKY_GEMM -- BLAS_LINKER_FLAGS   : ${BLAS_LINKER_FLAGS}")
