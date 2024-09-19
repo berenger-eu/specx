@@ -14,12 +14,28 @@ find_package(BLAS)
 find_package(LAPACK)
 
 if(BLAS_FOUND AND LAPACK_FOUND)
-	# If libs is related to MKL
-	if(${BLAS_LIBRARIES} MATCHES "mkl")
-	    # We replace "intel_thread" by "sequential"
-		string(REPLACE "intel_thread" "sequential" BLAS_LIBRARIES ${BLAS_LIBRARIES})
-		string(REPLACE "intel_thread" "sequential" LAPACK_LIBRARIES ${LAPACK_LIBRARIES})
-	endif()
+        # If libs are related to MKL
+    if("${BLAS_LIBRARIES}" MATCHES "mkl")
+        # Create new variables to store the modified lists
+        set(MODIFIED_BLAS_LIBRARIES "")
+        set(MODIFIED_LAPACK_LIBRARIES "")
+
+        # Loop over each BLAS library and perform the replacement
+        foreach(lib ${BLAS_LIBRARIES})
+            string(REPLACE "intel_thread" "sequential" modified_lib ${lib})
+            list(APPEND MODIFIED_BLAS_LIBRARIES ${modified_lib})
+        endforeach()
+
+        # Loop over each LAPACK library and perform the replacement
+        foreach(lib ${LAPACK_LIBRARIES})
+            string(REPLACE "intel_thread" "sequential" modified_lib ${lib})
+            list(APPEND MODIFIED_LAPACK_LIBRARIES ${modified_lib})
+        endforeach()
+
+        # Replace original variables with the modified lists
+        set(BLAS_LIBRARIES ${MODIFIED_BLAS_LIBRARIES})
+        set(LAPACK_LIBRARIES ${MODIFIED_LAPACK_LIBRARIES})
+    endif()
 
 	if($ENV{VERBOSE})
 	    MESSAGE(STATUS "Benchmark CHOLESKY_GEMM -- BLAS_LIBRARIES   : ${BLAS_LIBRARIES}")
