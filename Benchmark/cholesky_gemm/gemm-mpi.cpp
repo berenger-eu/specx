@@ -138,7 +138,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         for(int k = 0 ; k < processBlockDim ; ++k){
             for(int i = 0 ; i < processBlockDim ; ++i){
                 for(int j = 0 ; j < processBlockDim ; ++j){
-                    tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                    tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                             SpRead(blocksA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
                         SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                             SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -186,7 +186,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                 for(int k = 0 ; k < processBlockDim ; ++k){
                     for(int i = 0 ; i < processBlockDim ; ++i){
                         for(int j = 0 ; j < processBlockDim ; ++j){
-                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                            tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                                     SpRead(blocksA[k*processBlockDim+j]), SpRead(buffersB[i*processBlockDim+k]),
                                 SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                                     SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -236,7 +236,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                 for(int k = 0 ; k < processBlockDim ; ++k){
                     for(int i = 0 ; i < processBlockDim ; ++i){
                         for(int j = 0 ; j < processBlockDim ; ++j){
-                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                            tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                                     SpRead(buffersA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
                                 SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                                     SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,

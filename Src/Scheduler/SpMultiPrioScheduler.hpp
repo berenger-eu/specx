@@ -69,7 +69,7 @@ class SpMultiPrioScheduler : public SpAbstractScheduler{
 
     bool CpuCanTakeTask() const {
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
-        return nbCommonTasks > 40 * nbGpuWorkers
+        return nbCommonTasks > 80 * nbGpuWorkers
         || nbTasks[int(SpWorkerTypes::Type::CPU_WORKER)] != nbCommonTasks;
 #endif
         return true;

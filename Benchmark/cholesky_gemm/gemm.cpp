@@ -101,7 +101,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
                 for(int k = 0 ; k < nbBlocks ; ++k){
-                    tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*nbBlocks+j]),
+                    tg.task(SpPriority(1), SpWrite(blocksC[i*nbBlocks+j]),
                             SpRead(blocksA[k*nbBlocks+j]), SpRead(blocksB[i*nbBlocks+k]),
                         SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                             SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
