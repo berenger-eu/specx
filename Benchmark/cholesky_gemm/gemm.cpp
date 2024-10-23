@@ -89,8 +89,6 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     minMaxAvg[1] = std::numeric_limits<double>::min();
     minMaxAvg[2] = 0;
 
-        static int cpt = 0;// TODO
-
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
         SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> tg;
         tg.computeOn(ce);
@@ -154,10 +152,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
         minMaxAvg[2] += timer.getElapsed();
-
-        tg.generateTrace("./trace" + std::to_string(cpt) + "-" + std::to_string(idxLoop) + ".svg");// TODO
     }
-    cpt++;// TODO
 
 #ifdef SPECX_COMPILE_WITH_CUDA
     ce.execOnWorkers([](auto id, auto type){
