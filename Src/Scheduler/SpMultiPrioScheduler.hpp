@@ -42,6 +42,8 @@ class SpMultiPrioScheduler : public SpAbstractScheduler{
     std::priority_queue<TaskWrapper, small_vector<TaskWrapper>, ComparePrio > taskQueuesCPU;
 
     std::atomic<int> nbTasks[int(SpWorkerTypes::Type::NB_WORKER_TYPES)];
+    std::atomic<int> nbCommonTasks;
+    int nbGpuWorkers;
 
     void decrTaskCounter(SpAbstractTask* task){
         const bool hasCpuCallable = task->hasCallableOfType(SpCallableType::CPU);
@@ -60,13 +62,25 @@ class SpMultiPrioScheduler : public SpAbstractScheduler{
             nbTasks[int(SpWorkerTypes::Type::HIP_WORKER)] -= 1;
 #endif
         }
+        if(hasCpuCallable && hasGpuCallable){
+            nbCommonTasks -= 1;
+        }
+    }
+
+    bool CpuCanTakeTask() const {
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+        return nbCommonTasks > 40 * nbGpuWorkers
+        || nbTasks[int(SpWorkerTypes::Type::CPU_WORKER)] != nbCommonTasks;
+#endif
+        return true;
     }
 
 public:
-    explicit SpMultiPrioScheduler() {
+    explicit SpMultiPrioScheduler(const int inNbGpuWorkers) : nbGpuWorkers(inNbGpuWorkers) {
         for(int idx = 0 ; idx < int(SpWorkerTypes::Type::NB_WORKER_TYPES) ; ++idx){
             nbTasks[idx] = 0;
         }
+        nbCommonTasks = 0;
     }
 
     // No copy or move
@@ -105,6 +119,9 @@ public:
 #ifdef SPECX_COMPILE_WITH_HIP
             nbTasks[int(SpWorkerTypes::Type::HIP_WORKER)] += 1;
 #endif
+        }
+        if(hasCpuCallable && hasGpuCallable){
+            nbCommonTasks += 1;
         }
 
         std::shared_ptr<std::atomic<bool>> taken = std::make_shared<std::atomic<bool>>(false);
@@ -145,17 +162,19 @@ public:
         assert(deviceId == -1 || wt != SpWorkerTypes::Type::CPU_WORKER);
 
         if(deviceId == -1){
-            mutexReadyTasksCPU.lock();
-            while(taskQueuesCPU.size()){
-                TaskWrapper taskWrapper = taskQueuesCPU.top();
-                taskQueuesCPU.pop();
-                if(taskWrapper.taken->exchange(true) == false){
-                    mutexReadyTasksCPU.unlock();
-                    decrTaskCounter(taskWrapper.task);
-                    return taskWrapper.task;
+            if(CpuCanTakeTask()){
+                mutexReadyTasksCPU.lock();
+                while(taskQueuesCPU.size()){
+                    TaskWrapper taskWrapper = taskQueuesCPU.top();
+                    taskQueuesCPU.pop();
+                    if(taskWrapper.taken->exchange(true) == false){
+                        mutexReadyTasksCPU.unlock();
+                        decrTaskCounter(taskWrapper.task);
+                        return taskWrapper.task;
+                    }
                 }
+                mutexReadyTasksCPU.unlock();
             }
-            mutexReadyTasksCPU.unlock();
         }
         else{
             mutexReadyTasksGPU[deviceId].lock();
