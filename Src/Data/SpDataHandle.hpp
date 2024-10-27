@@ -109,7 +109,9 @@ public:
         assert(cpuDataOk == true);
         for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
             if(copies[idxGpu].ptr){
+                memManagers[idxGpu].lock();
                 deviceDataOp->freeGroup(memManagers[idxGpu], this, ptrToData);
+                memManagers[idxGpu].unlock();
                 copies[idxGpu] = SpDeviceData();
             }
         }
@@ -122,7 +124,9 @@ public:
         cpuDataOk = false;
         for(int idxGpu = 0 ; idxGpu < int(copies.size()) ; ++idxGpu){
             if(idxGpu != gpuId && copies[idxGpu].ptr){
+                memManagers[idxGpu].lock();
                 deviceDataOp->freeGroup(memManagers[idxGpu], this, ptrToData);
+                memManagers[idxGpu].unlock();
                 copies[idxGpu] = SpDeviceData();
             }
         }
@@ -148,7 +152,9 @@ public:
         assert(gpuId < memManagers.size() && gpuId < int(copies.size()));
         assert(copies[gpuId].ptr);
         syncCpuDataIfNeeded(memManagers);
+        //memManagers[idxGpu].lock();
         deviceDataOp->freeGroup(memManagers[gpuId], this, ptrToData);
+        //memManagers[idxGpu].unlock();
         copies[gpuId] = SpDeviceData();
     }
 
@@ -160,11 +166,12 @@ public:
 #elif defined(SPECX_COMPILE_WITH_HIP)
         assert(gpuId < SpConfig::SpMaxNbHips);
 #endif
-        if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemoved(this)){
+        if(copies[gpuId].ptr == nullptr || memManagers[gpuId].hasBeenRemovedLocked(this)){
             copies[gpuId].ptr = nullptr;
             auto idxGpuSrcIter = std::find_if(copies.begin(), copies.end(), [](auto iter) -> bool {
                 return iter.ptr != nullptr;
             });
+            memManagers[gpuId].lock();
             if(!deviceDataOp->hasEnoughSpace(memManagers[gpuId], this, ptrToData)){
                 auto candidates = deviceDataOp->candidatesToBeRemoved(memManagers[gpuId], this, ptrToData);
                 for(auto toRemove : candidates){
@@ -175,6 +182,8 @@ public:
                 }
             }
             copies[gpuId] = deviceDataOp->allocate(memManagers[gpuId], this, ptrToData);
+            memManagers[gpuId].unlock();
+            
             if(idxGpuSrcIter != copies.end()){
                 const int otherGpu = int(std::distance(copies.begin(), idxGpuSrcIter));
                 if(memManagers[gpuId].isConnectedTo(otherGpu)){
