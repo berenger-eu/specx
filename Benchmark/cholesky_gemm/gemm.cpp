@@ -138,6 +138,10 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         tg.waitAllTasks();
         timer.stop();
 
+        static int cpt = 0;// TODO
+        tg.generateTrace("./trace" + std::to_string(cpt) + "-" + std::to_string(idxLoop) + ".svg");// TODO
+        cpt++;// TODO
+
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
         for(int i = 0 ; i < nbBlocks ; ++i){
             for(int j = 0 ; j < nbBlocks ; ++j){
