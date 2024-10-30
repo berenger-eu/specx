@@ -48,6 +48,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                            const int inMatrixDim, const int inBlockDim,
                            const int nbGpu, const bool useMultiPrioScheduler){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
+    const bool exportTrace = false;
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
     std::unique_ptr<SpAbstractScheduler> scheduler;
@@ -58,9 +59,6 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
-    std::cout << "Compute engine:" << std::endl;
-    std::cout << " - nb cpus: " << ce.getNbCpuWorkers() << std::endl;
-    std::cout << " - nb gpus: " << ce.getNbCudaWorkers() << std::endl;
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif
@@ -131,6 +129,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                         inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                         (const double*)paramB.getRawPtr(), inBlockDim,
                                         &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                             })
                 #endif
                     ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
@@ -142,9 +141,10 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         tg.waitAllTasks();
         timer.stop();
 
-        static int cpt = 0;// TODO
-        tg.generateTrace("./trace" + std::to_string(cpt) + "-" + std::to_string(idxLoop) + ".svg");// TODO
-        cpt++;// TODO
+        if(exportTrace){
+            static int cptTrace = 0;
+            tg.generateTrace("./trace" + std::to_string(cptTrace++) + "-" + std::to_string(idxLoop) + ".svg");
+        }
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
         for(int i = 0 ; i < nbBlocks ; ++i){

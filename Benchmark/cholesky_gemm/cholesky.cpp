@@ -67,7 +67,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
@@ -162,6 +162,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     handle.solverBuffer,
                     handle.solverBuffSize,
                     handle.cuinfo));
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
     #ifndef NDEBUG
                 int info;
                 CUDA_ASSERT(cudaMemcpy(&info, handle.cuinfo, sizeof(int), cudaMemcpyDeviceToHost));
@@ -180,6 +181,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     handle.solverBuffer,
                     handle.solverBuffSize,
                     handle.cuinfo));
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
     #ifndef NDEBUG
                 int info;
                 HIP_ASSERT(hipMemcpy(&info, handle.cuinfo, sizeof(int), hipMemcpyDeviceToHost));
@@ -206,6 +208,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                                 CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -216,6 +219,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                             HIPBLAS_OP_T, HIPBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
         #endif
                         ).setTaskName(std::string("TRSM -- (R-")+std::to_string(k)+","+std::to_string(k)+") (W-"+std::to_string(m)+","+std::to_string(k)+")");
@@ -239,6 +243,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     CUBLAS_ASSERT( cublasDsyrk( handle.blasHandle, CUBLAS_FILL_MODE_LOWER, CUBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -249,6 +254,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     HIPBLAS_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_LOWER, HIPBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
         #endif
                         ).setTaskName(std::string("SYRK -- (R-")+std::to_string(n)+","+std::to_string(k)+") (W-"+std::to_string(n)+","+std::to_string(n)+")");
@@ -271,6 +277,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                     })
             #endif
             #ifdef SPECX_COMPILE_WITH_HIP
@@ -282,6 +289,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     })
             #endif
                             ).setTaskName(std::string("GEMM -- (R-")+std::to_string(m)+","+std::to_string(k)+")(R-"+std::to_string(n)+","+std::to_string(k)+")(W-"+std::to_string(m)+","+std::to_string(n)+")");
