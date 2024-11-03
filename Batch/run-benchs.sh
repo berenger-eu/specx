@@ -54,18 +54,18 @@ function main(){
     NB_LOOPS=10
 
     # AXPY
-    "$RUN_DIR/Benchmark/axpy/axpy" --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=65536 --gputh=256 --od="$results_dir" >> "$results_dir/output_axpy.txt"
+    "$RUN_DIR/Benchmark/axpy/axpy" --lp=$NB_LOOPS --minnbb=16 --maxnbb=256 --minbs=128 --maxbs=131072 --gputh=256 --od="$results_dir" >> "$results_dir/output_axpy.txt"
     remove_core_files
 
     # Cholesky/gemm
-    "$RUN_DIR/Benchmark/cholesky_gemm/cholesky" --lp=$NB_LOOPS --minms=4096 --maxms=8192 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_cholesky.txt"
+    "$RUN_DIR/Benchmark/cholesky_gemm/cholesky" --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_cholesky.txt"
     remove_core_files
 
-    "$RUN_DIR/Benchmark/cholesky_gemm/gemm" --lp=$NB_LOOPS --minms=4096 --maxms=8192 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_gemm.txt"
+    "$RUN_DIR/Benchmark/cholesky_gemm/gemm" --lp=$NB_LOOPS --minms=4096 --maxms=16384 --minbs=128 --maxbs=512 --od="$results_dir" >> "$results_dir/output_gemm.txt"
     remove_core_files
 
     # Particles
-    "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=8000 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles.txt"
+    "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=15000 --minnbgroups=128 --maxnbgroups=1024 --od="$results_dir" >> "$results_dir/output_particles.txt"
     remove_core_files
 }
 

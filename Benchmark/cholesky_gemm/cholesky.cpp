@@ -58,7 +58,7 @@ thread_local HipHandles handle;
 
 template <int MaxNbDevices, const bool FavorLocality>
 auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const int inMatrixDim, const int inBlockDim,
-                           const int nbGpu, const bool useMultiPrioScheduler, const bool usePrioPairs){
+                           const int nbCpu, const int nbGpu, const bool useMultiPrioScheduler, const bool usePrioPairs){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
@@ -69,9 +69,9 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpu, nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpu));
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -434,9 +434,12 @@ int main(int argc, char** argv){
                                                                  std::make_tuple(true, false, true)};
 
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                     const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -468,9 +471,9 @@ int main(int argc, char** argv){
                     /////////////////////////////////////////////////////////
                     const auto minMaxAvg = (useLocality ? 
                                                 choleskyFactorization<8,true>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
-                                                                idxGpu, useMultiprio, usePrioPairs) :
+                                                                nbCpus, nbGpus, useMultiprio, usePrioPairs) :
                                                 choleskyFactorization<8,false>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
-                                                                idxGpu, useMultiprio, usePrioPairs));
+                                                                nbCpus, nbGpus, useMultiprio, usePrioPairs));
                     allDurations.push_back(minMaxAvg);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl;
@@ -500,17 +503,20 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpu,NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                     const bool useLocality = std::get<2>(useMultiprioAndPairs);
 
-                    file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
+                    file << nbCpus << "," << nbGpus << "," << MatrixSize << "," << BlockSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","

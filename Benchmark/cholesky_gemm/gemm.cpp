@@ -46,7 +46,7 @@ thread_local hipblasHandle_t handle;
 template <int MaxNbDevices, const bool FavorLocality>
 auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocksA[], const SpBlas::Block blocksB[],
                            const int inMatrixDim, const int inBlockDim,
-                           const int nbGpu, const bool useMultiPrioScheduler){
+                           const int nbCpus, const int nbGpu, const bool useMultiPrioScheduler){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
     const bool exportTrace = false;
 
@@ -58,9 +58,9 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpus, nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpus));
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -268,7 +268,10 @@ int main(int argc, char** argv){
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
             for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+                for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool useLocality = std::get<1>(useMultiprioAndPairs);
 
@@ -301,9 +304,9 @@ int main(int argc, char** argv){
                     auto blocksC = SpBlas::matrixToBlock(matrixC.get(), MatrixSize, BlockSize);
                     const auto minMaxAvg = (useLocality ? 
                                             gemm<8,true>(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), 
-                                                MatrixSize, BlockSize, idxGpu, useMultiprio):
+                                                MatrixSize, BlockSize, nbCpus, nbGpus, useMultiprio):
                                             gemm<8,false>(NbLoops, blocksC.get(), blocksA.get(), blocksB.get(), 
-                                                MatrixSize, BlockSize, idxGpu, useMultiprio));
+                                                MatrixSize, BlockSize, nbCpus, nbGpus, useMultiprio));
                     allDurations.push_back(minMaxAvg);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl;
@@ -333,16 +336,19 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpu,NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
             for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+                for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool useLocality = std::get<1>(useMultiprioAndPairs);
 
-                    file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
+                    file << nbCpus << "," << nbGpus << "," << MatrixSize << "," << BlockSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
                         << "FALSE" << ","
                         << (useLocality?"TRUE":"FALSE") << ","

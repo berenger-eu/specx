@@ -77,7 +77,7 @@ __global__ void cu_axpy(int n, NumType a, NumType *x, NumType *y, NumType *out)
 
 
 template <int MaxNbDevices, const bool FavorLocality>
-auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const int blocksize, const int gpunbthreads,
+auto BenchmarkTest(const int NbLoops, const int nbCpu, const int nbGpu, const int nbblocks, const int blocksize, const int gpunbthreads,
                     const bool useMultiPrioScheduler){   
     std::vector<Vector<float>> x(nbblocks, Vector<float>(blocksize, 1));
     std::vector<Vector<float>> y(nbblocks, Vector<float>(blocksize, 1));
@@ -92,9 +92,9 @@ auto BenchmarkTest(const int NbLoops, const int nbGpu, const int nbblocks, const
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpu, nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpu));
 #endif
 
     std::vector<double> minMaxAvg(3);
@@ -252,7 +252,9 @@ int main(int argc, char** argv){
                                                                  std::make_tuple(true, false, true)};
 
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+            const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
             const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
             const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
             const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -262,8 +264,8 @@ int main(int argc, char** argv){
 
                     std::cout << "  - NbBlocks = " << idxNbBlocks << " BlockSize = " << idxSize << std::endl;
                     const auto minMaxAvg = (useLocality ? 
-                                            BenchmarkTest<8,true>(NbLoops, idxGpu, idxNbBlocks, idxSize, gpunbthreads, useMultiprio)
-                                            : BenchmarkTest<8,false>(NbLoops, idxGpu, idxNbBlocks, idxSize, gpunbthreads, useMultiprio));
+                                            BenchmarkTest<8,true>(NbLoops, nbCpus, nbGpus, idxNbBlocks, idxSize, gpunbthreads, useMultiprio)
+                                            : BenchmarkTest<8,false>(NbLoops, nbCpus, nbGpus, idxNbBlocks, idxSize, gpunbthreads, useMultiprio));
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl;
                     std::cout << "     - End" << std::endl;
@@ -280,16 +282,19 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,NbBlocks,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpus,NbGpu,NbBlocks,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
         const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
         const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
         const bool useLocality = std::get<2>(useMultiprioAndPairs);
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
-                    file << idxGpu << "," << idxNbBlocks << "," << idxSize << "," 
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
+                    file << nbCpus << "," << nbGpus << "," << idxNbBlocks << "," << idxSize << "," 
                     << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","
