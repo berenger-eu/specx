@@ -960,7 +960,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                 const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                 const bool useLocality = std::get<2>(useMultiprioAndPairs);
 
-                file << idxGpu << "," << idxBlock << "," 
+                file << nbCpus << "," << nbGpus << "," << idxBlock << "," 
                     << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","
