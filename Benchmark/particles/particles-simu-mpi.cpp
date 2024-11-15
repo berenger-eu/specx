@@ -531,12 +531,14 @@ void AccuracyTest(){
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
             , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 hipLaunchKernelGGL(p2p_inner_gpu, dim3(10), dim3(10), 0, SpHipUtils::GetCurrentStream(), paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -549,12 +551,14 @@ void AccuracyTest(){
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
             , SpHip([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 hipLaunchKernelGGL(p2p_inner_gpu, dim3(10), dim3(10), 0, SpHipUtils::GetCurrentStream(), paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -571,6 +575,7 @@ void AccuracyTest(){
                                                                          paramA.getRawPtr(), paramA.getRawSize());
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -581,6 +586,7 @@ void AccuracyTest(){
                                                                          paramA.getRawPtr(), paramA.getRawSize());
                 hipLaunchKernelGGL(p2p_neigh_gpu, dim3(10), dim3(10), 0, SpHipUtils::GetCurrentStream(), paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -784,7 +790,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(), std::move(scheduler));
 #else
@@ -819,6 +825,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                         p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
                                        (paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                     })
                 #endif
                 #ifdef SPECX_COMPILE_WITH_HIP
@@ -826,6 +833,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                         hipLaunchKernelGGL(p2p_inner_gpu, dim3(inKernelConfig.nbBlocksInner), dim3(inKernelConfig.nbThreadsInner), 0, SpHipUtils::GetCurrentStream(),
                                      paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     })
                 #endif
             );
@@ -847,6 +855,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                                          (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
                             p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
                                          (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                         })
                     #endif
                     #ifdef SPECX_COMPILE_WITH_HIP
@@ -857,6 +866,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                                          paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
                             hipLaunchKernelGGL(p2p_neigh_gpu, dim3(inKernelConfig.nbBlocksOuter), dim3(inKernelConfig.nbThreadsOuter), 0, SpHipUtils::GetCurrentStream(),
                                          paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                         })
                     #endif
                 );
@@ -874,6 +884,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                     p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
                                  (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
             #endif
             #ifdef SPECX_COMPILE_WITH_HIP
@@ -882,6 +893,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                     hipLaunchKernelGGL(p2p_neigh_gpu, dim3(inKernelConfig.nbBlocksOuter), dim3(inKernelConfig.nbThreadsOuter), 0, SpHipUtils::GetCurrentStream(),
                                  paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
             #endif
         );
@@ -897,6 +909,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                     p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
                                  (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
             #endif
             #ifdef SPECX_COMPILE_WITH_HIP
@@ -905,6 +918,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
                     hipLaunchKernelGGL(p2p_neigh_gpu, dim3(inKernelConfig.nbBlocksOuter), dim3(inKernelConfig.nbThreadsOuter), 0, SpHipUtils::GetCurrentStream(),
                                  paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
             #endif
         );

@@ -465,6 +465,7 @@ void AccuracyTest(){
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -472,6 +473,7 @@ void AccuracyTest(){
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 hipLaunchKernelGGL(p2p_inner_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(), 
                         paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -484,6 +486,7 @@ void AccuracyTest(){
             , SpCuda([](SpDeviceDataView<ParticlesGroup> paramA) {
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 p2p_inner_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -491,6 +494,7 @@ void AccuracyTest(){
                 [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                 hipLaunchKernelGGL(p2p_inner_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(),
                         paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -507,6 +511,7 @@ void AccuracyTest(){
                                                                          paramA.getRawPtr(), paramA.getRawSize());
                 p2p_neigh_gpu<<<10,10,0,SpCudaUtils::GetCurrentStream()>>>(paramA.getRawPtr(), paramA.getRawSize(),
                                                                          paramB.getRawPtr(), paramB.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -519,6 +524,7 @@ void AccuracyTest(){
                 hipLaunchKernelGGL(p2p_neigh_gpu, 10, 10, 0, SpHipUtils::GetCurrentStream(),
                                         paramA.getRawPtr(), paramA.getRawSize(),
                                          paramB.getRawPtr(), paramB.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
             })
         #endif
     );
@@ -698,7 +704,7 @@ auto GetPriority(const bool usePrioPairs, const int maxInteractions, const int m
 
 template <int MaxNbDevices, const bool FavorLocality>
 auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
-                const int NbGroups, const int nbGpu, const bool useMultiPrioScheduler,
+                const int NbGroups, const int nbCpu, const int nbGpu, const bool useMultiPrioScheduler,
                 const bool usePrioPairs, const TuneResult& inKernelConfig,
                 const int maxInteractions, const int minInteractions){
 
@@ -719,11 +725,11 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpu, nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpu));
 #endif
 
     std::vector<double> minMaxAvg(3);
@@ -749,6 +755,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                         p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
                                        (paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                     })
                 #endif
                 #ifdef SPECX_COMPILE_WITH_HIP
@@ -756,6 +763,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                         [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
                         hipLaunchKernelGGL(p2p_inner_gpu, inKernelConfig.nbBlocksInner, inKernelConfig.nbThreadsInner, 0, SpHipUtils::GetCurrentStream(),
                                            paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     })
                 #endif
             );
@@ -780,6 +788,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                                      (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
                         p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
                                      (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                     })
                 #endif
                 #ifdef SPECX_COMPILE_WITH_HIP
@@ -790,6 +799,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                                             paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
                         hipLaunchKernelGGL(p2p_neigh_gpu, inKernelConfig.nbBlocksOuter, inKernelConfig.nbThreadsOuter, 0, SpHipUtils::GetCurrentStream(),
                                             paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     })
                 #endif
             );
@@ -907,8 +917,10 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                                                                  std::make_tuple(true, false, true)};
 
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
                 const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                 const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                 const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -919,10 +931,10 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
                               << " Favor Loc = " << useLocality << std::endl;              
                 const auto minMaxAvg = (useLocality ? 
                                         BenchCore<8,true>(NbLoops, MinPartsPerGroup,
-                                            MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, usePrioPairs, inKernelConfig,
+                                            MaxPartsPerGroup, idxBlock, nbCpus, nbGpus, useMultiprio, usePrioPairs, inKernelConfig,
 					    maxInteractions, minInteractions):
                                         BenchCore<8,false>(NbLoops, MinPartsPerGroup,
-                                            MaxPartsPerGroup, idxBlock, idxGpu, useMultiprio, usePrioPairs, inKernelConfig,
+                                            MaxPartsPerGroup, idxBlock, nbCpus, nbGpus, useMultiprio, usePrioPairs, inKernelConfig,
 					    maxInteractions, minInteractions));
                 allDurations.push_back(minMaxAvg);
                 std::cout << " - Min = " << minMaxAvg[0] << " Max = " << minMaxAvg[1] << " Avg = " << minMaxAvg[2] << std::endl;  
@@ -937,16 +949,18 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         return;
     }
 
-    file << "NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpu,NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
                 const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                 const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                 const bool useLocality = std::get<2>(useMultiprioAndPairs);
 
-                file << idxGpu << "," << idxBlock << "," 
+                file << nbCpus << "," << nbGpus << "," << idxBlock << "," 
                     << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","

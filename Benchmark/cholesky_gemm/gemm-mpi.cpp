@@ -65,7 +65,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
 #else
@@ -138,7 +138,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
         for(int k = 0 ; k < processBlockDim ; ++k){
             for(int i = 0 ; i < processBlockDim ; ++i){
                 for(int j = 0 ; j < processBlockDim ; ++j){
-                    tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                    tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                             SpRead(blocksA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
                         SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                             SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -155,6 +155,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                     (const double*)paramB.getRawPtr(), inBlockDim,
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                         })
                 #endif
                 #ifdef SPECX_COMPILE_WITH_HIP
@@ -166,6 +167,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                     inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                     (const double*)paramB.getRawPtr(), inBlockDim,
                                     &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                         })
                 #endif
                     ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
@@ -186,7 +188,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                 for(int k = 0 ; k < processBlockDim ; ++k){
                     for(int i = 0 ; i < processBlockDim ; ++i){
                         for(int j = 0 ; j < processBlockDim ; ++j){
-                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                            tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                                     SpRead(blocksA[k*processBlockDim+j]), SpRead(buffersB[i*processBlockDim+k]),
                                 SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                                     SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -203,6 +205,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                                 })
                         #endif
                         #ifdef SPECX_COMPILE_WITH_HIP
@@ -214,6 +217,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                                 })
                         #endif
                             ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");
@@ -236,7 +240,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                 for(int k = 0 ; k < processBlockDim ; ++k){
                     for(int i = 0 ; i < processBlockDim ; ++i){
                         for(int j = 0 ; j < processBlockDim ; ++j){
-                            tg.task(SpPriority(1), SpCommutativeWrite(blocksC[i*processBlockDim+j]),
+                            tg.task(SpPriority(1), SpWrite(blocksC[i*processBlockDim+j]),
                                     SpRead(buffersA[k*processBlockDim+j]), SpRead(blocksB[i*processBlockDim+k]),
                                 SpCpu([inBlockDim](SpBlas::Block& blockC, const SpBlas::Block& blockA, const SpBlas::Block& blockB){
                                     SpBlas::gemm( SpBlas::Transa::NORMAL, SpBlas::Transa::NORMAL,
@@ -253,6 +257,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                                 })
                         #endif
                         #ifdef SPECX_COMPILE_WITH_HIP
@@ -264,6 +269,7 @@ auto gemm(const int NbLoops, SpBlas::Block blocksC[], const SpBlas::Block blocks
                                             inBlockDim, inBlockDim, inBlockDim, &alphaBeta, (const double*)paramA.getRawPtr(), inBlockDim,
                                             (const double*)paramB.getRawPtr(), inBlockDim,
                                             &alphaBeta, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                                 })
                         #endif
                             ).setTaskName(std::string("GEMM -- (")+std::to_string(i)+","+std::to_string(j)+")");

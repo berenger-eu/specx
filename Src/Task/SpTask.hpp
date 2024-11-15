@@ -101,7 +101,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
     
     void preTaskExecution([[maybe_unused]] SpCallableType ct) final {
 #ifdef SPECX_COMPILE_WITH_CUDA
-        SpCudaManager::Lock();
        std::size_t extraHandlesOffset = 0;
         
         SpUtils::foreach_in_tuple(
@@ -143,7 +142,9 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                     else{
                         SpCudaUtils::SyncCurrentStream();
                     }
+                    SpCudaManager::Managers[cudaId].lock();
                     SpCudaManager::Managers[cudaId].incrDeviceDataUseCount(h);
+                    SpCudaManager::Managers[cudaId].unlock();
                     std::get<index>(cudaCallableArgs).reset(dataObj.ptr, dataObj.size);
                     if constexpr(SpDeviceDataUtils::class_has_setDataDescriptor<decltype(std::get<index>(cudaCallableArgs))>::value){
                         std::get<index>(cudaCallableArgs).setDataDescriptor(dataObj.viewPtr);
@@ -160,9 +161,7 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             }
         }, this->getDataDependencyTupleRef());
 
-        SpCudaManager::Unlock();
 #elif defined(SPECX_COMPILE_WITH_HIP) // SPECX_COMPILE_WITH_CUDA
-        SpHipManager::Lock();
         std::size_t extraHandlesOffset = 0;
 
         SpUtils::foreach_in_tuple(
@@ -221,7 +220,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 }
             }, this->getDataDependencyTupleRef());
 
-        SpHipManager::Unlock();
 #endif // SPECX_COMPILE_WITH_HIP
     }
 
@@ -266,13 +264,11 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
             // Syn only if we the task was on GPU
             SpCudaUtils::SyncCurrentStream();
         }
-        SpCudaManager::Lock();
 #elif defined(SPECX_COMPILE_WITH_HIP)
         if(ct == SpCallableType::HIP){
             // Syn only if we the task was on GPU
             SpHipUtils::SyncCurrentStream();
         }
-        SpHipManager::Lock();
 #endif // SPECX_COMPILE_WITH_HIP
 
         std::size_t extraHandlesOffset = 0;
@@ -298,16 +294,16 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
 #if defined(SPECX_COMPILE_WITH_CUDA)
                 else if(ct == SpCallableType::CUDA){
                     const int cudaId = SpCudaUtils::CurrentCudaId();
-                    h->lock();
+                    SpCudaManager::Managers[cudaId].lock();
                     SpCudaManager::Managers[cudaId].decrDeviceDataUseCount(h);
-                    h->unlock();
+                    SpCudaManager::Managers[cudaId].unlock();
                 }
 #elif defined(SPECX_COMPILE_WITH_HIP)
                 else if(ct == SpCallableType::HIP){
                     const int hipId = SpHipUtils::CurrentHipId();
-                    h->lock();
+                    SpHipManager::Managers[hipId].lock();
                     SpHipManager::Managers[hipId].decrDeviceDataUseCount(h);
-                    h->unlock();
+                    SpHipManager::Managers[hipId].unlock();
                 }
 #endif
                 else{
@@ -315,12 +311,6 @@ class SpTask : public SpAbstractTaskWithReturn<RetType> {
                 }
             }
         }, this->getDataDependencyTupleRef());
-
-#if defined(SPECX_COMPILE_WITH_CUDA)
-        SpCudaManager::Unlock();
-#elif defined(SPECX_COMPILE_WITH_HIP)
-        SpHipManager::Unlock();
-#endif
 #endif // SPECX_COMPILE_WITH_CUDA SPECX_COMPILE_WITH_HIP
     }
 

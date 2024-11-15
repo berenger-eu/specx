@@ -58,7 +58,7 @@ thread_local HipHandles handle;
 
 template <int MaxNbDevices, const bool FavorLocality>
 auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const int inMatrixDim, const int inBlockDim,
-                           const int nbGpu, const bool useMultiPrioScheduler, const bool usePrioPairs){
+                           const int nbCpu, const int nbGpu, const bool useMultiPrioScheduler, const bool usePrioPairs){
     const int nbBlocks = (inMatrixDim+inBlockDim-1)/inBlockDim;
 
 #if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
@@ -67,11 +67,11 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
     }
     else{
-        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>());
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpu, nbGpu), std::move(scheduler));
 #else
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpu));
 #endif
 
 #ifdef SPECX_COMPILE_WITH_CUDA
@@ -162,6 +162,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     handle.solverBuffer,
                     handle.solverBuffSize,
                     handle.cuinfo));
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
     #ifndef NDEBUG
                 int info;
                 CUDA_ASSERT(cudaMemcpy(&info, handle.cuinfo, sizeof(int), cudaMemcpyDeviceToHost));
@@ -180,6 +181,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     handle.solverBuffer,
                     handle.solverBuffSize,
                     handle.cuinfo));
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
     #ifndef NDEBUG
                 int info;
                 HIP_ASSERT(hipMemcpy(&info, handle.cuinfo, sizeof(int), hipMemcpyDeviceToHost));
@@ -206,6 +208,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                                 CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -216,6 +219,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                             HIPBLAS_OP_T, HIPBLAS_DIAG_NON_UNIT,
                             inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                             (double*)paramB.getRawPtr(), inBlockDim));
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
         #endif
                         ).setTaskName(std::string("TRSM -- (R-")+std::to_string(k)+","+std::to_string(k)+") (W-"+std::to_string(m)+","+std::to_string(k)+")");
@@ -239,6 +243,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     CUBLAS_ASSERT( cublasDsyrk( handle.blasHandle, CUBLAS_FILL_MODE_LOWER, CUBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                 })
         #endif
         #ifdef SPECX_COMPILE_WITH_HIP
@@ -249,6 +254,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                     HIPBLAS_ASSERT(hipblasDsyrk( handle.blasHandle, HIPBLAS_FILL_MODE_LOWER, HIPBLAS_OP_N,
                             inBlockDim, inBlockDim, &minusone, (const double*)paramA.getRawPtr(), inBlockDim,
                             &one, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                 })
         #endif
                         ).setTaskName(std::string("SYRK -- (R-")+std::to_string(n)+","+std::to_string(k)+") (W-"+std::to_string(n)+","+std::to_string(n)+")");
@@ -271,6 +277,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
                     })
             #endif
             #ifdef SPECX_COMPILE_WITH_HIP
@@ -282,6 +289,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
                                 inBlockDim, inBlockDim, inBlockDim, &one, (const double*)paramA.getRawPtr(), inBlockDim,
                                 (const double*)paramB.getRawPtr(), inBlockDim,
                                 &minusone, (double*)paramC.getRawPtr(), inBlockDim ) );
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
                     })
             #endif
                             ).setTaskName(std::string("GEMM -- (R-")+std::to_string(m)+","+std::to_string(k)+")(R-"+std::to_string(n)+","+std::to_string(k)+")(W-"+std::to_string(m)+","+std::to_string(n)+")");
@@ -426,9 +434,12 @@ int main(int argc, char** argv){
                                                                  std::make_tuple(true, false, true)};
 
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                     const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -460,9 +471,9 @@ int main(int argc, char** argv){
                     /////////////////////////////////////////////////////////
                     const auto minMaxAvg = (useLocality ? 
                                                 choleskyFactorization<8,true>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
-                                                                idxGpu, useMultiprio, usePrioPairs) :
+                                                                nbCpus, nbGpus, useMultiprio, usePrioPairs) :
                                                 choleskyFactorization<8,false>(NbLoops, blocks.get(), MatrixSize, BlockSize, 
-                                                                idxGpu, useMultiprio, usePrioPairs));
+                                                                nbCpus, nbGpus, useMultiprio, usePrioPairs));
                     allDurations.push_back(minMaxAvg);
                     std::cout << "     - Duration = " << minMaxAvg[0] << " " << minMaxAvg[1] << " " << minMaxAvg[2] << std::endl;
                     std::cout << "     - Transfers = " << minMaxAvg[3] << " " << minMaxAvg[4] << " " << minMaxAvg[5] << " " << minMaxAvg[6] << " " << minMaxAvg[7] << std::endl;
@@ -492,17 +503,20 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    file << "NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpu,NbGpu,MatrixSize,BlockSize,Multiprio,PrioPair,FavorLocality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
-        for(int idxGpu = 0 ; idxGpu <= nbGpus ; ++idxGpu){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
+                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
+                    const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                     const bool useLocality = std::get<2>(useMultiprioAndPairs);
 
-                    file << idxGpu << "," << MatrixSize << "," << BlockSize << "," 
+                    file << nbCpus << "," << nbGpus << "," << MatrixSize << "," << BlockSize << "," 
                         << (useMultiprio?"TRUE":"FALSE") << ","
                         << (usePrioPairs?"TRUE":"FALSE") << ","
                         << (useLocality?"TRUE":"FALSE") << ","

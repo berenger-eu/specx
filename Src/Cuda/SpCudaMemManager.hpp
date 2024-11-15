@@ -33,17 +33,7 @@ class SpCudaManager {
         int useCount = 0;
     };
 
-    static std::mutex CudaMutex;
-
 public:
-
-    static void Lock(){// Do finer lock TODO
-        CudaMutex.lock();
-    }
-
-    static void Unlock(){
-        CudaMutex.unlock();
-    }
 
     class SpCudaMemManager : public SpAbstractDeviceMemManager {
         const int id;
@@ -62,11 +52,22 @@ public:
         size_t hostToDeviceTransfers;
         size_t deviceToDeviceTransfers;
 
+        std::unique_ptr<std::mutex> cudaMutex;
+
     public:
+        void lock(){// Do finer lock TODO
+            cudaMutex->lock();
+        }
+
+        void unlock(){
+            cudaMutex->unlock();
+        }
+
         explicit SpCudaMemManager(const int inId)
             : id(inId), deferCopier(new SpConsumerThread), remainingMemory(0),
                 totalAllocatedMemory(0), currentAllocatedMemory(0), maxAllocatedMemory(0),
-                deviceToHostTransfers(0), hostToDeviceTransfers(0), deviceToDeviceTransfers(0){
+                deviceToHostTransfers(0), hostToDeviceTransfers(0), deviceToDeviceTransfers(0),
+                cudaMutex(new std::mutex){
 
             deferCopier->submitJobAndWait([this]{
                 SpCudaUtils::UseDevice(id);
@@ -106,7 +107,7 @@ public:
         SpCudaMemManager(SpCudaMemManager&&) = default;
 
         SpCudaMemManager& operator=(const SpCudaMemManager&) = delete;
-        SpCudaMemManager& operator=(SpCudaMemManager&&) = delete;
+        SpCudaMemManager& operator=(SpCudaMemManager&&) = default;
 
         void incrDeviceDataUseCount(void* key) override {
             assert(handles.find(key) != handles.end());
@@ -123,7 +124,8 @@ public:
             handles[key].useCount -= 1;
         }
 
-        bool hasBeenRemoved(void* key){
+        bool hasBeenRemovedLocked(void* key){
+            const std::lock_guard<std::mutex> lock(*cudaMutex);
             return (handles.find(key) == handles.end());
         }
 
@@ -164,10 +166,14 @@ public:
 
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, SpCudaUtils::GetCurrentStream()));
+                // Should not be needed, but remove it and it will fail
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMallocAsync(&data.ptr, inByteSize, extraStream));
+                    // Should not be needed, but remove it and it will fail
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
 
@@ -206,11 +212,11 @@ public:
             handles.erase(key);
 
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
-                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
-                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
             
@@ -222,10 +228,14 @@ public:
                     && allBlocks[inPtrDev].size <= inByteSize);
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, SpCudaUtils::GetCurrentStream()));
+                // Should not be needed, but remove it and it will fail
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemsetAsync(inPtrDev, val, inByteSize, extraStream));
+                    // Should not be needed, but remove it and it will fail
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
         }
@@ -237,13 +247,18 @@ public:
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
                                         SpCudaUtils::GetCurrentStream()));
+                // Should not be needed, but remove it and it will fail
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyAsync(inPtrDev, inPtrHost, inByteSize, cudaMemcpyHostToDevice,
                                             extraStream));
+                    // Should not be needed, but remove it and it will fail
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
+
             hostToDeviceTransfers += inByteSize;
         }
 
@@ -254,14 +269,17 @@ public:
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                         SpCudaUtils::GetCurrentStream()));
+                // Should not be needed, but remove it and it will fail
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyAsync(inPtrHost, inPtrDev, inByteSize, cudaMemcpyDeviceToHost,
                                             extraStream));
-                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
+
             deviceToHostTransfers += inByteSize;
         }
 
@@ -276,14 +294,17 @@ public:
             if(SpCudaUtils::CurrentWorkerIsCuda() && SpCudaUtils::CurrentCudaId() == id){
                 CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                             SpCudaUtils::GetCurrentStream()));
+                // Should not be needed, but remove it and it will fail
+                // CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
             }
             else{
                 deferCopier->submitJobAndWait([&,this]{
                     CUDA_ASSERT(cudaMemcpyPeerAsync(inPtrDevDest, id, inPtrDevSrc, srcId, inByteSize,
                                                 extraStream));
-                    CUDA_ASSERT(cudaStreamSynchronize(extraStream));
+                    // CUDA_ASSERT(cudaStreamSynchronize(extraStream));
                 });
             }
+
             deviceToDeviceTransfers += inByteSize;
         }
 
