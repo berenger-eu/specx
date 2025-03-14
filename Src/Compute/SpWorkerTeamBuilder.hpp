@@ -42,9 +42,11 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfCudaWorkers(const int nbWor
     return res;
 }
 
-static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
+static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuCudaWorkers(const int nbCpuWorkersInit = -1,
                                              int nbCudaWorkers = SpCudaUtils::GetNbDevices(),
                                              const int nbWorkerPerCudas = SpCudaUtils::GetDefaultNbStreams()) {
+    const int nbCpuWorkers = (nbCpuWorkersInit != -1 ? nbCpuWorkersInit : std::max(1, SpUtils::DefaultNumThreads()-nbCudaWorkers));
+
     if(SpCudaUtils::GetNbDevices() < nbCudaWorkers){
         std::cout << "[SPECX] The number of devices asked ("
                   << nbCudaWorkers << ") is above the real number of devices ("
@@ -76,7 +78,7 @@ static auto TeamOfCpuGpuWorkers(Args&& ... args) {
 }
 #endif
 #ifdef SPECX_COMPILE_WITH_HIP
-static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
+static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWorkerPerHipsInit = SpHipUtils::GetDefaultNbStreams(),
                                              int nbHipWorkers = SpHipUtils::GetNbDevices()) {
     if(SpHipUtils::GetNbDevices() < nbHipWorkers){
         std::cout << "[SPECX] The number of devices asked ("
@@ -99,9 +101,10 @@ static small_vector<std::unique_ptr<SpWorker>> TeamOfHipWorkers(const int nbWork
     return res;
 }
 
-static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbCpuWorkers = SpUtils::DefaultNumThreads(),
+static small_vector<std::unique_ptr<SpWorker>> TeamOfCpuHipWorkers(const int nbCpuWorkers = -1,
                                              const int nbWorkerPerHips = SpHipUtils::GetDefaultNbStreams(),
                                              int nbHipWorkers = SpHipUtils::GetNbDevices()) {
+    const int nbCpuWorkers = (nbCpuWorkersInit != -1 ? nbCpuWorkersInit : std::max(1, SpUtils::DefaultNumThreads()-nbWorkerPerHips));
     if(SpHipUtils::GetNbDevices() < nbHipWorkers){
         std::cout << "[SPECX] The number of devices asked ("
                   << nbHipWorkers << ") is above the real number of devices ("

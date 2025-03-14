@@ -71,7 +71,7 @@ auto choleskyFactorization(const int NbLoops, SpBlas::Block blocksInput[], const
     else{
         scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
     }
-    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(SpUtils::DefaultNumThreads(), nbGpu), std::move(scheduler));
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(std::max(1 , SpUtils::DefaultNumThreads()-nbGpu), nbGpu), std::move(scheduler));
 #else
     SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers());
 #endif

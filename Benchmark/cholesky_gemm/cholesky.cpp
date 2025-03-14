@@ -437,8 +437,8 @@ int main(int argc, char** argv){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
                     const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                    const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
 
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
@@ -509,8 +509,8 @@ int main(int argc, char** argv){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int BlockSize = MinBlockSize ; BlockSize <= MaxBlockSize ; BlockSize *= 2){
                 for(int MatrixSize = MinMatrixSize ; MatrixSize <= MaxMatrixSize ; MatrixSize *= 2){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
                     const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                    const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
 
                     const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                     const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);

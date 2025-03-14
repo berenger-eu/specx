@@ -253,8 +253,8 @@ int main(int argc, char** argv){
 
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
             const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+            const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
             const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
             const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
             const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -291,8 +291,8 @@ int main(int argc, char** argv){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxNbBlocks = minnbblocks ; idxNbBlocks <= maxnbblocks ; idxNbBlocks *= 2){
                 for(int idxSize = minblocksize ; idxSize <= maxblocksize ; idxSize *= 2){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
                     const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                    const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
 
                     file << nbCpus << "," << nbGpus << "," << idxNbBlocks << "," << idxSize << "," 
                     << (useMultiprio?"TRUE":"FALSE") << ","
