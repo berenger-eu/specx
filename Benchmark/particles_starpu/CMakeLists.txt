@@ -20,7 +20,7 @@ if(DEFINED ENV{STARPU_INC_DIR} AND DEFINED ENV{STARPU_LIB_DIR})
     link_directories(${STARPU_LIB_DIR})
 
     # Ajout des bibliothèques StarPU
-    list(APPEND BENCHMARK_CP_SPECX_STARPU_LIBRARIES starpu)
+    list(APPEND BENCHMARK_CP_SPECX_STARPU_LIBRARIES starpu-1.4)
 
     # Find all code files
     file(	
@@ -65,6 +65,6 @@ if(DEFINED ENV{STARPU_INC_DIR} AND DEFINED ENV{STARPU_LIB_DIR})
                 )
         endif()
     endforeach(exec)
-else(OpenMP_FOUND)
-    MESSAGE_STATUS(WARNING "Openmp not found, disable particle simulation")
-endif(OpenMP_FOUND)
+else(DEFINED ENV{STARPU_INC_DIR} AND DEFINED ENV{STARPU_LIB_DIR})
+    MESSAGE(WARNING "ENV{STARPU_INC_DIR} AND ENV{STARPU_LIB_DIR} undefined")
+endif(DEFINED ENV{STARPU_INC_DIR} AND DEFINED ENV{STARPU_LIB_DIR})

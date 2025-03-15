@@ -23,7 +23,7 @@
 
 #include <starpu.h>
 #ifdef STARPU_CUDA
-#include <starpu/cuda.h>
+#include <starpu_cuda.h>
 #endif
 
 
@@ -91,12 +91,12 @@ public:
 };
 
 
-void computeSelf(double* values[NB_VALUE_TYPES], const std::size_t nbParticles){
-    for(std::size_t idxTarget = 0 ; idxTarget < getNbParticles() ; ++idxTarget){
-        const double tx = double(values[X][idxTarget]);
-        const double ty = double(values[Y][idxTarget]);
-        const double tz = double(values[Z][idxTarget]);
-        const double tv = double(values[PHYSICAL][idxTarget]);
+void computeSelf(double* values[ParticlesGroup::NB_VALUE_TYPES], const std::size_t nbParticles){
+    for(std::size_t idxTarget = 0 ; idxTarget < nbParticles ; ++idxTarget){
+        const double tx = double(values[ParticlesGroup::X][idxTarget]);
+        const double ty = double(values[ParticlesGroup::Y][idxTarget]);
+        const double tz = double(values[ParticlesGroup::Z][idxTarget]);
+        const double tv = double(values[ParticlesGroup::PHYSICAL][idxTarget]);
 
         double  tfx = double(0.);
         double  tfy = double(0.);
@@ -104,15 +104,15 @@ void computeSelf(double* values[NB_VALUE_TYPES], const std::size_t nbParticles){
         double  tpo = double(0.);
 
         for(std::size_t idxSource = idxTarget+1  ; idxSource < nbParticles ; ++idxSource){
-            double dx = tx - double(values[X][idxSource]);
-            double dy = ty - double(values[Y][idxSource]);
-            double dz = tz - double(values[Z][idxSource]);
+            double dx = tx - double(values[ParticlesGroup::X][idxSource]);
+            double dy = ty - double(values[ParticlesGroup::Y][idxSource]);
+            double dz = tz - double(values[ParticlesGroup::Z][idxSource]);
 
             double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
             const double inv_distance = sqrt(inv_square_distance);
 
             inv_square_distance *= inv_distance;
-            inv_square_distance *= tv * double(values[PHYSICAL][idxSource]);
+            inv_square_distance *= tv * double(values[ParticlesGroup::PHYSICAL][idxSource]);
 
             dx *= - inv_square_distance;
             dy *= - inv_square_distance;
@@ -121,28 +121,28 @@ void computeSelf(double* values[NB_VALUE_TYPES], const std::size_t nbParticles){
             tfx += dx;
             tfy += dy;
             tfz += dz;
-            tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+            tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
 
-            values[FX][idxSource] -= dx;
-            values[FY][idxSource] -= dy;
-            values[FZ][idxSource] -= dz;
-            values[POTENTIAL][idxSource] += inv_distance * tv;
+            values[ParticlesGroup::FX][idxSource] -= dx;
+            values[ParticlesGroup::FY][idxSource] -= dy;
+            values[ParticlesGroup::FZ][idxSource] -= dz;
+            values[ParticlesGroup::POTENTIAL][idxSource] += inv_distance * tv;
         }
 
-        values[FX][idxTarget] += tfx;
-        values[FY][idxTarget] += tfy;
-        values[FZ][idxTarget] += tfz;
-        values[POTENTIAL][idxTarget] += tpo;
+        values[ParticlesGroup::FX][idxTarget] += tfx;
+        values[ParticlesGroup::FY][idxTarget] += tfy;
+        values[ParticlesGroup::FZ][idxTarget] += tfz;
+        values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
     }
 }
 
-void compute(double* values[NB_VALUE_TYPES], const std::size_t nbParticles
-             double* inOther_values[NB_VALUE_TYPES], const std::size_t inOther_nbParticles){
+void compute(double* values[ParticlesGroup::NB_VALUE_TYPES], const std::size_t nbParticles,
+             double* inOther_values[ParticlesGroup::NB_VALUE_TYPES], const std::size_t inOther_nbParticles){
     for(std::size_t idxTarget = 0 ; idxTarget < inOther_nbParticles ; ++idxTarget){
-        const double tx = double(inOther_values[X][idxTarget]);
-        const double ty = double(inOther_values[Y][idxTarget]);
-        const double tz = double(inOther_values[Z][idxTarget]);
-        const double tv = double(inOther_values[PHYSICAL][idxTarget]);
+        const double tx = double(inOther_values[ParticlesGroup::X][idxTarget]);
+        const double ty = double(inOther_values[ParticlesGroup::Y][idxTarget]);
+        const double tz = double(inOther_values[ParticlesGroup::Z][idxTarget]);
+        const double tv = double(inOther_values[ParticlesGroup::PHYSICAL][idxTarget]);
 
         double  tfx = double(0.);
         double  tfy = double(0.);
@@ -150,15 +150,15 @@ void compute(double* values[NB_VALUE_TYPES], const std::size_t nbParticles
         double  tpo = double(0.);
 
         for(std::size_t idxSource = 0  ; idxSource < nbParticles ; ++idxSource){
-            double dx = tx - double(values[X][idxSource]);
-            double dy = ty - double(values[Y][idxSource]);
-            double dz = tz - double(values[Z][idxSource]);
+            double dx = tx - double(values[ParticlesGroup::X][idxSource]);
+            double dy = ty - double(values[ParticlesGroup::Y][idxSource]);
+            double dz = tz - double(values[ParticlesGroup::Z][idxSource]);
 
             double inv_square_distance = double(1) / (dx*dx + dy*dy + dz*dz);
             const double inv_distance = sqrt(inv_square_distance);
 
             inv_square_distance *= inv_distance;
-            inv_square_distance *= tv * double(values[PHYSICAL][idxSource]);
+            inv_square_distance *= tv * double(values[ParticlesGroup::PHYSICAL][idxSource]);
 
             dx *= - inv_square_distance;
             dy *= - inv_square_distance;
@@ -167,18 +167,18 @@ void compute(double* values[NB_VALUE_TYPES], const std::size_t nbParticles
             tfx += dx;
             tfy += dy;
             tfz += dz;
-            tpo += inv_distance * double(values[PHYSICAL][idxSource]);
+            tpo += inv_distance * double(values[ParticlesGroup::PHYSICAL][idxSource]);
 
-            values[FX][idxSource] -= dx;
-            values[FY][idxSource] -= dy;
-            values[FZ][idxSource] -= dz;
-            values[POTENTIAL][idxSource] += inv_distance * tv;
+            values[ParticlesGroup::FX][idxSource] -= dx;
+            values[ParticlesGroup::FY][idxSource] -= dy;
+            values[ParticlesGroup::FZ][idxSource] -= dz;
+            values[ParticlesGroup::POTENTIAL][idxSource] += inv_distance * tv;
         }
 
-        inOther_values[FX][idxTarget] += tfx;
-        inOther_values[FY][idxTarget] += tfy;
-        inOther_values[FZ][idxTarget] += tfz;
-        inOther_values[POTENTIAL][idxTarget] += tpo;
+        inOther_values[ParticlesGroup::FX][idxTarget] += tfx;
+        inOther_values[ParticlesGroup::FY][idxTarget] += tfy;
+        inOther_values[ParticlesGroup::FZ][idxTarget] += tfz;
+        inOther_values[ParticlesGroup::POTENTIAL][idxTarget] += tpo;
     }
 }
 
@@ -371,12 +371,14 @@ __global__ void p2p_neigh_gpu(const void* dataSrc, std::size_t sizeSrc,
 
 #endif
 
+const int NbThreadBlocks = 256;
+const int NbThreadsPerBlock = 256;
 
 static void p2p_inner_cpu_starpu_starpu(void *buffers[], void *cl_arg)
 {
     double* values[ParticlesGroup::NB_VALUE_TYPES];
-    values[0] = reinterpret_cast<double*>(STARPU_BLOCK_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_BLOCK_INTERFACE_ID(buffers[0]);
+    values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
 
     for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = values[idxValueType-1] + nbParticles;
@@ -388,25 +390,49 @@ static void p2p_inner_cpu_starpu_starpu(void *buffers[], void *cl_arg)
 #ifdef SPECX_COMPILE_WITH_CUDA
 static void p2p_inner_gpu_starpu(void *buffers[], void *cl_arg)
 {
-    double* values = reinterpret_cast<double*>(STARPU_BLOCK_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_BLOCK_INTERFACE_ID(buffers[0]);
-    p2p_inner_gpu(values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
+    double* values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+    p2p_inner_gpu<<<NbThreadBlocks, NbThreadsPerBlock, 0, starpu_cuda_get_local_stream()>>>(values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
+    cudaStreamSynchronize(starpu_cuda_get_local_stream());
 }
 #endif
 
 static void p2p_neigh_cpu_starpu(void *buffers[], void *cl_arg)
 {
+    double* values[ParticlesGroup::NB_VALUE_TYPES];
+    values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+
+    for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
+        values[idxValueType] = values[idxValueType-1] + nbParticles;
+    }
+
+    double* other_values[ParticlesGroup::NB_VALUE_TYPES];
+    other_values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[1]));
+    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1]);
+
+    for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
+        other_values[idxValueType] = other_values[idxValueType-1] + other_nbParticles;
+    }
+
+    compute(values, nbParticles, other_values, other_nbParticles);
+    compute(other_values, other_nbParticles, values, nbParticles);
 }
 
 #ifdef SPECX_COMPILE_WITH_CUDA
 static void p2p_neigh_gpu_starpu(void *buffers[], void *cl_arg)
 {
-    double* values = reinterpret_cast<double*>(STARPU_BLOCK_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_BLOCK_INTERFACE_ID(buffers[0]);
+    double* values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
 
-    double* other_values = reinterpret_cast<double*>(STARPU_BLOCK_GET_PTR(buffers[1]));
-    const std::size_t other_nbParticles = STARPU_BLOCK_INTERFACE_ID(buffers[1]);
+    double* other_values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[1]));
+    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1]);
 
+    p2p_neigh_gpu<<<NbThreadBlocks, NbThreadsPerBlock, 0, starpu_cuda_get_local_stream()>>>(values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES,
+                  other_values, other_nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
+    p2p_neigh_gpu<<<NbThreadBlocks, NbThreadsPerBlock, 0, starpu_cuda_get_local_stream()>>>(other_values, other_nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES,
+                  values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
+    cudaStreamSynchronize(starpu_cuda_get_local_stream());
 }
 #endif
 
@@ -528,26 +554,19 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
         starpu_init(NULL);
 
+        std::vector<starpu_data_handle_t> handles;
+        for(auto& group : particleGroups){
+            starpu_data_handle_t handle;
+            starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), group.getRawSize(), 1);
+            handles.push_back(handle);
+        }
+
         SpTimer timer;
 
         for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
             auto& group1 = particleGroups[idxGroup1];
             const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group1.getNbParticles()).getPriority();
-            #pragma omp task depend(mutexinout:group1) firstprivate(group1) priority(priority) default(none)
-            {
-                if(isCpuWorker){
-                    group1.computeSelf();
-                }
-                #ifdef SPECX_COMPILE_WITH_CUDA
-                else{
-                    auto descr = group1.memmovHostToDevice(threadStream);
-                    p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,threadStream>>>
-                                        (descr.getRawPtr(), descr.getRawSize());
-                    group1.memmovDeviceToHost(descr, threadStream);
-                    CUDA_ASSERT(cudaStreamSynchronize(threadStream));
-                }
-                #endif
-            }
+            starpu_insert_task(&cl_one_data, STARPU_PRIORITY, priority, STARPU_RW, handles[idxGroup1], 0);
         }
 
         for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
@@ -558,29 +577,11 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
 
             const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group2.getNbParticles()).getPriority();
 
-            #pragma omp task depend(mutexinout:group1, group2) firstprivate(group1, group2) priority(priority) default(none)
-            {
-                if(isCpuWorker){
-                    group1.compute(group2);
-                }
-                #ifdef SPECX_COMPILE_WITH_CUDA
-                else{
-                    auto descr1 = group1.memmovHostToDevice(threadStream);
-                    auto descr2 = group2.memmovHostToDevice(threadStream);
-                    p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,threadStream>>>
-                                    (descr2.getRawPtr(), descr2.getRawSize(), descr1.getRawPtr(), descr1.getRawSize());
-                    p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,threadStream>>>
-                                    (descr1.getRawPtr(), descr1.getRawSize(), descr2.getRawPtr(), descr2.getRawSize());
-                    group1.memmovDeviceToHost(descr1, threadStream);
-                    group2.memmovDeviceToHost(descr2, threadStream);
-                    CUDA_ASSERT(cudaStreamSynchronize(threadStream));
-                }
-                #endif
-            }
+            starpu_insert_task(&cl_two_data, STARPU_PRIORITY, priority, STARPU_RW, handles[idxGroup1], STARPU_RW, handles[idxGroup2], 0);
         }
 
         // Wait for all tasks to be done
-        starpu_wait_for_all();
+        starpu_task_wait_for_all();
 
         timer.stop();
         starpu_shutdown();
