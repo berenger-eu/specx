@@ -919,8 +919,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
                 const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
                 const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                 const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                 const bool useLocality = std::get<2>(useMultiprioAndPairs);
@@ -954,8 +954,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
             for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
-                const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
                 const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
                 const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
                 const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
                 const bool useLocality = std::get<2>(useMultiprioAndPairs);
