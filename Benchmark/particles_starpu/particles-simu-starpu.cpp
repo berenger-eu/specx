@@ -43,14 +43,12 @@ public:
 
 private:
     std::size_t nbParticles;
-    std::vector<double> values[NB_VALUE_TYPES];
+    std::vector<double> values;
 
 public:
     explicit ParticlesGroup(const std::size_t inNbParticles = 0)
         : nbParticles(inNbParticles){
-        for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            values[idxValueType].resize(nbParticles, 0);
-        }
+        values.resize(nbParticles*NB_VALUE_TYPES, 0);
     }
 
     ParticlesGroup(const ParticlesGroup&) = default;
@@ -62,14 +60,14 @@ public:
                            const std::array<double, NB_VALUE_TYPES>& inValues){
         assert(inIdxParticle < nbParticles);
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            values[idxValueType][inIdxParticle] = inValues[idxValueType];
+            values[idxValueType*nbParticles + inIdxParticle] = inValues[idxValueType];
         }
     }
 
     auto getParticle(const std::size_t inIdxParticle) const {
         std::array<double, NB_VALUE_TYPES> valuesPart;
         for(std::size_t idxValueType = 0 ; idxValueType < NB_VALUE_TYPES ; ++idxValueType){
-            valuesPart[idxValueType] = values[idxValueType][inIdxParticle];
+            valuesPart[idxValueType] = values[idxValueType*nbParticles + inIdxParticle];
         }
         return valuesPart;
     }
@@ -81,8 +79,8 @@ public:
 
     /////////////////////////////////////////////////////////////
 
-    void* getRawPtr(){
-        return values;
+    double* getRawPtr(){
+        return values.data();
     }
 
     size_t getRawSize() const{
@@ -91,7 +89,7 @@ public:
 };
 
 
-void computeSelf(double* values[ParticlesGroup::NB_VALUE_TYPES], const std::size_t nbParticles){
+void computeSelf(std::array<double*,ParticlesGroup::NB_VALUE_TYPES> values, const std::size_t nbParticles){
     for(std::size_t idxTarget = 0 ; idxTarget < nbParticles ; ++idxTarget){
         const double tx = double(values[ParticlesGroup::X][idxTarget]);
         const double ty = double(values[ParticlesGroup::Y][idxTarget]);
@@ -376,7 +374,7 @@ const int NbThreadsPerBlock = 256;
 
 static void p2p_inner_cpu_starpu_starpu(void *buffers[], void *cl_arg)
 {
-    double* values[ParticlesGroup::NB_VALUE_TYPES];
+    std::array<double*,ParticlesGroup::NB_VALUE_TYPES> values;
     values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
     const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
 
@@ -557,7 +555,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         std::vector<starpu_data_handle_t> handles;
         for(auto& group : particleGroups){
             starpu_data_handle_t handle;
-            starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), group.getRawSize(), 1);
+            starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), group.getNbParticles(), sizeof(double));
             handles.push_back(handle);
         }
 
@@ -582,9 +580,14 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
 
         // Wait for all tasks to be done
         starpu_task_wait_for_all();
-
         timer.stop();
+
         starpu_shutdown();
+
+        for(auto& handle : handles){
+            starpu_data_unregister(handle);
+        }
+
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
