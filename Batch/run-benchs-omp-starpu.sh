@@ -38,7 +38,7 @@ function main(){
     fi
 
     # Check if gemm cholesky axpy and particles-simu exist
-    if [ ! -f "$RUN_DIR/Benchmark/particles/particles-simu-omp" ] || [ ! -f "$RUN_DIR/Benchmark/particles/particles-simu-starpu" ] || [ ! -f "$RUN_DIR/Benchmark/particles/particles-simu" ]; then
+    if [ ! -f "$RUN_DIR/Benchmark/particles_openmp/particles-simu-omp" ] || [ ! -f "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" ] || [ ! -f "$RUN_DIR/Benchmark/particles/particles-simu" ]; then
         echo "Please make sure that the benchmarks are built in $RUN_DIR"
         return 1
     fi
@@ -58,15 +58,15 @@ function main(){
     remove_core_files
     
     # Particles omp
-    "$RUN_DIR/Benchmark/particles/particles-simu-omp" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_omp.txt"
+    "$RUN_DIR/Benchmark/particles_openmp/particles-simu-omp" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_omp.txt"
     remove_core_files
     
     # Particles starpu lws
-    STARPU_SCHED=lws "$RUN_DIR/Benchmark/particles/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_lws.txt"
+    STARPU_SCHED=lws "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_lws.txt"
     remove_core_files
     
     # Particles starpu dmda
-    STARPU_SCHED=dmda "$RUN_DIR/Benchmark/particles/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_dmda.txt"
+    STARPU_SCHED=dmda "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_dmda.txt"
     remove_core_files
 }
 
