@@ -7,4 +7,5 @@
 #SBATCH -C "a100&zen3"
 
 export SMPREFIX=80
-source /projets/schnaps/spetabaru-project/specx/Batch/run-benchsomp-starpu.sh
+source /projets/schnaps/spetabaru-project/specx/Batch/run-benchs-omp-starpu.sh
+
