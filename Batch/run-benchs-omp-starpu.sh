@@ -25,7 +25,7 @@ function main(){
     fi
     
     cd "$RUN_DIR"
-    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RelWithDebInfo # RelWithDebInfo
+    cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RELEASE # RelWithDebInfo
 
     ## Redirect std and error to file 
     make -j > build.log 2>&1
@@ -57,12 +57,16 @@ function main(){
     "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles.txt"
     remove_core_files
     
-    # Particles
+    # Particles omp
     "$RUN_DIR/Benchmark/particles/particles-simu-omp" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_omp.txt"
     remove_core_files
     
-    # Particles omp starpu
-    "$RUN_DIR/Benchmark/particles/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu.txt"
+    # Particles starpu lws
+    STARPU_SCHED=lws "$RUN_DIR/Benchmark/particles/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_lws.txt"
+    remove_core_files
+    
+    # Particles starpu dmda
+    STARPU_SCHED=dmda "$RUN_DIR/Benchmark/particles/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=256 --od="$results_dir" >> "$results_dir/output_particles_starpu_dmda.txt"
     remove_core_files
 }
 

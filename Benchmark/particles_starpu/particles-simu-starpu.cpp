@@ -659,9 +659,10 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         }
     }
 
-    std::ofstream file(outputDir + "/particle-simu-omp.csv");
+    const std::string csvfilename = outputDir + "/particle-simu-starpu"+ (getenv("STARPU_SCHED")?getenv("STARPU_SCHED"):"default") +".csv";
+    std::ofstream file(csvfilename);
     if(!file.is_open()){
-        std::cerr << "Cannot open file " << outputDir + "/particle-simu-omp.csv" << std::endl;
+        std::cerr << "Cannot open file " << csvfilename << std::endl;
         return;
     }
 
