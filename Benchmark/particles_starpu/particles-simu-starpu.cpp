@@ -582,12 +582,11 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         starpu_task_wait_for_all();
         timer.stop();
 
-        starpu_shutdown();
-
         for(auto& handle : handles){
             starpu_data_unregister(handle);
         }
 
+        starpu_shutdown();
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
         minMaxAvg[1] = std::max(minMaxAvg[1], timer.getElapsed());
