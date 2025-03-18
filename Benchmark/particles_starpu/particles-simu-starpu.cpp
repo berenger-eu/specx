@@ -376,7 +376,7 @@ static void p2p_inner_cpu_starpu_starpu(void *buffers[], void *cl_arg)
 {
     std::array<double*,ParticlesGroup::NB_VALUE_TYPES> values;
     values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0])/ParticlesGroup::NB_VALUE_TYPES;
 
     for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = values[idxValueType-1] + nbParticles;
@@ -389,7 +389,7 @@ static void p2p_inner_cpu_starpu_starpu(void *buffers[], void *cl_arg)
 static void p2p_inner_gpu_starpu(void *buffers[], void *cl_arg)
 {
     double* values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0])/ParticlesGroup::NB_VALUE_TYPES;
     p2p_inner_gpu<<<NbThreadBlocks, NbThreadsPerBlock, 0, starpu_cuda_get_local_stream()>>>(values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
     cudaStreamSynchronize(starpu_cuda_get_local_stream());
 }
@@ -399,7 +399,7 @@ static void p2p_neigh_cpu_starpu(void *buffers[], void *cl_arg)
 {
     double* values[ParticlesGroup::NB_VALUE_TYPES];
     values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0])/ParticlesGroup::NB_VALUE_TYPES;
 
     for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         values[idxValueType] = values[idxValueType-1] + nbParticles;
@@ -407,7 +407,7 @@ static void p2p_neigh_cpu_starpu(void *buffers[], void *cl_arg)
 
     double* other_values[ParticlesGroup::NB_VALUE_TYPES];
     other_values[0] = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[1]));
-    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1]);
+    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1])/ParticlesGroup::NB_VALUE_TYPES;
 
     for(std::size_t idxValueType = 1 ; idxValueType < ParticlesGroup::NB_VALUE_TYPES ; ++idxValueType){
         other_values[idxValueType] = other_values[idxValueType-1] + other_nbParticles;
@@ -421,10 +421,10 @@ static void p2p_neigh_cpu_starpu(void *buffers[], void *cl_arg)
 static void p2p_neigh_gpu_starpu(void *buffers[], void *cl_arg)
 {
     double* values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[0]));
-    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0]);
+    const std::size_t nbParticles = STARPU_VECTOR_GET_NX(buffers[0])/ParticlesGroup::NB_VALUE_TYPES;
 
     double* other_values = reinterpret_cast<double*>(STARPU_VECTOR_GET_PTR(buffers[1]));
-    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1]);
+    const std::size_t other_nbParticles = STARPU_VECTOR_GET_NX(buffers[1])/ParticlesGroup::NB_VALUE_TYPES;
 
     p2p_neigh_gpu<<<NbThreadBlocks, NbThreadsPerBlock, 0, starpu_cuda_get_local_stream()>>>(values, nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES,
                   other_values, other_nbParticles*sizeof(double)*ParticlesGroup::NB_VALUE_TYPES);
