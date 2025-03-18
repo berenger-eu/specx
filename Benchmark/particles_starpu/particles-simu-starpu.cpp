@@ -555,7 +555,8 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         std::vector<starpu_data_handle_t> handles;
         for(auto& group : particleGroups){
             starpu_data_handle_t handle;
-            starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), group.getNbParticles(), sizeof(double));
+            starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), 
+                                         ParticlesGroup::NB_VALUE_TYPES*group.getNbParticles(), sizeof(double));
             handles.push_back(handle);
         }
 
