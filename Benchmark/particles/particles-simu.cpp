@@ -949,7 +949,7 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
         return;
     }
 
-    file << "NbCpu,NbGpu,BlockSize,Multiprio,Multiprio,PrioPair,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
+    file << "NbCpu,NbGpu,BlockSize,Multiprio,PrioPair,Locality,MinDuration,MaxDuration,AvgDuration,TotalTransfer,MaxTransfer,DeviceToHostTransfer,HostToDeviceTransfer,DeviceToDeviceTransfer" << std::endl;
     int idxDuration = 0;
     for(auto useMultiprioAndPairs: schedPairConf){
         for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
