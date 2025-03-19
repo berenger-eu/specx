@@ -647,8 +647,11 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
     for(int idxGpu = -1 ; idxGpu <= nbMaxGpus ; ++idxGpu){
         for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
-            const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
             const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+            const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
+
+            setenv("STARPU_NCUDA", std::to_string(nbGpus).c_str(), 1);
+            setenv("STARPU_NCPU", std::to_string(nbCpus).c_str(), 1);
 
             std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << std::endl;              
             const auto minMaxAvg = BenchCore<8,true>(NbLoops, MinPartsPerGroup,

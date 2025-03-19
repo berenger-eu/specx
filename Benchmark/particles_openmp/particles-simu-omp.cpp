@@ -479,14 +479,16 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
     minMaxAvg[1] = std::numeric_limits<double>::min();
     minMaxAvg[2] = 0;
 
+    const int nbStreams = 3;
+
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
-        #pragma omp parallel
+        #pragma omp parallel num_threads(nbCpu + nbGpu*nbStreams)
         {
             isCpuWorker = true;
             #ifdef SPECX_COMPILE_WITH_CUDA
             if(nbCpu <= omp_get_thread_num() ){
                 isCpuWorker = false;
-                const int deviceId = (omp_get_thread_num() - nbCpu)/SpCudaUtils::GetNbDevices();
+                const int deviceId = (omp_get_thread_num() - nbCpu)/(nbStreams*SpCudaUtils::GetNbDevices());
                 CUDA_ASSERT(cudaSetDevice(deviceId));
                 CUDA_ASSERT(cudaStreamCreate(&threadStream));
             }
@@ -618,8 +620,8 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 
     for(int idxGpu = -1 ; idxGpu <= nbMaxGpus ; ++idxGpu){
         for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
-            const int nbCpus = (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads());
             const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+            const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
 
             std::cout << "NbGpu = " << idxGpu << " BlockSize = " << idxBlock << std::endl;              
             const auto minMaxAvg = BenchCore<8,true>(NbLoops, MinPartsPerGroup,
