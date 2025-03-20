@@ -979,10 +979,269 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 }
 
 
-int main(int argc, char** argv){
+template <int MaxNbDevices, const bool FavorLocality>
+bool RunAndCompareCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPartsPerGroup,
+                const int NbGroups, const int nbCpu, const int nbGpu, const bool useMultiPrioScheduler,
+                const bool usePrioPairs, const TuneResult& inKernelConfig,
+                const int maxInteractions, const int minInteractions){
 
+    std::vector<ParticlesGroup> particleGroups(NbGroups);
+
+    {
+        std::random_device rd;
+        std::uniform_int_distribution<int> dist(MinPartsPerGroup, MaxPartsPerGroup);
+        for(auto& group : particleGroups){
+            const int nbParts = dist(rd);
+            group = ParticlesGroup(nbParts);
+        }
+    }
+
+    std::vector<ParticlesGroup> copyParticleGroups = particleGroups;
+
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+    std::unique_ptr<SpAbstractScheduler> scheduler;
+    if(useMultiPrioScheduler == false){
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpHeterogeneousPrioScheduler());
+    }
+    else{
+        scheduler = std::unique_ptr<SpAbstractScheduler>(new SpMultiPrioScheduler<MaxNbDevices,FavorLocality>(nbGpu*SpCudaUtils::GetDefaultNbStreams()));
+    }
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuGpuWorkers(nbCpu, nbGpu), std::move(scheduler));
+#else
+    SpComputeEngine ce(SpWorkerTeamBuilder::TeamOfCpuWorkers(nbCpu));
+#endif
+
+    {
+        SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC>  tg;
+        tg.computeOn(ce);
+
+        SpTimer timer;
+
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = particleGroups[idxGroup1];
+            tg.task(GetPriority<MaxNbDevices,FavorLocality>(usePrioPairs, maxInteractions, minInteractions, group1.getNbParticles()*group1.getNbParticles()),
+			SpCommutativeWrite(group1),
+                        SpCpu([](ParticlesGroup& particlesW) {
+                            particlesW.computeSelf();
+                })
+                #ifdef SPECX_COMPILE_WITH_CUDA
+                    , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
+                        [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                        p2p_inner_gpu<<<inKernelConfig.nbBlocksInner,inKernelConfig.nbThreadsInner,0,SpCudaUtils::GetCurrentStream()>>>
+                                       (paramA.getRawPtr(), paramA.getRawSize());
+                            CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                    })
+                #endif
+                #ifdef SPECX_COMPILE_WITH_HIP
+                    , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA) {
+                        [[maybe_unused]] const std::size_t nbParticles = paramA.data().getNbParticles();
+                        hipLaunchKernelGGL(p2p_inner_gpu, inKernelConfig.nbBlocksInner, inKernelConfig.nbThreadsInner, 0, SpHipUtils::GetCurrentStream(),
+                                           paramA.getRawPtr(), paramA.getRawSize());
+                                HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                    })
+                #endif
+            );
+        }
+        if(particleGroups.size() > 1){
+            for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+                auto& group1 = particleGroups[idxGroup1];
+
+                const int idxGroup2 = (idxGroup1+1)%particleGroups.size();
+                auto& group2 = particleGroups[idxGroup2];
+
+                tg.task(GetPriority<MaxNbDevices,FavorLocality>(usePrioPairs, maxInteractions, minInteractions, group1.getNbParticles()*group2.getNbParticles()),
+                        SpCommutativeWrite(group1),SpCommutativeWrite(group2),
+                        SpCpu([](ParticlesGroup& particlesW, ParticlesGroup& particlesR) {
+                            particlesW.compute(particlesR);
+                        })
+                    #ifdef SPECX_COMPILE_WITH_CUDA
+                        , SpCuda([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                            [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                            [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                        (paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            p2p_neigh_gpu<<<inKernelConfig.nbBlocksOuter,inKernelConfig.nbThreadsOuter,0,SpCudaUtils::GetCurrentStream()>>>
+                                        (paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                                CUDA_ASSERT(cudaStreamSynchronize(SpCudaUtils::GetCurrentStream()));
+                        })
+                    #endif
+                    #ifdef SPECX_COMPILE_WITH_HIP
+                        , SpHip([&inKernelConfig](SpDeviceDataView<ParticlesGroup> paramA, SpDeviceDataView<ParticlesGroup> paramB) {
+                            [[maybe_unused]] const std::size_t nbParticlesA = paramA.data().getNbParticles();
+                            [[maybe_unused]] const std::size_t nbParticlesB = paramB.data().getNbParticles();
+                            hipLaunchKernelGGL(p2p_neigh_gpu, inKernelConfig.nbBlocksOuter, inKernelConfig.nbThreadsOuter, 0, SpHipUtils::GetCurrentStream(),
+                                                paramB.getRawPtr(), paramB.getRawSize(), paramA.getRawPtr(), paramA.getRawSize());
+                            hipLaunchKernelGGL(p2p_neigh_gpu, inKernelConfig.nbBlocksOuter, inKernelConfig.nbThreadsOuter, 0, SpHipUtils::GetCurrentStream(),
+                                                paramA.getRawPtr(), paramA.getRawSize(), paramB.getRawPtr(), paramB.getRawSize());
+                                    HIP_ASSERT(hipStreamSynchronize(SpHipUtils::GetCurrentStream()));
+                        })
+                    #endif
+                );
+            }
+        }
+        tg.waitAllTasks();
+
+#if defined(SPECX_COMPILE_WITH_CUDA) || defined(SPECX_COMPILE_WITH_HIP)
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = particleGroups[idxGroup1];
+            tg.task(SpWrite(group1),
+                    SpCpu([](ParticlesGroup& particlesW) {
+                    })
+            );
+        }
+        tg.waitAllTasks();
+#endif
+    }
+
+
+    // Run it on cpu sequential
+    {
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = copyParticleGroups[idxGroup1];
+            group1.computeSelf();
+        }
+
+        for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+            auto& group1 = copyParticleGroups[idxGroup1];
+
+            const int idxGroup2 = (idxGroup1+1)%particleGroups.size();
+            auto& group2 = copyParticleGroups[idxGroup2];
+
+            group1.compute(group2);
+        }
+    }
+
+    // Compare the results
+    for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
+        auto& group1 = particleGroups[idxGroup1];
+        auto& group1Ref = copyParticleGroups[idxGroup1];
+        
+        for(int idxPart = 0 ; idxPart < group1.getNbParticles() ; ++idxPart){
+            auto part1 = group1.getParticle(idxPart);
+            auto part1Ref = group1Ref.getParticle(idxPart);
+            for(int idxValue = 0 ; idxValue < ParticlesGroup::NB_VALUE_TYPES ; ++idxValue){
+                if(std::abs((part1[idxValue] - part1Ref[idxValue])/part1[idxValue]) > 1e-9){
+                    std::cerr << "Error in the simulation" << std::endl;
+                    std::cerr << "at index " << idxPart << " value " << idxValue << " " << part1[idxValue] << " " << part1Ref[idxValue] << std::endl;
+
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+
+void RunAndCompare(int argc, char** argv, const TuneResult& inKernelConfig){
+    CLsimple args("Particles", argc, argv);
+
+    args.addParameterNoArg({"help"}, "help");
+
+    int NbLoops = 100;
+    args.addParameter<int>({"lp" ,"nbloops"}, "NbLoops", NbLoops, 100);
+
+    int MinPartsPerGroup;
+    args.addParameter<int>({"minp"}, "MinPartsPerGroup", MinPartsPerGroup, 100);
+
+    int MaxPartsPerGroup;
+    args.addParameter<int>({"maxp"}, "MaxPartsPerGroup", MaxPartsPerGroup, 300);
+
+    int MinNbGroups;
+    args.addParameter<int>({"minnbgroups"}, "MinNbGroups", MinNbGroups, 10);
+
+    int MaxNbGroups;
+    args.addParameter<int>({"maxnbgroups"}, "MaxNbGroups", MaxNbGroups, 10);
+
+    std::string outputDir = "./";
+    args.addParameter<std::string>({"od"}, "outputdir", outputDir, outputDir);
+
+    args.parse();
+
+    if(!args.isValid() || args.hasKey("help")){
+      // Print the help
+      args.printHelp(std::cout);
+      return;
+    }
+
+    const int maxInteractions = MaxPartsPerGroup*MaxPartsPerGroup;
+    const int minInteractions = MinPartsPerGroup*MinPartsPerGroup;
+
+    assert(MinPartsPerGroup <= MaxPartsPerGroup);
+    assert(MinNbGroups <= MaxNbGroups);
+
+#ifdef SPECX_COMPILE_WITH_CUDA  
+    SpCudaUtils::PrintInfo(); 
+    const int nbGpus = SpCudaUtils::GetNbDevices();
+#elif defined(SPECX_COMPILE_WITH_HIP)
+    SpHipUtils::PrintInfo();
+    const int nbGpus = SpHipUtils::GetNbDevices();
+#else    
+    const int nbGpus = 0;
+#endif 
+
+    std::vector<std::vector<double>> allDurations;
+    const auto schedPairConf = std::vector<std::tuple<bool,bool,bool>>{std::make_tuple(false, false,false),
+                                                                 std::make_tuple(true, false, false),
+                                                                 std::make_tuple(true, true, false),
+                                                                 std::make_tuple(true, true, true),
+                                                                 std::make_tuple(true, false, true)};
+
+    for(auto useMultiprioAndPairs: schedPairConf){
+        for(int idxGpu = -1 ; idxGpu <= nbGpus ; ++idxGpu){
+            for(int idxBlock = MinNbGroups ; idxBlock <= MaxNbGroups ; idxBlock *= 2){
+                const int nbGpus = (idxGpu == -1 ? 0 : idxGpu);
+                const int nbCpus = std::max(1 , (idxGpu == -1 ? 1 : SpUtils::DefaultNumThreads())-nbGpus);
+                const bool useMultiprio = std::get<0>(useMultiprioAndPairs);
+                const bool usePrioPairs = std::get<1>(useMultiprioAndPairs);
+                const bool useLocality = std::get<2>(useMultiprioAndPairs);
+
+                std::cout << "Run for config :" << std::endl;
+                std::cout << " - NbGpu = " << idxGpu << std::endl;
+                std::cout << " - BlockSize = " << idxBlock << std::endl;
+                std::cout << " - Multiprio = " << useMultiprio << std::endl;
+                std::cout << " - Use pairs = " << usePrioPairs << std::endl;
+                std::cout << " - Favor Loc = " << useLocality << std::endl;
+
+                const bool ok = (useLocality ? 
+                    RunAndCompareCore<8,true>(NbLoops, MinPartsPerGroup,
+                                            MaxPartsPerGroup, idxBlock, nbCpus, nbGpus, useMultiprio, usePrioPairs, inKernelConfig,
+					    maxInteractions, minInteractions):
+                        RunAndCompareCore<8,false>(NbLoops, MinPartsPerGroup,
+                                            MaxPartsPerGroup, idxBlock, nbCpus, nbGpus, useMultiprio, usePrioPairs, inKernelConfig,
+					    maxInteractions, minInteractions));
+                if(!ok){
+                    std::cerr << "Error in the simulation" << std::endl;
+                    return;
+                }
+            }
+        }
+    }
+}
+
+
+int main(int argc, char** argv){
     auto tuneConfig = TuneBlockSize();
-    BenchmarkTest(argc, argv, tuneConfig);
+    std::cout << "Best kenel config:" << std::endl;
+    std::cout << " - Inner block " << tuneConfig.nbBlocksInner << " threads " << tuneConfig.nbThreadsInner << std::endl;
+    std::cout << " - Outer block " << tuneConfig.nbBlocksOuter << " threads " << tuneConfig.nbThreadsOuter << std::endl;
+
+    // Save config to file:
+    {
+        std::ofstream file("tuneConfig.txt");
+        if(!file.is_open()){
+            std::cerr << "Cannot open file tuneConfig.txt" << std::endl;
+            return 1;
+        }
+        file << tuneConfig.nbThreadsInner << " " << tuneConfig.nbBlocksInner << " " << tuneConfig.nbThreadsOuter << " " << tuneConfig.nbBlocksOuter << std::endl;
+    }
+
+    if(true){
+        BenchmarkTest(argc, argv, tuneConfig);
+    }
+    else{
+        RunAndCompare(argc, argv, tuneConfig);
+    }
 
     return 0;
 }

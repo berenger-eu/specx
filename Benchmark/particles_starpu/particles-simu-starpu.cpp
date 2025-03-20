@@ -689,6 +689,19 @@ void BenchmarkTest(int argc, char** argv, const TuneResult& inKernelConfig){
 int main(int argc, char** argv){
 
     TuneResult tuneConfig{256, 128, 256, 128};
+    // Test if it is in a file "tuneConfig.txt"
+    {
+        std::ifstream file("tuneConfig.txt");
+        if(file.is_open()){
+            file >> tuneConfig.nbThreadsInner;
+            file >> tuneConfig.nbBlocksInner;
+            file >> tuneConfig.nbThreadsOuter;
+            file >> tuneConfig.nbBlocksOuter;
+            std::cout << "Tune config loaded from file" << std::endl;
+            std::cout << " - Inner block " << tuneConfig.nbBlocksInner << " threads " << tuneConfig.nbThreadsInner << std::endl;
+            std::cout << " - Outer block " << tuneConfig.nbBlocksOuter << " threads " << tuneConfig.nbThreadsOuter << std::endl;
+        }
+    }
     BenchmarkTest(argc, argv, tuneConfig);
 
     return 0;
