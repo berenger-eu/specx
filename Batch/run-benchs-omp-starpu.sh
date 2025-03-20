@@ -66,7 +66,7 @@ function main(){
     remove_core_files
     
     # Particles starpu dmda
-    STARPU_SCHED=dmda "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles_starpu_dmda.txt"
+    STARPU_SCHED=dmda "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=2048 --od="$results_dir" >> "$results_dir/output_particles_starpu_dmda.txt"
     remove_core_files
 }
 
