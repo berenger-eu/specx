@@ -445,7 +445,7 @@ struct starpu_codelet cl_one_data = {
     .cuda_funcs = { p2p_inner_gpu_starpu },
 #endif
     .nbuffers = 1,
-    .modes = { STARPU_RW }, /* one buffer, read/write mode */
+    .modes = { STARPU_RW|STARPU_COMMUTE }, /* one buffer, read/write mode */
     .name = "one_data_task"
 };
 
@@ -460,7 +460,7 @@ struct starpu_codelet cl_two_data = {
     .cuda_funcs = { p2p_neigh_gpu_starpu },
 #endif
     .nbuffers = 2,
-    .modes = { STARPU_RW, STARPU_RW }, /* two buffers, both read/write */
+    .modes = { STARPU_RW|STARPU_COMMUTE, STARPU_RW|STARPU_COMMUTE }, /* two buffers, both read/write */
     .name = "two_data_task"
 };
 
@@ -565,7 +565,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
         for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
             auto& group1 = particleGroups[idxGroup1];
             const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group1.getNbParticles()).getPriority();
-            starpu_insert_task(&cl_one_data, STARPU_PRIORITY, priority, STARPU_RW, handles[idxGroup1], 0);
+            starpu_insert_task(&cl_one_data, STARPU_PRIORITY, priority, STARPU_RW|STARPU_COMMUTE, handles[idxGroup1], 0);
         }
 
         for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
@@ -576,7 +576,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
 
             const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group2.getNbParticles()).getPriority();
 
-            starpu_insert_task(&cl_two_data, STARPU_PRIORITY, priority, STARPU_RW, handles[idxGroup1], STARPU_RW, handles[idxGroup2], 0);
+            starpu_insert_task(&cl_two_data, STARPU_PRIORITY, priority, STARPU_RW|STARPU_COMMUTE, handles[idxGroup1], STARPU_RW|STARPU_COMMUTE, handles[idxGroup2], 0);
         }
 
         // Wait for all tasks to be done
