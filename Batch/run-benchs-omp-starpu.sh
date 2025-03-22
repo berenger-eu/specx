@@ -54,15 +54,15 @@ function main(){
     NB_LOOPS=10
 
     # Particles
-    "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles.txt"
+    "$RUN_DIR/Benchmark/particles/particles-simu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=2048 --od="$results_dir" >> "$results_dir/output_particles.txt"
     remove_core_files
     
     # Particles omp
-    "$RUN_DIR/Benchmark/particles_openmp/particles-simu-omp" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles_omp.txt"
+    "$RUN_DIR/Benchmark/particles_openmp/particles-simu-omp" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=2048 --od="$results_dir" >> "$results_dir/output_particles_omp.txt"
     remove_core_files
     
     # Particles starpu lws
-    STARPU_SCHED=lws "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=512 --od="$results_dir" >> "$results_dir/output_particles_starpu_lws.txt"
+    STARPU_SCHED=lws "$RUN_DIR/Benchmark/particles_starpu/particles-simu-starpu" --lp=$NB_LOOPS --minp=500 --maxp=512 --minnbgroups=128 --maxnbgroups=2048 --od="$results_dir" >> "$results_dir/output_particles_starpu_lws.txt"
     remove_core_files
     
     # Particles starpu dmda
