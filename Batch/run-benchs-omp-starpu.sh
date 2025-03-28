@@ -27,6 +27,7 @@ function main(){
     cd "$RUN_DIR"
     cmake .. -DSPECX_COMPILE_WITH_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$SMPREFIX -DCMAKE_BUILD_TYPE=RELEASE # RelWithDebInfo
 
+    make clean
     ## Redirect std and error to file 
     make -j > build.log 2>&1
 
