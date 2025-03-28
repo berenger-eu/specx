@@ -552,11 +552,14 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
     for(int idxLoop = 0 ; idxLoop < NbLoops ; ++idxLoop){
         starpu_init(NULL);
 
+        starpu_arbiter_t arbiter = starpu_arbiter_create();
+
         std::vector<starpu_data_handle_t> handles;
         for(auto& group : particleGroups){
             starpu_data_handle_t handle;
             starpu_vector_data_register(&handle, 0, reinterpret_cast<uintptr_t>(group.getRawPtr()), 
                                          ParticlesGroup::NB_VALUE_TYPES*group.getNbParticles(), sizeof(double));
+            starpu_data_assign_arbiter(handle, arbiter);
             handles.push_back(handle);
         }
 
@@ -587,6 +590,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
             starpu_data_unregister(handle);
         }
 
+        starpu_arbiter_destroy(arbiter);
         starpu_shutdown();
 
         minMaxAvg[0] = std::min(minMaxAvg[0], timer.getElapsed());
