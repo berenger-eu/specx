@@ -22,24 +22,49 @@ This is an on-going project under development.
 [![CI](https://github.com/feelpp/specx/actions/workflows/ci.yml/badge.svg)](https://github.com/feelpp/specx/actions/workflows/ci.yml)
 
 # Installation requirements
-1. C++17 standard compliant toolchain
-2. CMake (version 3.20 or after)
 
-# Installation
-1. First create a new directory outside of SPECX's source tree with mkdir <dir_name>
-2. cd into the newly created directory.
-3. Create a subdirectory with a name of your choice
-4. Run cmake -DCMAKE_INSTALL_PREFIX=<path_to_directory_created_in_step_3> -DCMAKE_BUILD_TYPE=<build_type> ..
-5. Run make or make -j <number_of_commands_to_run_simultaneously>
-6. Run make install
+- A C++20 toolchain for CPU and HIP builds; CUDA builds currently use C++17.
+- CMake 3.20 or newer and a platform with POSIX threads.
+- Optional: CUDA, HIP, or MPI development tools for the corresponding backend.
+  CUDA and HIP cannot be enabled together.
 
-`<build_type>` can take one of two values : `Release` or `Debug`.
+# Build, test, and install
 
-If you want to install the static SPECX library and its header files to your default user
-library location you can remove the DCMAKE_INSTALL_PREFIX flag in step 4.
+From the repository root, a CPU-only Debug build can be configured and tested with:
 
-If you want to create the build directory inside SPECX's source tree, we recommend
-to call it "build" as this name has been explicitly marked as to be ignored by Git.
+```sh
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DSPECX_COMPILE_WITH_CUDA=OFF \
+  -DSPECX_COMPILE_WITH_HIP=OFF \
+  -DSPECX_COMPILE_WITH_MPI=OFF \
+  -DSPECX_BUILD_BENCHMARK=OFF
+cmake --build build --parallel 2
+OMP_NUM_THREADS=4 ctest --test-dir build --output-on-failure --timeout 90
+```
+
+CUDA is enabled by default when its compiler is detected, so explicitly disable it
+for a CPU-only build. Use `Release` for optimized builds or `RelWithDebInfo` for
+optimized builds with debug symbols. Adjust build parallelism to available memory.
+
+To install the library and headers to a user-selected prefix:
+
+```sh
+cmake --install build --prefix "$HOME/.local"
+```
+
+Useful CMake options:
+
+| Option | Purpose |
+| --- | --- |
+| `SPECX_JUST_LIB=ON` | Build only the library; the default when included as a subproject. |
+| `SPECX_BUILD_UTESTS=OFF` | Disable unit tests. |
+| `SPECX_BUILD_EXAMPLES=OFF` | Disable examples. |
+| `SPECX_BUILD_BENCHMARK=OFF` | Disable benchmarks and their optional dependencies. |
+| `SPECX_DO_INSTALL=OFF` | Disable installation of the library and generated configuration. |
+| `SPECX_USE_DEBUG_PRINT=ON` | Compile support for debug logging; enabled by default. |
+
+See [Docs/Testing.md](./Docs/Testing.md) for regression tests and sanitizer checks.
 
 # Examples
 
@@ -60,10 +85,10 @@ This document is also describing the current models.
 #include <random>
 #include <cassert>
 
-#include "Utils/SpModes.hpp"
-#include "Utils/SpPriority.hpp"
-#include "Utils/SpProbability.hpp"
-#include "Runtimes/SpRuntime.hpp"
+#include "Data/SpDataAccessMode.hpp"
+#include "Task/SpPriority.hpp"
+#include "Task/SpProbability.hpp"
+#include "Legacy/SpRuntime.hpp"
 
 const size_t seedSpeculationSuccess = 42;
 const size_t seedSpeculationFailure = 0;
@@ -112,7 +137,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]){
     std::uniform_real_distribution<double> dis01(0,1);
     
     runtime.task(SpPriority(0), SpProbability(0.5), SpRead(b),
-    SpMaybeWrite(a),
+    SpPotentialWrite(a),
     [dis01, mtEngine] (const int &inB, int &inA) mutable -> bool{
         double val = dis01(mtEngine);
         
@@ -170,41 +195,81 @@ Workflow in Specx mainly revolves around three interfaces:
 - the data dependency interface
 - the task viewer interface
 
+## Task graphs and compute engines
+
+`SpTaskGraph` owns tasks and their dependencies. `SpComputeEngine` owns workers and
+the scheduler used to execute ready tasks. Several graphs can share one engine;
+workers can also be transferred between engines. `Legacy/SpRuntime.hpp` provides
+`SpRuntime`, a convenience wrapper that owns one graph and one engine.
+
+A minimal CPU example using the graph and engine interfaces:
+
+```cpp
+#include <cassert>
+#include "Compute/SpComputeEngine.hpp"
+#include "Compute/SpWorkerTeamBuilder.hpp"
+#include "TaskGraph/SpTaskGraph.hpp"
+
+int main() {
+    int value = 0;
+    SpComputeEngine engine(SpWorkerTeamBuilder::TeamOfCpuWorkers(2));
+    SpTaskGraph<SpSpeculativeModel::SP_NO_SPEC> graph;
+    graph.computeOn(engine);
+    graph.task(SpWrite(value), [](int& output) { output = 42; });
+    graph.waitAllTasks();
+    assert(value == 42);
+    engine.stopIfNotAlreadyStopped();
+}
+```
+
+Keep dependency data alive until all tasks using it finish. Wait for each graph
+before stopping its engine, and destroy graphs before the engine they use. An
+engine stops its workers on destruction, but does not drain unfinished graphs.
+An engine with no workers cannot make progress until workers are added.
+
+The default CPU scheduler is `SpSimpleScheduler`, which uses LIFO order for ready
+tasks and does not use priorities. Pass `std::make_unique<SpPrioScheduler>()` as the
+second argument to the engine constructor when priorities are needed. Neither
+scheduler changes the ordering imposed by data dependencies.
+
+Worker management and `execOnWorkers` calls must be serialized by the application.
+`execOnWorkers` runs its callback on each worker and waits for each invocation to
+finish; callback side effects are visible when it returns. Call it from the
+controlling thread, and keep callbacks non-throwing. Workers detached from an
+engine remain started and can be added to another engine or safely destroyed.
+
 ## Runtime interface
 The runtime's functionality is exposed through a class called `SpRuntime`. This class
 provides task creation, task graph and trace generation facilities.
 
-The SpRuntime class is templated on a non type parameter that can be used to specify which
-speculation model you want to use. This parameter can take on one of three values (we currently
-support three different speculation models) defined in [Src/Speculation/SpSpeculativeModel.hpp](./Src/Speculation/SpSpeculativeModel.hpp).
-By default the runtime uses the first speculation model.
+`SpRuntime` is templated on `SpSpeculativeModel`: `SP_MODEL_1`, `SP_MODEL_2`,
+`SP_MODEL_3`, or `SP_NO_SPEC`. The default is `SP_MODEL_1`. Definitions are in
+[Src/Speculation/SpSpeculativeModel.hpp](./Src/Speculation/SpSpeculativeModel.hpp).
 
 ### Main `SpRuntime` methods:
+
 - SpRuntime(const int inNumThreads)
 
-At the moment every instance of SpRuntime has its own thread pool to distribute its work onto.
-In the future we plan to separate thread management from the runtime.
-The runtime's contructor takes as a parameter the number of threads it should spawn. By default the
-parameter is initialized to the number indicated by the `OMP_NUM_THREADS` environment variable. If the environment variable
-is not set the parameter is default initialized to the number of concurrent threads supported by the hardware.
-The constructor spawns the new threads.  
-At this time, we don't allow manual binding of threads to cores. For now, the runtime will bind threads to cores by thread index 
-if either the environment variable `OMP_PROC_BIND` is set to `TRUE` (or `true` or `1`) or if inNumThreads is less than or equal
-to the number of concurrent threads supported by the hardware.
+Each `SpRuntime` owns its task graph and compute engine. The explicit thread-count
+constructor creates a CPU worker team; use a positive thread count. The default
+CPU count comes from `OMP_NUM_THREADS`, then `SPECX_NB_CPU_THREADS`, then the
+hardware concurrency reported by the standard library. In a CUDA build, the
+no-argument constructor creates a combined CPU/CUDA team. Use the graph and
+engine interfaces described above to share or transfer workers.
 
 - auto task([optional] SpPriority inPriority, [optional] SpProbability inProbability,  
 [optional] \<DataDependencyTy\> ddo..., \<CallableTy\> c) (1)
 - auto task([optional] SpPriority inPriority, [optional] SpProbability inProbability,  
-[optional] \<DataDependencyTy\> ddo..., SpCpuCode(\<CallableTy\> c1), [optional] SpGpuCode(\<CallableTy\> c2)) (2)
+[optional] \<DataDependencyTy\> ddo..., SpCpu(\<CallableTy\> c1), [optional] SpCuda(\<CallableTy\> c2)) (2)
 
 This method creates a new task and injects it into the runtime. It returns an object representing the newly created task. For more information
 on how to interact with this object see `Task viewer interface` section below.
  
 The inPriority parameter specifies a priority for the task. You can find the definition of the SpPriority class in
-[Src/Utils/SpPriority.hpp](./Src/Utils/SpPriority.hpp).
+[Src/Task/SpPriority.hpp](./Src/Task/SpPriority.hpp).
 
 The inProbability parameter is an object used to specify the probability with which the task may write to its maybe-written data dependencies. You can
-find the definition of the SpProbability class in [Src/Utils/SpProbability.hpp](./Src/Utils/SpProbability.hpp).
+find the definition of the SpProbability class in [Src/Task/SpProbability.hpp](./Src/Task/SpProbability.hpp).
 
 Following the inProbability parameter is a list of data dependency objects (see section Data dependency interface below for a definition of these
 objects). This list declares the data dependencies of the task. At the moment we only allow one type of data dependency to be declared for a given
@@ -214,15 +279,17 @@ strongest dependency type which is write). Validity of the dependencies is check
 expressions that are different but evaluate to the same data element the program will exit.  
 The runtime distinguishes potential tasks (tasks that might not always write to their write data dependencies) from normal tasks (tasks
 that always write to their write data dependencies). The information of whether the to be created task should be considered a potential task or
-a normal task is infered from the DataDependency object list. In short, if the list contains a data dependency object of type SpMaybeWrite or
-SpMaybeWriteArray (see data dependency section below) then the task will be considered a potential task. If not it will be considered a normal task.
+a normal task is infered from the DataDependency object list. In short, if the list contains a data dependency object of type SpPotentialWrite or
+SpPotentialWriteArray (see data dependency section below) then the task will be considered a potential task. If not it will be considered a normal task.
 The runtime will only try to speculate over potential tasks.
 
 The last or two last argument(s) (depending on which overload the call gets resolved to) specifies(specify) (a) callable(s) embodying the code that
 the task should execute. The callables can either be lambda expressions or functors.
-The callable's function call operator must have as many parameters as there are data dependency objects in the data dependency object list. All 
-parameters should be of lvalue reference type and the type of each parameter should be the same as the data element from the corresponding data
-dependency object in the data dependency object list (alternatively you can type deduce the type with auto). The parameters should appear in the
+The callable's function call operator must have as many parameters as there are data dependency objects in the data dependency object list. For CPU code,
+scalar parameters should be lvalue references matching the corresponding data
+dependency (`const` for reads); array dependencies use `SpArrayAccessor`. CUDA and
+HIP callables instead receive `SpDeviceDataView` objects, as shown in the backend
+sections below. The parameters should appear in the
 same order as they appear in the data dependency list.  
 Example:
 ```cpp
@@ -251,9 +318,9 @@ The callables for potential tasks must however all return a boolean. This boolea
 to its maybe-write data dependencies or not. The callable's code must appropriately return true or false depending on the situation. It should return
 true if the task wrote to its maybe-write data dependencies and false otherwise.  
 In overload (1) the callable is passed as is to the task call. It will implicitly be interpreted by the runtime as CPU code.  
-In overload (2) the callable c1 is explictly tagged as CPU code by being wrapped inside a SpCpuCode object (see subsection on callable wrapper objects 
+In overload (2) the callable c1 is explictly tagged as CPU code by being wrapped inside a SpCpu object (see subsection on callable wrapper objects
 in section Data dependency interface below). Overload (2) additionally permits the user to provide a GPU version of the code (in this case the callable
-should be wrapped inside a SpGpuCode object). When both CPU and GPU versions of the code are provided, the Specx runtime will decide at runtime
+should be wrapped inside a SpCuda object). When both CPU and GPU versions of the code are provided, the Specx runtime will decide at runtime
 which one of the two to execute.           
 
 - void setSpeculationTest(std::function<bool(int,const SpProbability&)> inFormula)
@@ -319,7 +386,7 @@ The generateTrace method should only be called after having called waitAllTasks(
 ## Data dependency interface
 The data dependency interface forms a collection of objects that can be used to express data dependencies.  
 It also provides wrapper objects that can be used to specify if a given callable should be considered CPU or GPU code.  
-The definition of the classes for these objects can be found in [Src/Utils/SpModes.hpp](./Src/Utils/SpModes.hpp).
+The definition of the classes for these objects can be found in [Src/Data/SpDataAccessMode.hpp](./Src/Data/SpDataAccessMode.hpp).
 
 ### Data dependency objects
 Specifying data dependencies boils down to constructing the relevant data dependency objects from the data lvalues.
@@ -331,7 +398,7 @@ Specifies a read dependency on x.
 Read requests are always fulfilled by default, i.e. a read request rr2 on data x immediately following another read request rr1 on data x does
 not have to wait for rr1 to be fulfilled in order to be serviced.
 Multiple successive read accesses will be performed in any order and/or at the same time.  
-Reads are ordered by the runtime with respect to writes, maybe-writes, commutative writes and atomic writes.
+Reads are ordered by the runtime with respect to writes, maybe-writes, commutative writes and parallel writes.
 The order is the order in which the data accesses have been requested at runtime. 
  
 - SpWrite(x)
@@ -339,15 +406,15 @@ The order is the order in which the data accesses have been requested at runtime
 Specifies a write dependency on x indicating that the data x will be written to with 100\% certainty.  
 Multiple successive write requests to given data x will be fulfilled one after the other in the order they were emitted in at
 runtime.  
-Writes are ordered by the runtime with respect to reads, writes, maybe-writes, commutative writes and atomic writes.
+Writes are ordered by the runtime with respect to reads, writes, maybe-writes, commutative writes and parallel writes.
 The order is the order in which the data accesses have been requested at runtime.
 
-- SpMaybeWrite(x)
+- SpPotentialWrite(x)
 
 Specifies a maybe-write dependency indicating that the data x might be written to, i.e. it will not always be the case (writes might occur
 with a certain probability).  
 Multiple successive maybe-write requests to given data x will be fulfilled one after the other in the order they were emitted in at runtime.  
-Maybe-writes are ordered by the runtime with respect to reads, writes, maybe-writes, commutative writes and atomic writes.
+Maybe-writes are ordered by the runtime with respect to reads, writes, maybe-writes, commutative writes and parallel writes.
 The order is the order in which the data accesses have been requested at runtime.
 
 
@@ -362,20 +429,18 @@ As an example, if two tasks commutative write to data x, the runtime does not en
 tasks won't be able to execute in parallel however : while one of the two task is executing and writing to data x the other task won't be able
 to execute because its commutative write dependency request won't be serviced until the first task has finished executing and has released its
 commutative write dependency on x.  
-Commutative writes are ordered by the runtime with respect to reads, writes, maybe-writes and atomic writes.
+Commutative writes are ordered by the runtime with respect to reads, writes, maybe-writes and parallel writes.
 The order is the order in which the data accesses have been requested at runtime.
 
-- SpAtomicWrite(x)
+- SpParallelWrite(x)
 
-Specifies an atomic write dependency on x.  
-Atomic write requests are always fulfilled by default, i.e. an atomic write request awr2 on data x immediately following another atomic write
-request awr1 on data x does not have to wait for awr1 to be fulfilled in order to be serviced.
-Multiple successive atomic writes will be performed in any order.
-As an example, if two tasks atomically write to data x, the runtime does not enforce an order as to which tasks gets to atomically write first and
-the two tasks will be able to execute in parallel. The atomic writes will be committed to memory in whatever order they will be committed at
-runtime, the point is that the Specx runtime does not enforce an order on the atomic writes.  
-Atomic writes are ordered by the runtime with respect to reads, writes, maybe-writes and commutative writes.
-The order is the order in which the data accesses have been requested at runtime.
+Specifies a parallel write dependency on x. Multiple successive parallel write
+requests may execute at the same time and in any order. The callable must provide
+its own synchronization, for example with `std::atomic` or a mutex; this access
+mode does not make ordinary C++ writes atomic.
+
+Parallel writes are ordered with respect to reads, writes, potential writes, and
+commutative writes in the order those accesses were submitted.
 
 All data dependency constructors for scalar data should be given an lvalue as the argument.
 
@@ -384,27 +449,30 @@ All data dependency constructors for scalar data should be given an lvalue as th
 We also provide analogous contructors for aggregates of data values from arrays :
 - SpReadArray(\<XTy\> \*x, \<ViewTy\> view)
 - SpWriteArray(\<XTy\> \*x, \<ViewTy\> view)
-- SpMaybeWriteArray(\<XTy\> \*x, \<ViewTy\> view)
+- SpPotentialWriteArray(\<XTy\> \*x, \<ViewTy\> view)
 - SpCommutativeWriteArray(\<XTy\> \*x, \<ViewTy\> view)
-- SpAtomicWriteArray(\<XTy\> \*x, \<ViewTy\> view)
+- SpParallelWriteArray(\<XTy\> \*x, \<ViewTy\> view)
 
 `x` should be a pointer to a contiguous buffer (the array).\
 `view` should be an object representing the collection of specific indices of the array elements that are affected by the dependency. It should be
 iterable (in the sense "stl iterable"). An example implementation of such a view class can be found in [Src/Utils/SpArrayView.hpp](./Src/Utils/SpArrayView.hpp). 
 
 ### Wrapper objects for callables
-We provide two wrapper objects for callables whose purpose is to tag a callable to inform the runtime system of whether it should interpret the given
-callable as CPU or GPU code:
+Callable wrappers select a backend: `SpCpu`, `SpCuda`, and `SpHip`. CUDA and HIP wrappers require the corresponding backend to be enabled. For example:
 
-- SpCpuCode(\<CallableTy\> c)
+- SpCpu(\<CallableTy\> c)
 
 Specifies that the callable c represents CPU code.
 
-- SpGpuCode(\<CallableTy\> c)
+- SpCuda(\<CallableTy\> c)
 
-Specifies that the callable c represents GPU code.
+Specifies that the callable c represents CUDA code.
 
-In both cases the callable c can be a lambda or a functor lvalue or rvalue.
+- SpHip(\<CallableTy\> c)
+
+Specifies that the callable c represents HIP code.
+
+In all cases the callable c can be a lambda or a functor lvalue or rvalue.
 
 A callable that appears as an argument of a call to the `task` method of a `SpRuntime` object without being wrapped into one the above two objects will be
 interpreted by the runtime as CPU code by default. 
@@ -412,7 +480,7 @@ interpreted by the runtime as CPU code by default.
 ## Task viewer interface
 The task viewer interface specifies ways to interact with the task object returned by the task method of SpRuntime.  
 The exact type returned by the task method of SpRuntime is not important and in practice it should be type deduced (auto) in your programs.
-You can however find the definition of the returned type in [Src/Tasks/SpAbstractTask.hpp](./Src/Tasks/SpAbstractTask.hpp).
+You can however find the definition of the returned type in [Src/Task/SpAbstractTask.hpp](./Src/Task/SpAbstractTask.hpp).
 
 ### Main methods available on task objects returned by task calls
 - bool isOver()

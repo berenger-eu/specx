@@ -49,5 +49,8 @@ if(SPECX_BUILD_UTESTS)
             ${SPECX_LIBRARIES}
             )
         add_test(${execname} ${CMAKE_CURRENT_BINARY_DIR}/${execname})
+        if(execname STREQUAL "testWorkerLifecycle" OR execname STREQUAL "testConsumerThread" OR execname STREQUAL "testSimpleScheduler")
+            set_tests_properties(${execname} PROPERTIES TIMEOUT 30)
+        endif()
     endforeach(exec)
 endif()

@@ -5,6 +5,10 @@
 #include <functional>
 #include <future>
 #include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <stdexcept>
+#include <memory>
 
 class SpConsumerThread {
     static void consume(SpConsumerThread* data) {
@@ -18,7 +22,7 @@ class SpConsumerThread {
                 if (data->queueJobs.empty() && data->shouldTerminate) {
                     return;
                 }
-                job = data->queueJobs.front();
+                job = std::move(data->queueJobs.front());
                 data->queueJobs.pop();
             }
             job();
@@ -31,10 +35,11 @@ class SpConsumerThread {
     std::condition_variable mutexCondition;
     std::queue<std::function<void()>> queueJobs;
     std::thread thread;
+    const std::thread::id consumerThreadId;
 
 public:
     SpConsumerThread()
-        : thread(consume, this){
+        : thread(consume, this), consumerThreadId(thread.get_id()){
 
     }
 
@@ -44,31 +49,31 @@ public:
     SpConsumerThread& operator=(SpConsumerThread&&) = delete;
 
     ~SpConsumerThread(){
-        if(shouldTerminate == false){
-            stop();
-        }
+        stop();
     }
 
     void submitJob(const std::function<void()>& job) {
         {
             std::unique_lock<std::mutex> lock(queueMutex);
+            if(shouldTerminate) {
+                throw std::runtime_error("Cannot submit a job to a stopped SpConsumerThread");
+            }
             queueJobs.push(job);
         }
         mutexCondition.notify_one();
     }
 
     void submitJobAndWait(const std::function<void()>& job) {
-        std::promise<int> synPromise;
-        std::function<void()> superJob = [&job, &synPromise]() {
+        // A synchronous submission from this consumer must run inline to
+        // avoid waiting on the thread that is currently executing the caller.
+        if(std::this_thread::get_id() == consumerThreadId) {
             job();
-            synPromise.set_value(true);
-        };
-        {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            queueJobs.push(superJob);
+            return;
         }
-        mutexCondition.notify_one();
-        synPromise.get_future().get();
+        auto task = std::make_shared<std::packaged_task<void()>>(job);
+        auto result = task->get_future();
+        submitJob([task]() { (*task)(); });
+        result.get();
     }
 
     void stop() {
@@ -77,7 +82,11 @@ public:
             shouldTerminate = true;
         }
         mutexCondition.notify_all();
-        thread.join();
+        // stop() calls must be serialized by the caller. A consumer job may
+        // request shutdown; an external stop/destructor performs the join.
+        if(std::this_thread::get_id() != consumerThreadId && thread.joinable()) {
+            thread.join();
+        }
     }
 };
 

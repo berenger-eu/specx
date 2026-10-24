@@ -130,7 +130,9 @@ private:
             workers.erase(eraseStartPosIt.base(), workers.end());
             
             std::unique_lock<std::mutex> computeEngineLock(ceMutex);
-            updateWorkerCounters<true, true>(wt, -nbWorkersToDetach);
+            // Migrating workers have already left wait() and removed themselves
+            // from the available count. Only the total count changes here.
+            updateWorkerCounters<true, false>(wt, -nbWorkersToDetach);
         
         }
         

@@ -6,6 +6,7 @@
 #define SPSCHEDULER_HPP
 
 #include <atomic>
+#include <mutex>
 
 #include "Task/SpAbstractTask.hpp"
 #include "Task/SpPriority.hpp"
@@ -17,7 +18,10 @@
 
 //! The runtime is the main component of specx.
 class SpSimpleScheduler : public SpAbstractScheduler{
-    std::atomic<SpAbstractTask*> tasksReady;
+    // Serialize node access: a popped task can be destroyed with its graph
+    // while another consumer is still inspecting the old head of the list.
+    std::mutex mutexReadyTasks;
+    SpAbstractTask* tasksReady;
     std::atomic<int> nbReadyTasks;
 
 public:
@@ -39,45 +43,38 @@ public:
     }
 
     int push(SpAbstractTask* newTask) final {
-        int cpt = nbReadyTasks;
-        while(!nbReadyTasks.compare_exchange_strong(cpt, cpt+1)){
-        }
-        SpAbstractTask* expectedTask = tasksReady;
-        newTask->getPtrNextList() = expectedTask;
-        while(!tasksReady.compare_exchange_strong(expectedTask, newTask)){
-            newTask->getPtrNextList() = expectedTask;
-        }
+        std::lock_guard<std::mutex> lock(mutexReadyTasks);
+        newTask->getPtrNextList() = tasksReady;
+        tasksReady = newTask;
+        ++nbReadyTasks;
         return 1;
     }
 
-    int pushTasks(small_vector_base<SpAbstractTask*>& tasks)  final {
-        for(auto tk : tasks){
-            push(tk);
+    int pushTasks(small_vector_base<SpAbstractTask*>& tasks) final {
+        std::lock_guard<std::mutex> lock(mutexReadyTasks);
+        for(auto* task : tasks) {
+            task->getPtrNextList() = tasksReady;
+            tasksReady = task;
         }
+        nbReadyTasks += int(tasks.size());
         return int(tasks.size());
     }
 
     SpAbstractTask* popForWorkerType(const SpWorkerTypes::Type wt) final {
-        if(wt == SpWorkerTypes::Type::CPU_WORKER) {
-            while(true){
-                int ticket = nbReadyTasks;
-                if(ticket == 0){
-                    return nullptr;
-                }
-                if(nbReadyTasks.compare_exchange_strong(ticket, ticket-1)){
-                    SpAbstractTask* task = tasksReady;
-                    while(task == nullptr || !tasksReady.compare_exchange_strong(task, task->getPtrNextList())){
-                        if(task == nullptr){
-                            task = tasksReady;
-                        }
-                    }
-                    task->getPtrNextList() = nullptr;
-                    return task;
-                }
-            }
+        if(wt != SpWorkerTypes::Type::CPU_WORKER) {
+            return nullptr;
         }
-        return nullptr;
+        std::lock_guard<std::mutex> lock(mutexReadyTasks);
+        if(!tasksReady) {
+            return nullptr;
+        }
+        auto* task = tasksReady;
+        tasksReady = task->getPtrNextList();
+        task->getPtrNextList() = nullptr;
+        --nbReadyTasks;
+        return task;
     }
+
 };
 
 

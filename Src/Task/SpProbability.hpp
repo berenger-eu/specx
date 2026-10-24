@@ -40,8 +40,10 @@ public:
             (*this) = other;
         }
         else if(other.activated == true){
-            probability = (probability*includedProbabilities + other.probability)/includedProbabilities;
-            includedProbabilities += 1;
+            const int combinedCount = includedProbabilities + other.includedProbabilities;
+            probability = (probability * includedProbabilities
+                           + other.probability * other.includedProbabilities) / combinedCount;
+            includedProbabilities = combinedCount;
         }
     }
 };

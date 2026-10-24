@@ -52,11 +52,12 @@ private:
     std::atomic<std::function<void(void)>*> hasFuncToExecPtr;
 
     void execFuncIfNeeded(){
-        if(hasFuncToExecPtr.load(std::memory_order_relaxed)){
+        if(auto* func = hasFuncToExecPtr.load(std::memory_order_acquire)){
             SpDebugPrint() << "execFuncIfNeeded hasFuncToExec set.";
-            (*hasFuncToExecPtr)();
+            (*func)();
             SpDebugPrint() << "execFuncIfNeeded done.";
-            hasFuncToExecPtr = nullptr;
+            // Publish callback side effects before its owner destroys func.
+            hasFuncToExecPtr.store(nullptr, std::memory_order_release);
         }
     }
 
@@ -103,13 +104,12 @@ private:
     
     void stop() {
         if(t.joinable()) {
-            if(stopFlag.load(std::memory_order_relaxed)) {
-                {
-                    std::unique_lock<std::mutex> workerLock(workerMutex);
-                    stopFlag.store(true, std::memory_order_relaxed);
-                }
-                workerConditionVariable.notify_one();
+            {
+                std::unique_lock<std::mutex> workerLock(workerMutex);
+                stopFlag.store(true, std::memory_order_relaxed);
             }
+            workerConditionVariable.notify_one();
+            wakeUpCe();
             waitForThread();
         }
     }
@@ -183,13 +183,17 @@ public:
             func(id, type);
         };
 
-        hasFuncToExecPtr.store(&funcToExec, std::memory_order_release);
+        {
+            // Share the idle-wait mutex so publication cannot lose a wakeup.
+            std::unique_lock<std::mutex> workerLock(workerMutex);
+            hasFuncToExecPtr.store(&funcToExec, std::memory_order_release);
+        }
 
         wakeUpCe();
         // Ce could be set but the worker still on the idleWait
         workerConditionVariable.notify_one();
         
-        while(hasFuncToExecPtr.load(std::memory_order_relaxed)){
+        while(hasFuncToExecPtr.load(std::memory_order_acquire)){
             usleep(100);
         }
     }

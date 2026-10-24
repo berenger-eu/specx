@@ -503,7 +503,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
                     for(int idxGroup1 = 0 ; idxGroup1 < int(particleGroups.size()) ; ++idxGroup1){
                         auto& group1 = particleGroups[idxGroup1];
                         const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group1.getNbParticles()).getPriority();
-                        #pragma omp task depend(mutexinout:group1) firstprivate(group1) priority(priority) default(none)
+                        #pragma omp task depend(mutexinoutset:group1) firstprivate(group1) priority(priority) default(none)
                         {
                             if(isCpuWorker){
                                 group1.computeSelf();
@@ -528,7 +528,7 @@ auto BenchCore( const int NbLoops, const int MinPartsPerGroup, const int MaxPart
 
                         const int priority = GetPriority<MaxNbDevices,FavorLocality>(false, maxInteractions, minInteractions, group1.getNbParticles()*group2.getNbParticles()).getPriority();
 
-                        #pragma omp task depend(mutexinout:group1, group2) firstprivate(group1, group2) priority(priority) default(none)
+                        #pragma omp task depend(mutexinoutset:group1, group2) firstprivate(group1, group2) priority(priority) default(none)
                         {
                             if(isCpuWorker){
                                 group1.compute(group2);

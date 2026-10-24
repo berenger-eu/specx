@@ -52,8 +52,51 @@ class ConsumerThread : public UTester< ConsumerThread > {
         UASSERTEEQUAL(i, 6);
     }
 
+    void TestStopAndDrain(){
+        SpConsumerThread cs;
+        int count = 0;
+        for(int idx = 0; idx < 100; ++idx) {
+            cs.submitJob([&]() { ++count; });
+        }
+        cs.stop();
+        cs.stop();
+        UASSERTEEQUAL(count, 100);
+        bool rejected = false;
+        try {
+            cs.submitJob([]() {});
+        } catch(const std::runtime_error&) {
+            rejected = true;
+        }
+        UASSERTETRUE(rejected);
+        rejected = false;
+        try {
+            cs.submitJobAndWait([]() {});
+        } catch(const std::runtime_error&) {
+            rejected = true;
+        }
+        UASSERTETRUE(rejected);
+    }
+
+    void TestExceptionAndNestedSubmission(){
+        SpConsumerThread cs;
+        bool caught = false;
+        try {
+            cs.submitJobAndWait([]() { throw std::logic_error("job failed"); });
+        } catch(const std::logic_error&) {
+            caught = true;
+        }
+        UASSERTETRUE(caught);
+        int value = 0;
+        cs.submitJobAndWait([&]() {
+            cs.submitJobAndWait([&]() { value = 42; });
+        });
+        UASSERTEEQUAL(value, 42);
+    }
+
     void SetTests() {
         Parent::AddTest(&ConsumerThread::Test, "ConsumerThread");
+        Parent::AddTest(&ConsumerThread::TestStopAndDrain, "Stop drains jobs and rejects further submissions");
+        Parent::AddTest(&ConsumerThread::TestExceptionAndNestedSubmission, "Synchronous exceptions and nested submissions");
     }
 };
 
